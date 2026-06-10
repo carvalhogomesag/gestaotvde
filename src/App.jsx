@@ -1,3 +1,4 @@
+import { useEffect } from 'react'; // Adicionado useEffect
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Sidebar from './components/layout/Sidebar';
@@ -13,8 +14,11 @@ import LogsSistema from './pages/LogsSistema';
 import GestaoUtilizadores from './pages/GestaoUtilizadores';
 import FechoSemanal from './pages/FechoSemanal';
 import Login from './pages/Login';
-import LandingPage from './pages/LandingPage'; // Importação do novo site público
-import GestaoLeads from './pages/GestaoLeads'; // Importação do novo painel de CRM
+import LandingPage from './pages/LandingPage'; 
+import GestaoLeads from './pages/GestaoLeads'; 
+
+// Importação do Google Analytics
+import ReactGA from 'react-ga4';
 
 // PÁGINAS DE IA E ONBOARDING
 import CentroComando from './pages/CentroComando';
@@ -22,6 +26,13 @@ import OnboardingMotorista from './pages/OnboardingMotorista';
 
 // ⚠️ TEMPORÁRIO — Remover após executar a migração de cartões
 import MigracaoCartoes from './pages/MigracaoCartoes';
+
+// Inicialização do Google Analytics (Segura contra ausência de chave em ambiente local)
+const GA_MEASUREMENT_ID = import.meta.env.VITE_GA_MEASUREMENT_ID;
+if (GA_MEASUREMENT_ID) {
+  ReactGA.initialize(GA_MEASUREMENT_ID);
+  console.log("[App] Google Analytics 4 inicializado com sucesso.");
+}
 
 /**
  * PrivateRoute: Proteção para qualquer utilizador autenticado.
@@ -38,13 +49,21 @@ const AdminRoute = ({ children }) => {
   const { user, userData, loading } = useAuth();
   if (loading) return null;
   if (!user) return <Navigate to="/login" />;
-  if (userData?.role !== 'admin') return <Navigate to="/dashboard" />; // Redirecionamento seguro para o dashboard interno
+  if (userData?.role !== 'admin') return <Navigate to="/dashboard" />; 
   return children;
 };
 
 function AppContent() {
   const { user } = useAuth();
   const location = useLocation();
+
+  // Enviar pageviews automaticamente para o GA4 sempre que a rota mudar
+  useEffect(() => {
+    if (GA_MEASUREMENT_ID) {
+      ReactGA.send({ hitType: "pageview", page: location.pathname });
+      console.log(`[GA4] Pageview registado para: ${location.pathname}`);
+    }
+  }, [location]);
 
   // Mapeamento de rotas públicas para isolamento do layout administrativo do ERP
   const isPublicPath = 
@@ -75,7 +94,7 @@ function AppContent() {
             {/* ROTAS PROTEGIDAS DA ÁREA DE CLIENTES/ERP */}
             <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
             <Route path="/motoristas" element={<PrivateRoute><Motoristas /></PrivateRoute>} />
-            <Route path="/leads" element={<PrivateRoute><GestaoLeads /></PrivateRoute>} /> {/* Nova rota do CRM registada */}
+            <Route path="/leads" element={<PrivateRoute><GestaoLeads /></PrivateRoute>} />
             <Route path="/veiculos" element={<PrivateRoute><Veiculos /></PrivateRoute>} />
             <Route path="/proprietarios" element={<PrivateRoute><Proprietarios /></PrivateRoute>} />
             <Route path="/tarefas" element={<PrivateRoute><MinhasTarefas /></PrivateRoute>} />
