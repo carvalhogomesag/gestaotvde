@@ -1,0 +1,52 @@
+const tools = [
+  {
+    functionDeclarations: [
+      {
+        name: "criarTarefa",
+        description: "Cria uma nova tarefa/ticket no sistema atribuída a um funcionário.",
+        parameters: {
+          type: "object",
+          properties: {
+            atribuidoA:  { type: "string", description: "Nome do funcionário destinatário." },
+            nota:        { type: "string", description: "Descrição clara da tarefa." },
+            prioridade:  { type: "string", enum: ["baixa", "media", "alta"] },
+            entidadeId:  { type: "string", description: "ID do Firestore do motorista ou veículo. Extrai do contexto." },
+            vinculoNome: { type: "string", description: "Nome ou matrícula para exibição." }
+          },
+          required: ["atribuidoA", "nota", "prioridade"]
+        }
+      },
+      {
+        name: "lancarAjusteFinanceiro",
+        description: "Lança um novo débito ou crédito na conta corrente de um motorista ou veículo. USA SEMPRE o entidadeId do Firestore — nunca o nome ou matrícula.",
+        parameters: {
+          type: "object",
+          properties: {
+            entidadeId:   { type: "string", description: "ID EXACTO do Firestore. Está listado no contexto ao lado de cada matrícula/nome." },
+            tipoEntidade: { type: "string", enum: ["motorista", "veiculo"] },
+            tipo:         { type: "string", enum: ["debito", "credito"] },
+            valor:        { type: "number", description: "Valor em euros." },
+            descricao:    { type: "string", description: "Motivo do lançamento." },
+            data:         { type: "string", description: "Data no formato AAAA-MM-DD. Se não indicada, usa hoje." }
+          },
+          required: ["entidadeId", "tipoEntidade", "tipo", "valor", "descricao"]
+        }
+      },
+      {
+        name: "editarAjusteFinanceiro",
+        description: "Edita um lançamento financeiro existente.",
+        parameters: {
+          type: "object",
+          properties: {
+            entidadeId:        { type: "string", description: "ID do Firestore da entidade." },
+            descricaoOriginal: { type: "string", description: "Descrição actual do lançamento." },
+            novaData:          { type: "string", description: "Nova data (AAAA-MM-DD)." },
+            novoValor:         { type: "number", description: "Novo valor." },
+            novaDescricao:     { type: "string", description: "Nova descrição." }
+          },
+          required: ["entidadeId", "descricaoOriginal"]
+        }
+      }
+    ]
+  }
+];

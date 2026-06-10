@@ -1,0 +1,340 @@
+/**
+ * pdfGenerator.js
+ * Localização: src/utils/pdfGenerator.js
+ *
+ * Gerador de PDF profissional em tamanho A4 (folha única) utilizando jsPDF.
+ * Suporta a geração de extratos para Motoristas, Veículos e Proprietários com dados fictícios.
+ */
+
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
+import { formatDatePT, formatCurrency } from './formatters';
+
+/**
+ * Função Unificada e Principal para Geração de Extratos (A4 Folha Única)
+ * 
+ * @param {Object} dados - Estrutura agregada do extrato (retornada por obterDadosExtratoEntidade)
+ * @param {Object} empresa - Informações do Operador/Empresa parceira (Fictícia)
+ * @param {Object} entidadeInfo - Metadados da entidade (nome, NIF, IBAN)
+ * @returns {jsPDF}
+ */
+export const generateStatementPDF = (dados, empresa, entidadeInfo) => {
+  try {
+    console.log("[pdfGenerator] A iniciar desenho vetorial do extrato unificado...");
+
+    const doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4'
+    });
+
+    const margin = 15;
+    const azulEscuro = '#1e293b';
+    const cinzaClaro = '#f1f5f9';
+    const cinzaTexto = '#475569';
+    const preto = '#0f172a';
+
+    // --- CABEÇALHO ESQUERDO ---
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(13);
+    doc.setTextColor(azulEscuro);
+    
+    let tituloPrincipal = 'Extrato de serviços prestados: Viatura';
+    if (dados.tipoEntidade === 'motorista') tituloPrincipal = 'Extrato de serviços prestados: Viatura Própria';
+    if (dados.tipoEntidade === 'proprietario') tituloPrincipal = 'Extrato consolidado: Parceiro Operador';
+    
+    doc.text(tituloPrincipal, margin, 18);
+
+    doc.setFont('Helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(cinzaTexto);
+    
+    const labelNome = dados.tipoEntidade === 'veiculo' ? 'Viatura' : 'Motorista';
+    doc.text(`${labelNome}: ${entidadeInfo?.nome || '---'}`, margin, 24);
+    doc.text(`NIF: ${entidadeInfo?.nif || '---'}`, margin, 29);
+    doc.text(`IBAN: ${entidadeInfo?.iban || '---'}`, margin, 34);
+    
+    doc.setFont('Helvetica', 'bold');
+    doc.setTextColor(preto);
+    
+    const dataInicioStr = dados?.periodo?.inicio ? formatDatePT(new Date(dados.periodo.inicio)) : '---';
+    const dataFimStr = dados?.periodo?.fim ? formatDatePT(new Date(dados.periodo.fim)) : '---';
+    doc.text(`Período de ${dataInicioStr} a ${dataFimStr}`, margin, 41);
+
+    // --- CABEÇALHO DIREITO (Identidade Fictícia: Gestão TVDE) ---
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(21);
+    doc.setTextColor(preto);
+    doc.text('Gestão', 132, 19);
+    doc.setTextColor('#3b82f6'); // Azul TVDE corporativo
+    doc.text('TVDE', 159, 19);
+
+    doc.setFont('Helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(cinzaTexto);
+    doc.text(empresa?.endereco || 'Avenida da Liberdade 100, 1250-145 Lisboa', 132, 24);
+    doc.text(`NIF: ${empresa?.nif || '500123456'} | IBAN: ${empresa?.iban || 'PT50002312345678901234567'}`, 132, 28);
+    doc.text(empresa?.contacto || 'geral@gestaotvde.pt - www.gestaotvde.pt', 132, 32);
+
+    doc.setDrawColor('#e2e8f0');
+    doc.setLineWidth(0.4);
+    doc.line(margin, 45, 195, 45);
+
+    // --- TABELA PRINCIPAL DE MOVIMENTOS ---
+    doc.setFillColor(cinzaClaro);
+    doc.rect(margin, 50, 180, 7, 'F');
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(9);
+    doc.setTextColor(azulEscuro);
+    doc.text('Resultado do período', margin + 3, 54.5);
+
+    const linhasFinanceiras = [
+      { label: 'Total de recebimentos líquido (Plataformas)', valor: dados.totalRecebimentosLiquido, sinal: '' },
+      { label: 'Créditos / Ajustes Manuais (+)', valor: dados.creditosGerais, sinal: '' },
+      { label: 'Total de impostos a descontar (-)', valor: dados.totalImpostos, sinal: '-' },
+      { label: 'Aluguer (-)', valor: dados.aluguer, sinal: '-' },
+      { label: 'Gestão (-)', valor: dados.taxaGestao, sinal: '-' },
+      { label: 'Seguro (-)', valor: dados.seguro, sinal: '-' },
+      { label: 'Combustível (-)', valor: dados.combustivel, sinal: '-' },
+      { label: 'Portagens / Via Verde (-)', valor: dados.portagens, sinal: '-' },
+      { label: 'Oficina / Manutenção (-)', valor: dados.oficina, sinal: '-' },
+      { label: 'Caução (-)', valor: dados.valorCaucaoAplicado ?? 0, sinal: '-' },
+      { label: 'Outros Débitos / Ajustes (-)', valor: dados.debitosGerais, sinal: '-' }
+    ];
+
+    let currentY = 62;
+    doc.setFont('Helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(preto);
+
+    linhasFinanceiras.forEach((linha) => {
+      doc.text(linha.label, margin + 3, currentY);
+      const montanteFormatado = `${linha.sinal ? `${linha.sinal} ` : ''}${formatCurrency(linha.valor)}`;
+      doc.text(montanteFormatado, 192, currentY, { align: 'right' });
+
+      doc.setDrawColor('#f8fafc');
+      doc.line(margin, currentY + 2, 195, currentY + 2);
+      currentY += 6.3;
+    });
+
+    // --- CÁLCULO DAS SOMAS CONSOLIDADAS ---
+    const totalCreditos = dados.totalRecebimentosLiquido + dados.creditosGerais;
+    const totalDebitos = 
+      dados.totalImpostos + 
+      dados.aluguer + 
+      dados.taxaGestao + 
+      dados.seguro + 
+      dados.combustivel + 
+      dados.portagens + 
+      dados.oficina + 
+      (dados.valorCaucaoAplicado ?? 0) + 
+      dados.debitosGerais;
+
+    const resultadoSemana = Number((totalCreditos - totalDebitos).toFixed(2));
+
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(9);
+    
+    // Subtotal de Créditos
+    doc.text('Total de Créditos (Rendimentos + Ajustes)', margin + 3, currentY + 1);
+    doc.text(formatCurrency(totalCreditos), 192, currentY + 1, { align: 'right' });
+    currentY += 6.3;
+
+    // Subtotal de Débitos Totais
+    doc.setTextColor('#3b82f6'); // Destaque visual azul corporativo para os débitos totais
+    doc.text('Débitos Totais (Soma de despesas e retenções) (-)', margin + 3, currentY + 1);
+    doc.text(`- ${formatCurrency(totalDebitos)}`, 192, currentY + 1, { align: 'right' });
+    doc.setTextColor(preto);
+    currentY += 6.3;
+
+    doc.setDrawColor('#cbd5e1');
+    doc.line(margin, currentY, 195, currentY);
+    currentY += 5;
+    
+    doc.setFont('Helvetica', 'bold');
+    doc.text('Resultado da Semana', margin + 3, currentY);
+    doc.text(formatCurrency(resultadoSemana), 192, currentY, { align: 'right' });
+
+    currentY += 5;
+    doc.setFillColor(cinzaClaro);
+    doc.rect(margin, currentY, 180, 7, 'F');
+    doc.text('Saldo acumulado', margin + 3, currentY + 4.5);
+    doc.text(formatCurrency(0), 192, currentY + 4.5, { align: 'right' });
+
+    // --- SECÇÃO DE CAUÇÃO (Layout Polido com Linha Divisória e Alinhamento) ---
+    currentY += 14;
+    if (dados.dadosCaucao) {
+      const cau = dados.dadosCaucao;
+      doc.setDrawColor('#cbd5e1');
+      doc.setLineWidth(0.3);
+      doc.setFillColor('#f8fafc');
+      doc.rect(margin, currentY, 180, 26, 'FD');
+
+      // Título Esquerdo (Sintetizado para evitar sobreposição)
+      doc.setFont('Helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(azulEscuro);
+      doc.text('ESTADO DA CAUÇÃO (DEPÓSITO)', margin + 4, currentY + 5.5);
+
+      doc.setFont('Helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(cinzaTexto);
+      
+      doc.text(`Valor Total Contratado: ${formatCurrency(cau.valorTotal)}`, margin + 4, currentY + 12);
+      doc.text(`Total Amortizado até à data: ${formatCurrency(cau.valorPago)}`, margin + 4, currentY + 17);
+      const emFalta = Number((cau.valorTotal - cau.valorPago).toFixed(2));
+      doc.text(`Valor Restante: ${formatCurrency(emFalta > 0 ? emFalta : 0)}`, margin + 4, currentY + 22);
+
+      // --- LINHA DIVISÓRIA VERTICAL DO SUBEXTRATO ---
+      doc.setDrawColor('#cbd5e1');
+      doc.setLineWidth(0.2);
+      doc.line(margin + 90, currentY + 2, margin + 90, currentY + 24);
+
+      // Título Direito
+      doc.setFont('Helvetica', 'bold');
+      doc.setFontSize(8.5);
+      doc.setTextColor(azulEscuro);
+      doc.text('HISTÓRICO & PREVISÕES', margin + 94, currentY + 5.5);
+
+      // Compilação de lançamentos cronológicos e previsões
+      const subextratoItens = [];
+      
+      // Lançamentos amortizados de garantia
+      if (dados.historicoMovimentosCaucao && dados.historicoMovimentosCaucao.length > 0) {
+        const ordenados = [...dados.historicoMovimentosCaucao].sort((a, b) => b.dataLancamento.localeCompare(a.dataLancamento));
+        ordenados.slice(0, 2).forEach(mov => {
+          subextratoItens.push({
+            data: formatDatePT(new Date(mov.dataLancamento)),
+            label: mov.descricao.length > 25 ? mov.descricao.substring(0, 23) + '...' : mov.descricao,
+            valor: mov.valor,
+            tipo: 'credito'
+          });
+        });
+      }
+
+      // Previsões de parcelamento pendentes
+      if (cau.planeamento && cau.planeamento.length > 0) {
+        const pendentes = cau.planeamento.filter(p => p.status === 'pendente');
+        pendentes.slice(0, 2).forEach(p => {
+          subextratoItens.push({
+            data: formatDatePT(new Date(p.dataPrevista)),
+            label: `Previsão: Parcela #${p.numeroParcela}`,
+            valor: p.valor,
+            tipo: 'pendente'
+          });
+        });
+      }
+
+      // Desenho Tabular Alinhado do Subextrato Direito
+      doc.setFont('Helvetica', 'normal');
+      doc.setFontSize(7.2);
+      let subextratoY = currentY + 11;
+
+      subextratoItens.slice(0, 3).forEach(item => {
+        doc.setTextColor(cinzaTexto);
+        // Data na Esquerda da coluna 2
+        doc.text(item.data, margin + 94, subextratoY);
+        // Descrição cortada para evitar transbordo
+        doc.text(item.label, margin + 114, subextratoY);
+
+        // Montante na Direita
+        const sinal = item.tipo === 'credito' ? '+' : '-';
+        if (item.tipo === 'credito') {
+          doc.setTextColor('#10b981'); // Verde esmeralda para créditos amortizados
+        } else {
+          doc.setTextColor('#3b82f6'); // Azul TVDE para as próximas previsões
+        }
+        doc.setFont('Helvetica', 'bold');
+        doc.text(`${sinal}${formatCurrency(item.valor)}`, 191, subextratoY, { align: 'right' });
+        doc.setFont('Helvetica', 'normal');
+        subextratoY += 4.8;
+      });
+    }
+
+    // --- PLATAFORMAS ---
+    currentY += 32;
+    const colWidth = 57;
+    const colGutter = 4.5;
+    const plataformasArray = ['UBER', 'BOLT', 'TRANSFER'];
+
+    plataformasArray.forEach((plat, idx) => {
+      const xPos = margin + idx * (colWidth + colGutter);
+
+      doc.setFillColor(cinzaClaro);
+      doc.rect(xPos, currentY, colWidth, 6, 'F');
+      doc.setFont('Helvetica', 'bold');
+      doc.setFontSize(8);
+      doc.setTextColor(azulEscuro);
+      doc.text(`Rendimentos ${plat}`, xPos + (colWidth / 2), currentY + 4, { align: 'center' });
+
+      doc.setDrawColor('#e2e8f0');
+      doc.rect(xPos, currentY + 6, colWidth, 18, 'D');
+
+      doc.setFont('Helvetica', 'normal');
+      doc.setFontSize(7.5);
+      doc.setTextColor(preto);
+
+      const dadosPlat = dados.plataformas[plat] || { bruto: 0, liquido: 0, impostos: 0 };
+
+      doc.text('Bruto', xPos + 3, currentY + 10.5);
+      doc.text(formatCurrency(dadosPlat.bruto), xPos + colWidth - 3, currentY + 10.5, { align: 'right' });
+
+      doc.text('Líquido', xPos + 3, currentY + 15.5);
+      doc.text(formatCurrency(dadosPlat.liquido), xPos + colWidth - 3, currentY + 15.5, { align: 'right' });
+
+      doc.text('Impostos', xPos + 3, currentY + 20.5);
+      doc.text(formatCurrency(dadosPlat.impostos), xPos + colWidth - 3, currentY + 20.5, { align: 'right' });
+    });
+
+    doc.setFont('Helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(150);
+    const rodapeTexto = 'Este documento serve como extrato semanal informativo de prestação de serviços e acertos de contas.';
+    doc.text(rodapeTexto, margin, 285);
+
+    // --- DOWNLOAD SEGURO ---
+    const nomeLimpo = (entidadeInfo?.nome || 'Extrato').replace(/\s+/g, '_');
+    const dataInicioFicheiro = dados?.periodo?.inicio || 'Periodo';
+    const nomeFicheiro = `Extrato_${nomeLimpo}_${dataInicioFicheiro}.pdf`;
+
+    console.log(`[pdfGenerator] A tentar guardar o ficheiro fictício: ${nomeFicheiro}`);
+    doc.save(nomeFicheiro);
+    console.log("[pdfGenerator] Processo concluído.");
+
+  } catch (err) {
+    console.error("[pdfGenerator] Erro fatal durante a construção do PDF:", err);
+    throw err;
+  }
+};
+
+export const generateDriverPDF = (dados, empresa) => {
+  const { ...entidadeInfo } = {
+    nome: dados.nomeMotorista,
+    nif: dados.nif || '---',
+    iban: dados.iban || '---'
+  };
+
+  const modelacaoDados = {
+    periodo: dados.periodo || { inicio: new Date().toISOString(), fim: new Date().toISOString() },
+    tipoEntidade: 'motorista',
+    totalRecebimentosLiquido: Number(dados.uber.liquido + dados.bolt.liquido),
+    totalImpostos: Number(dados.uber.impostos + dados.bolt.impostos),
+    aluguer: Number(dados.despesas.aluguer ?? 0),
+    taxaGestao: Number(dados.despesas.gestao ?? 0),
+    seguro: Number(dados.despesas.seguro ?? 0),
+    combustivel: Number(dados.despesas.combustivel ?? 0),
+    portagens: Number(dados.despesas.viaVerde ?? 0),
+    oficina: Number(dados.despesas.oficina ?? 0),
+    debitosGerais: Number(dados.despesas.debitosGerais ?? 0),
+    creditosGerais: Number(dados.creditosGerais ?? 0),
+    valorCaucaoAplicado: Number(dados.despesas.caucao ?? 0),
+    dadosCaucao: dados.dadosCaucao || null,
+    plataformas: {
+      UBER: { bruto: dados.uber.bruto, liquido: dados.uber.liquido, impostos: dados.uber.impostos },
+      BOLT: { bruto: dados.bolt.bruto, liquido: dados.bolt.liquido, impostos: dados.bolt.impostos },
+      TRANSFER: { bruto: 0, liquido: 0, impostos: 0 }
+    }
+  };
+
+  return generateStatementPDF(modelacaoDados, empresa, entidadeInfo);
+};

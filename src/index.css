@@ -1,0 +1,16 @@
+@import "tailwindcss";
+
+@theme {
+  --color-tvde-dark: #0f172a;
+  --color-tvde-primary: #3b82f6;
+  --color-tvde-secondary: #64748b;
+  --color-tvde-accent: #10b981;
+  --color-tvde-danger: #ef4444;
+  --color-tvde-bg: #f8fafc;
+}
+
+@layer base {
+  body {
+    @apply bg-[var(--color-tvde-bg)] text-[var(--color-tvde-dark)] antialiased font-sans;
+  }
+}
