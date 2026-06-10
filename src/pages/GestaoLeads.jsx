@@ -3,15 +3,15 @@
  * Localização: src/pages/GestaoLeads.jsx
  *
  * Painel de CRM para gestão em tempo real das leads públicas captadas na Landing Page.
- * Permite filtrar por origem, alterar estados de funil, registar notas internas,
- * agendar ações futuras personalizadas por texto manual com calendário e converter leads.
+ * Apresenta funil de estados, notas internas, diário de triagem e uma Agenda Diária consolidada,
+ * agrupando todas as ações futuras em atraso, para hoje e planeadas de forma a definir prioridades de contacto.
  */
 
 import React, { useState, useEffect } from 'react';
 import { 
   UserCheck, PhoneCall, Trash2, CheckCircle2, XCircle, 
   Clock, FileText, Loader2, ArrowRight, UserPlus, Filter, Tag, 
-  MessageSquare, CalendarDays, CalendarCheck
+  MessageSquare, CalendarDays, CalendarCheck, AlertTriangle
 } from 'lucide-react';
 import { db } from '../firebase'; 
 import { useAuth } from '../context/AuthContext';
@@ -24,6 +24,9 @@ import { logAcaoGlobal } from '../utils/logger';
 
 export default function GestaoLeads() {
   const { userData } = useAuth();
+
+  // ─── ESTADOS DE VISTA ( CRM vs AGENDA DIÁRIA ) ─────────────────────────────
+  const [vistaAtiva, setVistaAtiva] = useState('pipeline'); // 'pipeline' | 'agenda'
 
   // ─── ESTADOS DE DADOS ─────────────────────────────────────────────────────
   const [leads, setLeads] = useState([]);
@@ -40,6 +43,9 @@ export default function GestaoLeads() {
   // Filtros de pesquisa
   const [filtroEstado, setFaqFiltroEstado] = useState("todos"); // 'todos', 'novo', 'contacto_iniciado', 'convertido', 'perdido'
   const [filtroOrigem, setFaqFiltroOrigem] = useState("todos"); // 'todos', 'isca_ebook', 'procura_viatura'
+
+  // Obter data de hoje no formato ISO YYYY-MM-DD para o fuso horário português
+  const hojeStr = new Date().toLocaleDateString('pt-PT', { year: 'numeric', month: '2-digit', day: '2-digit' }).split('/').reverse().join('-');
 
   // ─── SUBSCRICAÇÃO EM TEMPO REAL (FIRESTORE) ───────────────────────────────
   useEffect(() => {
@@ -63,6 +69,35 @@ export default function GestaoLeads() {
 
     return () => unsubscribe();
   }, [leadSelecionada?.id]);
+
+  // ─── COMPILAÇÃO E CONSOLIDAÇÃO DE TAREFAS TOTAIS (AGENDA CRM) ─────────────
+  
+  const obterTodasAcoesPendentes = () => {
+    const acoes = [];
+    leads.forEach(lead => {
+      (lead.agendaAcoes || []).forEach(act => {
+        if (act.status === 'pendente') {
+          acoes.push({
+            ...act,
+            leadId: lead.id,
+            leadNome: lead.nome,
+            leadTelemovel: lead.telemovel,
+            leadEmail: lead.email,
+            leadOrigem: lead.origem
+          });
+        }
+      });
+    });
+    // Ordenar por data cronológica (mais antigas/atrasadas primeiro para ação urgente)
+    return acoes.sort((a, b) => a.dataPrevista.localeCompare(b.dataPrevista));
+  };
+
+  const acoesPendentesTotais = obterTodasAcoesPendentes();
+
+  // Dividir as ações consolidadas por nível de prioridade diária
+  const acoesAtrasadas = acoesPendentesTotais.filter(a => a.dataPrevista < hojeStr);
+  const acoesHoje = acoesPendentesTotais.filter(a => a.dataPrevista === hojeStr);
+  const acoesFuturas = acoesPendentesTotais.filter(a => a.dataPrevista > hojeStr);
 
   // ─── AÇÕES DE GESTÃO DO CRM ───────────────────────────────────────────────
 
@@ -116,7 +151,7 @@ export default function GestaoLeads() {
     }
   };
 
-  // 3. Agendar uma Ação Futura (Tarefa/Lembrete com campo manual e Data)
+  // 3. Agendar uma Ação Futura
   const handleAgendarAcaoFutura = async () => {
     if (!novaAcao.descricao.trim() || !novaAcao.data || !leadSelecionada) {
       alert("Por favor, preencha o detalhe da ação manual e escolha uma data futura.");
@@ -130,7 +165,7 @@ export default function GestaoLeads() {
         id: `ACT_${Date.now()}`,
         descricao: novaAcao.descricao.trim(),
         dataPrevista: novaAcao.data,
-        status: 'pendente', // 'pendente', 'concluida'
+        status: 'pendente',
         criadoEm: new Date().toISOString(),
         criadoPor: userData?.nome || 'Gestor'
       };
@@ -139,7 +174,6 @@ export default function GestaoLeads() {
         agendaAcoes: [...acoesAtuais, novaAcaoObj]
       });
 
-      // Repor estado limpo após gravação de sucesso
       setNovaAcao({ descricao: '', data: '' });
       alert("Ação futura agendada com sucesso!");
     } catch (err) {
@@ -151,19 +185,22 @@ export default function GestaoLeads() {
   };
 
   // 4. Marcar Ação Futura como Concluída
-  const handleConcluirAcaoFutura = async (acaoId) => {
-    if (!leadSelecionada) return;
+  const handleConcluirAcaoFutura = async (leadId, acaoId) => {
     setLoadingAcao(true);
 
+    // Encontra o documento da lead associada à ação
+    const leadAlvo = leads.find(l => l.id === leadId);
+    if (!leadAlvo) return;
+
     try {
-      const acoesAtualizadas = (leadSelecionada.agendaAcoes || []).map(act => {
+      const acoesAtualizadas = (leadAlvo.agendaAcoes || []).map(act => {
         if (act.id === acaoId) {
           return { ...act, status: 'concluida', concluidaEm: new Date().toISOString() };
         }
         return act;
       });
 
-      await updateDoc(doc(db, 'leads_captadas', leadSelecionada.id), {
+      await updateDoc(doc(db, 'leads_captadas', leadId), {
         agendaAcoes: acoesAtualizadas
       });
     } catch (err) {
@@ -241,12 +278,10 @@ export default function GestaoLeads() {
     return checkEstado && checkOrigem;
   });
 
-  const hojeStr = new Date().toISOString().split('T')[0];
-
   return (
     <div className="space-y-6 text-slate-800">
       
-      {/* Cabçalho do Painel CRM */}
+      {/* ─── Cabçalho do Painel CRM ────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-2xl font-black tracking-tight text-slate-900">Gestão de Leads (CRM)</h2>
@@ -254,7 +289,7 @@ export default function GestaoLeads() {
         </div>
       </div>
 
-      {/* Filtros Rápidos de Controlo */}
+      {/* ─── Filtros Rápidos de Controlo ────────────────────────────────────── */}
       <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col md:flex-row gap-4 items-center justify-between shadow-xs">
         <div className="flex flex-wrap gap-3 items-center w-full md:w-auto">
           <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
@@ -289,67 +324,204 @@ export default function GestaoLeads() {
         </div>
       </div>
 
-      {/* Grelha Principal Split-Pane */}
+      {/* ─── Grelha Principal Split-Pane ───────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
-        {/* Lado Esquerdo: Lista de Leads */}
-        <div className="lg:col-span-7 bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-xs">
-          {loading ? (
-            <div className="flex flex-col items-center justify-center py-20 text-slate-400">
-              <Loader2 className="animate-spin mb-3" size={24} />
-              <p className="text-xs font-bold">A carregar funil de leads...</p>
-            </div>
-          ) : leadsFiltradas.length === 0 ? (
-            <div className="text-center py-20 text-slate-400 space-y-2">
-              <Tag size={28} className="mx-auto text-slate-300" />
-              <p className="text-xs font-bold">Sem leads localizadas com os filtros ativos.</p>
-            </div>
-          ) : (
-            <div className="divide-y divide-slate-100 max-h-[70vh] overflow-y-auto">
-              {leadsFiltradas.map((lead) => {
-                const selecionada = leadSelecionada?.id === lead.id;
-                return (
-                  <button
-                    key={lead.id}
-                    onClick={() => setLeadSelecionada(lead)}
-                    className={`w-full text-left p-5 flex items-center justify-between gap-4 transition-all hover:bg-slate-50 ${
-                      selecionada ? 'bg-slate-50/80 border-r-4 border-indigo-600' : ''
-                    }`}
-                  >
-                    <div className="space-y-1.5 min-w-0">
-                      <div className="flex items-center gap-2">
-                        <h4 className="font-bold text-slate-900 text-sm truncate max-w-[200px] sm:max-w-[250px]">{lead.nome}</h4>
-                        <span className="text-[9px] font-bold text-slate-400 whitespace-nowrap">
-                          {formatDatePT(new Date(lead.criadoEm))}
+        {/* Lado Esquerdo: Lista de Leads / Agenda Diária por Separador [NOVO] */}
+        <div className="lg:col-span-7 bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-xs p-5 space-y-4">
+          
+          {/* Seletor de Separador da Coluna Esquerda */}
+          <div className="flex gap-1.5 bg-slate-100 p-1 rounded-xl w-fit select-none">
+            <button
+              type="button"
+              onClick={() => setVistaAtiva('pipeline')}
+              className={`px-4 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                vistaAtiva === 'pipeline' 
+                  ? 'bg-white text-indigo-600 shadow-xs' 
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              📇 Lista de Leads ({leadsFiltradas.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setVistaAtiva('agenda')}
+              className={`px-4 py-2 text-xs font-bold rounded-lg transition-all cursor-pointer flex items-center gap-1 ${
+                vistaAtiva === 'agenda' 
+                  ? 'bg-white text-indigo-600 shadow-xs' 
+                  : 'text-slate-500 hover:text-slate-800'
+              }`}
+            >
+              📅 Agenda Diária 
+              {acoesPendentesTotais.length > 0 && (
+                <span className="bg-indigo-600 text-white text-[9px] font-black px-1.5 py-0.5 rounded-full">
+                  {acoesPendentesTotais.length}
+                </span>
+              )}
+            </button>
+          </div>
+
+          {/* VISTA A: LISTAGEM DE LEADS TRADICIONAL */}
+          {vistaAtiva === 'pipeline' && (
+            <div className="divide-y divide-slate-100 max-h-[60vh] overflow-y-auto">
+              {loading ? (
+                <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+                  <Loader2 className="animate-spin mb-3" size={24} />
+                  <p className="text-xs font-bold">A carregar funil de leads...</p>
+                </div>
+              ) : leadsFiltradas.length === 0 ? (
+                <div className="text-center py-20 text-slate-400 space-y-2">
+                  <Tag size={28} className="mx-auto text-slate-300" />
+                  <p className="text-xs font-bold">Sem leads localizadas para os filtros ativos.</p>
+                </div>
+              ) : (
+                leadsFiltradas.map((lead) => {
+                  const selecionada = leadSelecionada?.id === lead.id;
+                  return (
+                    <button
+                      type="button"
+                      key={lead.id}
+                      onClick={() => setLeadSelecionada(lead)}
+                      className={`w-full text-left p-4 sm:p-5 flex items-center justify-between gap-4 transition-all hover:bg-slate-50 border-b border-slate-50 last:border-0 ${
+                        selecionada ? 'bg-slate-50/80 border-r-4 border-indigo-600' : ''
+                      }`}
+                    >
+                      <div className="space-y-1.5 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <h4 className="font-bold text-slate-900 text-sm truncate max-w-[150px] sm:max-w-[200px]">{lead.nome}</h4>
+                          <span className="text-[9px] font-bold text-slate-400 whitespace-nowrap">
+                            {formatDatePT(new Date(lead.criadoEm))}
+                          </span>
+                        </div>
+                        <p className="text-xs text-slate-500 font-medium truncate max-w-[150px] sm:max-w-[250px]">{lead.email}</p>
+                        
+                        <span className={`inline-block text-[9px] font-bold px-2 py-0.5 rounded-lg border ${
+                          lead.origem === 'procura_viatura' 
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-100' 
+                            : 'bg-indigo-50 text-indigo-700 border-indigo-100'
+                        }`}>
+                          {lead.origem === 'procura_viatura' ? '🚗 Aluguer' : '📖 Ebook'}
                         </span>
                       </div>
-                      <p className="text-xs text-slate-500 font-medium truncate max-w-[200px] sm:max-w-[300px]">{lead.email}</p>
-                      
-                      <span className={`inline-block text-[9px] font-bold px-2 py-0.5 rounded-lg border ${
-                        lead.origem === 'procura_viatura' 
-                          ? 'bg-emerald-50 text-emerald-700 border-emerald-100' 
-                          : 'bg-indigo-50 text-indigo-700 border-indigo-100'
-                      }`}>
-                        {lead.origem === 'procura_viatura' ? '🚗 Aluguer' : '📖 Ebook'}
-                      </span>
-                    </div>
 
-                    <span className={`text-[9px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full whitespace-nowrap ${
-                      lead.estado === 'novo' ? 'bg-blue-100 text-blue-700' :
-                      lead.estado === 'contacto_iniciado' ? 'bg-amber-100 text-amber-700' :
-                      lead.estado === 'convertido' ? 'bg-emerald-100 text-emerald-700' :
-                      'bg-red-100 text-red-700'
-                    }`}>
-                      {lead.estado === 'contacto_iniciado' ? '📞 Em contacto' : lead.estado}
-                    </span>
-                  </button>
-                );
-              })}
+                      <span className={`text-[9px] font-black uppercase tracking-wider px-2.5 py-1 rounded-full whitespace-nowrap ${
+                        lead.estado === 'novo' ? 'bg-blue-100 text-blue-700' :
+                        lead.estado === 'contacto_iniciado' ? 'bg-amber-100 text-amber-700' :
+                        lead.estado === 'convertido' ? 'bg-emerald-100 text-emerald-700' :
+                        'bg-red-100 text-red-700'
+                      }`}>
+                        {lead.estado === 'contacto_iniciado' ? '📞 Em contacto' : lead.estado}
+                      </span>
+                    </button>
+                  );
+                })
+              )}
             </div>
           )}
+
+          {/* VISTA B: AGENDA DIÁRIA CONSOLIDADA (AGRUPADA POR DIA E PRIORIDADE) */}
+          {vistaAtiva === 'agenda' && (
+            <div className="space-y-6 max-h-[60vh] overflow-y-auto pr-1">
+              
+              {/* 🔴 BLOCO 1: CONTACTOS EM ATRASO (URGENTE) */}
+              <div className="space-y-2 text-left">
+                <h4 className="text-xs font-black text-red-600 flex items-center gap-1.5 px-1 uppercase tracking-wider">
+                  <AlertTriangle size={14} className="animate-pulse" /> Contactos em Atraso (Urgente)
+                </h4>
+                {acoesAtrasadas.length === 0 ? (
+                  <p className="text-[10px] text-slate-400 font-medium italic pl-3">Nenhum contacto em atraso.</p>
+                ) : (
+                  acoesAtrasadas.map(act => (
+                    <div 
+                      key={act.id}
+                      onClick={() => setLeadSelecionada(leads.find(l => l.id === act.leadId))}
+                      className="flex justify-between items-center p-3 rounded-2xl border border-red-100 bg-red-50/40 hover:bg-red-50 transition-all cursor-pointer shadow-2xs"
+                    >
+                      <div className="min-w-0 pr-2 space-y-0.5">
+                        <p className="text-xs font-bold text-slate-800 truncate">{act.leadNome} — <span className="font-semibold text-slate-500">{act.descricao}</span></p>
+                        <p className="text-[9px] text-red-500 font-black uppercase">Atrasado desde: {formatDatePT(new Date(act.dataPrevista))}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); handleConcluirAcaoFutura(act.leadId, act.id); }}
+                        className="p-1.5 text-red-500 hover:bg-red-100/50 rounded-lg shrink-0 transition-colors"
+                        title="Marcar como Feito"
+                      >
+                        <CalendarCheck size={14} />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* 🔵 BLOCO 2: CONTACTOS PARA HOJE (PRIORITÁRIO) */}
+              <div className="space-y-2 text-left">
+                <h4 className="text-xs font-black text-blue-600 flex items-center gap-1.5 px-1 uppercase tracking-wider">
+                  <Clock size={14} /> Contactos para Hoje (Prioritário)
+                </h4>
+                {acoesHoje.length === 0 ? (
+                  <p className="text-[10px] text-slate-400 font-medium italic pl-3">Nenhuma ação agendada para hoje.</p>
+                ) : (
+                  acoesHoje.map(act => (
+                    <div 
+                      key={act.id}
+                      onClick={() => setLeadSelecionada(leads.find(l => l.id === act.leadId))}
+                      className="flex justify-between items-center p-3 rounded-2xl border border-blue-100 bg-blue-50/30 hover:bg-blue-50 transition-all cursor-pointer shadow-2xs"
+                    >
+                      <div className="min-w-0 pr-2 space-y-0.5">
+                        <p className="text-xs font-bold text-slate-800 truncate">{act.leadNome} — <span className="font-semibold text-slate-500">{act.descricao}</span></p>
+                        <p className="text-[9px] text-blue-500 font-black uppercase">Agendado para Hoje ({formatDatePT(new Date(act.dataPrevista))})</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); handleConcluirAcaoFutura(act.leadId, act.id); }}
+                        className="p-1.5 text-blue-600 hover:bg-blue-100/50 rounded-lg shrink-0 transition-colors"
+                        title="Marcar como Feito"
+                      >
+                        <CalendarCheck size={14} />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+
+              {/* 📅 BLOCO 3: PRÓXIMOS CONTACTOS AGENDADOS (FUTURO) */}
+              <div className="space-y-2 text-left">
+                <h4 className="text-xs font-black text-slate-400 flex items-center gap-1.5 px-1 uppercase tracking-wider">
+                  <CalendarDays size={14} /> Planeamento Futuro
+                </h4>
+                {acoesFuturas.length === 0 ? (
+                  <p className="text-[10px] text-slate-400 font-medium italic pl-3">Sem agendamentos futuros pendentes.</p>
+                ) : (
+                  acoesFuturas.map(act => (
+                    <div 
+                      key={act.id}
+                      onClick={() => setLeadSelecionada(leads.find(l => l.id === act.leadId))}
+                      className="flex justify-between items-center p-3 rounded-2xl border border-slate-100 bg-slate-50/50 hover:bg-slate-100 transition-all cursor-pointer shadow-2xs"
+                    >
+                      <div className="min-w-0 pr-2 space-y-0.5">
+                        <p className="text-xs font-bold text-slate-700 truncate">{act.leadNome} — <span className="font-semibold text-slate-500">{act.descricao}</span></p>
+                        <p className="text-[9px] text-slate-400 font-black uppercase">Agendado para: {formatDatePT(new Date(act.dataPrevista))}</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); handleConcluirAcaoFutura(act.leadId, act.id); }}
+                        className="p-1.5 text-slate-400 hover:bg-slate-200/50 rounded-lg shrink-0 transition-colors"
+                        title="Marcar como Feito"
+                      >
+                        <CalendarCheck size={14} />
+                      </button>
+                    </div>
+                  ))
+                )}
+              </div>
+
+            </div>
+          )}
+
         </div>
 
-        {/* Lado Direito: Detalhe, Ações e Agenda */}
+        {/* Lado Direito: Detalhe, Ações e Agenda individual da Lead */}
         <div className="lg:col-span-5 space-y-6">
           {leadSelecionada ? (
             <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-6 text-left animate-in fade-in duration-200">
@@ -429,13 +601,13 @@ export default function GestaoLeads() {
                 )}
               </div>
 
-              {/* 📅 SECÇÃO DE AGENDA DE AÇÕES FUTURAS (Com campo de texto livre) */}
+              {/* 📅 SECÇÃO DE AGENDA DE AÇÕES FUTURAS INDIVIDUAL DA LEAD */}
               <div className="border-t border-slate-100 pt-4 space-y-3">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
-                  <CalendarDays size={12} /> Agenda de Ações Futuras
+                  <CalendarDays size={12} /> Agenda da Lead Selecionada
                 </span>
 
-                {/* Lista de Ações futuras */}
+                {/* Lista de Ações futuras desta lead */}
                 <div className="space-y-2 max-h-32 overflow-y-auto pr-1">
                   {(!leadSelecionada.agendaAcoes || leadSelecionada.agendaAcoes.length === 0) ? (
                     <p className="text-slate-400 text-[10px] font-medium italic">Sem ações futuras agendadas.</p>
@@ -463,7 +635,7 @@ export default function GestaoLeads() {
                             {!concluida ? (
                               <button
                                 type="button"
-                                onClick={() => handleConcluirAcaoFutura(act.id)}
+                                onClick={() => handleConcluirAcaoFutura(leadSelecionada.id, act.id)}
                                 className="p-1 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-md transition-colors flex-shrink-0"
                                 title="Marcar como Concluída"
                               >
@@ -478,7 +650,7 @@ export default function GestaoLeads() {
                   )}
                 </div>
 
-                {/* Formulário aprimorado: Campo de preenchimento manual da ação futura [ATUALIZADO] */}
+                {/* Formulário rápido para agendar ação futura manual */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-slate-50 border border-slate-100 rounded-xl p-3">
                   <div className="flex flex-col">
                     <span className="text-[8px] font-bold text-slate-400 mb-0.5">Ação (Preenchimento Manual)</span>
