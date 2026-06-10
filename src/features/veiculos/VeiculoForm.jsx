@@ -1,8 +1,16 @@
+/**
+ * VeiculoForm.jsx
+ * Localização: src/features/veiculos/VeiculoForm.jsx
+ *
+ * Formulário de edição e criação de viaturas.
+ * Atualizado com suporte a carregamento de fotografia do veículo, tarifa semanal e região.
+ */
+
 import React, { useState, useEffect } from 'react';
 import { 
   CreditCard, Car, Users, FileText, Eye, Trash2, 
   CheckCircle2, AlertCircle, Calendar, ShieldCheck, ClipboardCheck, History,
-  Wallet, Plus, Euro, ChevronDown, ChevronUp
+  Wallet, Plus, Euro, ChevronDown, ChevronUp, Image, MapPin
 } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import FileUpload from '../../components/ui/FileUpload';
@@ -35,10 +43,24 @@ export default function VeiculoForm({
 }) {
   const { userData } = useAuth();
   const [formData, setFormData] = useState({
-    marca: initialData.marca || '', modelo: initialData.modelo || '', matricula: initialData.matricula || '', ano: initialData.ano || '',
-    proprietarioId: initialData.proprietarioId || '', proprietarioNome: initialData.proprietarioNome || '', motoristaId: initialData.motoristaId || '',
-    motoristaNome: initialData.motoristaNome || '', docDUA: initialData.docDUA || '', docSeguro: initialData.docSeguro || '',
-    docIPO: initialData.docIPO || '', validadeDUA: initialData.validadeDUA || '', validadeSeguro: initialData.validadeSeguro || '', validadeIPO: initialData.validadeIPO || ''
+    marca: initialData.marca || '', 
+    modelo: initialData.modelo || '', 
+    matricula: initialData.matricula || '', 
+    ano: initialData.ano || '',
+    proprietarioId: initialData.proprietarioId || '', 
+    proprietarioNome: initialData.proprietarioNome || '', 
+    motoristaId: initialData.motoristaId || '',
+    motoristaNome: initialData.motoristaNome || '', 
+    docDUA: initialData.docDUA || '', 
+    docSeguro: initialData.docSeguro || '',
+    docIPO: initialData.docIPO || '', 
+    validadeDUA: initialData.validadeDUA || '', 
+    validadeSeguro: initialData.validadeSeguro || '', 
+    validadeIPO: initialData.validadeIPO || '',
+    // Novos campos do catálogo público de anúncios
+    fotoUrl: initialData.fotoUrl || '', 
+    precoSemanal: initialData.precoSemanal || '', 
+    cidade: initialData.cidade || 'Lisboa'
   });
 
   const [movimentos, setMovimentos] = useState([]);
@@ -49,7 +71,7 @@ export default function VeiculoForm({
   const [novoMotorista, setNovoMotorista] = useState({ nome: '', nif: '', telemovel: '' });
   const [modalFinanceiroAberto, setModalFinanceiroAberto] = useState(false);
 
-  // CORREÇÃO: Alinhamento com pagoNoFechoId: "" (string vazia)
+  // Sincronização em tempo real da conta corrente pendente
   useEffect(() => {
     if (initialData.id) {
       const q = query(
@@ -64,7 +86,6 @@ export default function VeiculoForm({
     }
   }, [initialData.id]);
 
-  // CORREÇÃO: Alinhamento com pagoNoFechoId: "" (string vazia)
   const handleAddMovimento = async () => {
     if (!novoMovimento.valor || !novoMovimento.descricao) {
       alert("Por favor, preencha o valor e a descrição do lançamento.");
@@ -96,14 +117,42 @@ export default function VeiculoForm({
   };
 
   const handleMatriculaChange = (e) => { const formatted = formatMatricula(e.target.value); setFormData({ ...formData, matricula: formatted }); };
-  const handleRemoveFile = (field) => { if (window.confirm("Deseja remover este documento?")) { setFormData(prev => ({ ...prev, [field]: '' })); } };
+  const handleRemoveFile = (field) => { if (window.confirm("Deseja remover este ficheiro?")) { setFormData(prev => ({ ...prev, [field]: '' })); } };
   const inputClass = `w-full p-2 border border-slate-200 rounded-xl outline-none transition-all ${isReadOnly ? 'bg-slate-50/50 border-transparent font-semibold text-slate-700' : 'bg-white focus:ring-2 focus:ring-tvde-primary/20 hover:border-slate-300'}`;
 
+  // Componente de carregamento e visualização de documentos / fotografia
   const DocumentCard = ({ label, fileUrl, dateField, folder, uploadField }) => (
     <div className={`p-3 rounded-2xl border transition-all ${fileUrl ? 'bg-white border-slate-200 shadow-sm' : 'bg-slate-50 border-dashed border-slate-300'}`}>
-      <div className="flex justify-between items-start mb-2"><div className="flex items-center gap-2">{fileUrl ? <CheckCircle2 size={14} className="text-green-500" /> : <AlertCircle size={14} className="text-slate-300" />}<span className="text-[10px] font-black text-slate-500 uppercase tracking-tight">{label}</span></div>{fileUrl && (<div className="flex gap-1"><a href={fileUrl} target="_blank" rel="noreferrer" className="p-1 bg-blue-50 text-tvde-primary rounded-lg hover:bg-tvde-primary hover:text-white transition-all"><Eye size={12} /></a>{!isReadOnly && (<button type="button" onClick={() => handleRemoveFile(uploadField)} className="p-1 bg-red-50 text-red-500 rounded-lg hover:bg-red-500 hover:text-white transition-all"><Trash2 size={12} /></button>)}</div>)}</div>
+      <div className="flex justify-between items-start mb-2">
+        <div className="flex items-center gap-2">
+          {fileUrl ? <CheckCircle2 size={14} className="text-green-500" /> : <AlertCircle size={14} className="text-slate-300" />}
+          <span className="text-[10px] font-black text-slate-500 uppercase tracking-tight">{label}</span>
+        </div>
+        {fileUrl && (
+          <div className="flex gap-1">
+            <a href={fileUrl} target="_blank" rel="noreferrer" className="p-1 bg-blue-50 text-tvde-primary rounded-lg hover:bg-tvde-primary hover:text-white transition-all">
+              <Eye size={12} />
+            </a>
+            {!isReadOnly && (
+              <button type="button" onClick={() => handleRemoveFile(uploadField)} className="p-1 bg-red-50 text-red-500 rounded-lg hover:bg-red-500 hover:text-white transition-all">
+                <Trash2 size={12} />
+              </button>
+            )}
+          </div>
+        )}
+      </div>
+      
+      {/* Mini-visualização (Thumbnail) se for a fotografia do veículo */}
+      {fileUrl && uploadField === "fotoUrl" && (
+        <div className="my-2 w-full h-24 rounded-xl overflow-hidden border border-slate-100 bg-slate-100 flex items-center justify-center shrink-0">
+          <img src={fileUrl} alt="Viatura" className="w-full h-full object-cover" />
+        </div>
+      )}
+
       <div className="space-y-2">
-        {!isReadOnly && !fileUrl && (<FileUpload label="Carregar" folder={folder} onUploadComplete={(url) => setFormData({...formData, [uploadField]: url})} />)}
+        {!isReadOnly && !fileUrl && (
+          <FileUpload label="Carregar" folder={folder} onUploadComplete={(url) => setFormData({...formData, [uploadField]: url})} />
+        )}
         {dateField && (
           <div className="pt-1 border-t border-slate-100">
             <DatePicker label="Validade" value={formData[dateField]} onChange={(val) => setFormData({...formData, [dateField]: val})} isReadOnly={isReadOnly} />
@@ -133,13 +182,48 @@ export default function VeiculoForm({
 
   return (
     <form onSubmit={handleSubmit} className="space-y-1 max-h-[75vh] overflow-y-auto pr-4 custom-scrollbar">
-      <div className="bg-slate-50 p-5 rounded-[2rem] border border-slate-100 mb-4">
-        <h4 className="text-[11px] font-black text-tvde-primary uppercase tracking-wider flex items-center gap-2 mb-4"><Car size={14} /> Identificação do Veículo</h4>
+      
+      {/* Secção de Identificação com os dados de Anúncio integrados */}
+      <div className="bg-slate-50 p-5 rounded-[2rem] border border-slate-100 mb-4 space-y-4">
+        <h4 className="text-[11px] font-black text-tvde-primary uppercase tracking-wider flex items-center gap-2 mb-2"><Car size={14} /> Identificação do Veículo</h4>
+        
         <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
           <div><label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Matrícula *</label><input required readOnly={isReadOnly} placeholder="AA-00-AA" className={`${inputClass} uppercase font-bold text-center tracking-widest`} value={formData.matricula} onChange={handleMatriculaChange} /></div>
           <div><label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Marca</label><input readOnly={isReadOnly} className={inputClass} value={formData.marca} onChange={(e) => setFormData({...formData, marca: e.target.value})} /></div>
           <div><label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Modelo</label><input readOnly={isReadOnly} className={inputClass} value={formData.modelo} onChange={(e) => setFormData({...formData, modelo: e.target.value})} /></div>
           <div><label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Ano</label><input type="number" readOnly={isReadOnly} className={inputClass} value={formData.ano} onChange={(e) => setFormData({...formData, ano: e.target.value})} /></div>
+        </div>
+
+        {/* Novos Campos do Anúncio do Catálogo público (Preço e Região de Operação) */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-slate-200/50 pt-4">
+          <div>
+            <label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Tarifa Semanal (€)</label>
+            <div className="relative">
+              <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400 text-xs font-bold">€</span>
+              <input 
+                type="number" 
+                placeholder="0.00"
+                readOnly={isReadOnly} 
+                className={`${inputClass} pl-6`} 
+                value={formData.precoSemanal} 
+                onChange={(e) => setFormData({...formData, precoSemanal: e.target.value})} 
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Região de Aluguer</label>
+            <select 
+              disabled={isReadOnly} 
+              className={inputClass} 
+              value={formData.cidade} 
+              onChange={(e) => setFormData({...formData, cidade: e.target.value})}
+            >
+              <option value="Lisboa">Grande Lisboa</option>
+              <option value="Porto">Grande Porto</option>
+              <option value="Braga">Minho / Braga</option>
+              <option value="Algarve">Algarve</option>
+            </select>
+          </div>
         </div>
       </div>
 
@@ -256,11 +340,14 @@ export default function VeiculoForm({
         </CollapsibleSection>
       )}
 
-      <CollapsibleSection title="Documentação e Validades" icon={FileText} iconColor="text-tvde-primary" defaultOpen={false}>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+      {/* Secção de Documentação Atualizada com Campo de Upload de Foto */}
+      <CollapsibleSection title="Documentação e Foto da Viatura" icon={FileText} iconColor="text-tvde-primary" defaultOpen={false}>
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
           <DocumentCard label="DUA" folder="veiculos/dua" uploadField="docDUA" fileUrl={formData.docDUA} />
           <DocumentCard label="Seguro" folder="veiculos/seguros" uploadField="docSeguro" fileUrl={formData.docSeguro} dateField="validadeSeguro" />
           <DocumentCard label="IPO" folder="veiculos/ipo" uploadField="docIPO" fileUrl={formData.docIPO} dateField="validadeIPO" />
+          {/* Novo campo de carregamento de fotografia real para o catálogo público */}
+          <DocumentCard label="Foto da Viatura" folder="veiculos/fotos" uploadField="fotoUrl" fileUrl={formData.fotoUrl} />
         </div>
       </CollapsibleSection>
 
