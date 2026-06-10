@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Car, UserCheck, Users, 
   Settings, LogOut, CreditCard, ChevronDown, ChevronUp,
   Fuel, Zap, ClipboardList, User as UserIcon, Inbox, ShieldAlert, Users2,
-  Sparkles, UserPlus // Importação do ícone de captação de leads
+  Sparkles, UserPlus 
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -87,10 +87,11 @@ export default function Sidebar() {
     }
   }, [isCartoesOpen]);
 
+  // Correção efetuada: Ao efetuar logout, o utilizador é encaminhado de volta para a Landing Page pública
   const handleLogout = async () => {
     if (window.confirm("Deseja realmente sair?")) {
       await logout();
-      navigate('/login');
+      navigate('/'); // Redirecionamento configurado para a rota raiz pública
     }
   };
 
@@ -123,7 +124,7 @@ export default function Sidebar() {
           active={location.pathname === '/tarefas'} 
         />
 
-        {/* ✨ GESTÃO DE LEADS MOVIDO PARA PRIMEIRO NÍVEL (SEMPRE VISÍVEL) [NOVO] */}
+        {/* Gestão de Leads */}
         <MenuItem 
           icon={UserPlus} 
           label="Gestão de Leads" 
