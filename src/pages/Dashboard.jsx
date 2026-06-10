@@ -48,7 +48,7 @@ export default function Dashboard() {
     motoristas: 0,
     veiculos: 0,
     proprietarios: 0,
-    // Novas métricas para o card de Leads
+    // Métricas do card de Leads
     leadsTotais: 0,
     leadsNovas: 0,
     leadsContacto: 0
@@ -63,7 +63,7 @@ export default function Dashboard() {
           getDocs(collection(db, "motoristas")),
           getDocs(collection(db, "veiculos")),
           getDocs(collection(db, "proprietarios")),
-          getDocs(collection(db, "leads_captadas")) // Nova consulta integrada de Leads
+          getDocs(collection(db, "leads_captadas")) // Consulta integrada de Leads
         ]);
 
         // Contabilização de estados do funil de Leads
@@ -83,7 +83,7 @@ export default function Dashboard() {
         let listaAlertas = [];
         const hojeCheck = new Date();
 
-        // 1. Enriquecer alertas de Motoristas com itemId e tipo
+        // 1. Alertas de Motoristas
         motSnap.docs.forEach(doc => {
           const m = doc.data();
           const checks = [
@@ -103,7 +103,7 @@ export default function Dashboard() {
           });
         });
 
-        // 2. Enriquecer alertas de Veículos com itemId e tipo
+        // 2. Alertas de Veículos
         veiSnap.docs.forEach(doc => {
           const v = doc.data();
           const checks = [
@@ -140,7 +140,7 @@ export default function Dashboard() {
     if (semanaVisivel > 1) {
       setSemanaVisivel(semanaVisivel - 1);
     } else {
-      setSemanaVisivel(SEMANA_ATUAL); // Alinhado com fallback de segurança
+      setSemanaVisivel(SEMANA_ATUAL);
       setAnoVisivel(anoVisivel - 1);
     }
   };
@@ -248,26 +248,6 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Área de Boas-vindas Contextual */}
-      <div className="bg-tvde-dark rounded-3xl p-8 text-white relative overflow-hidden shadow-xl">
-        <div className="relative z-10 max-w-md">
-          <h3 className="text-2xl font-bold mb-2">Olá! Pronto para gerir a sua frota?</h3>
-          <p className="text-slate-400 mb-6 leading-relaxed">
-            Está a visualizar a <span className="text-white font-bold">Semana {semanaVisivel} de {anoVisivel}</span>.
-            {isHoje
-              ? ' O sistema está a monitorizar todas as validades em tempo real.'
-              : ` A semana atual de operação é a Semana ${SEMANA_ATUAL}.`}
-          </p>
-          <div className="flex gap-4">
-            <div className="flex items-center gap-2 text-sm font-medium bg-white/10 p-2 px-3 rounded-lg">
-              <TrendingUp size={16} className="text-tvde-accent" />
-              Sistema Online
-            </div>
-          </div>
-        </div>
-        <div className="absolute right-[-50px] bottom-[-50px] w-64 h-64 bg-tvde-primary/20 rounded-full blur-3xl"></div>
-      </div>
-
       {/* Seção Inferior: Três colunas responsivas para monitorização */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         
@@ -328,7 +308,7 @@ export default function Dashboard() {
           </div>
         </div>
 
-        {/* COLUNA 2: FUNIL DE CAPTAÇÃO DE LEADS (CRM) [NOVO] */}
+        {/* COLUNA 2: FUNIL DE CAPTAÇÃO DE LEADS (CRM) */}
         <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between">
           <div className="space-y-4">
             <div className="flex items-center justify-between mb-2">
@@ -341,7 +321,6 @@ export default function Dashboard() {
               </span>
             </div>
 
-            {/* Quadro de Estados Rápidos */}
             <div className="space-y-2.5">
               <div className="flex items-center justify-between p-3 bg-blue-50/60 border border-blue-100/50 rounded-xl">
                 <span className="text-xs font-bold text-slate-700">🆕 Novas Leads</span>
@@ -358,7 +337,6 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Botão de Redirecionamento para o CRM */}
           <button 
             onClick={() => navigate('/leads')}
             className="w-full mt-4 py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer"
