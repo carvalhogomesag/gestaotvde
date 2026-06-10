@@ -2,7 +2,13 @@ import React from 'react';
 import { Edit, Trash2, Car, User, Building2, FileText, ShieldCheck, ClipboardCheck, CreditCard, Eye, AlertCircle } from 'lucide-react';
 import { formatMatricula } from '../../utils/formatters';
 
-export default function VeiculosList({ veiculos, cartoes = [], onEdit, onDelete }) {
+export default function VeiculosList({ 
+  veiculos, 
+  cartoes = [], 
+  onEdit, 
+  onDelete,
+  onToggleAnuncio // Nova prop integrada para alternar anúncios
+}) {
   
   // Função auxiliar para calcular a cor baseada na validade (Seguro e IPO)
   const checkStatusColor = (data) => {
@@ -37,6 +43,7 @@ export default function VeiculosList({ veiculos, cartoes = [], onEdit, onDelete 
             <th className="p-4 font-semibold text-slate-600 text-sm">Motorista / Prop.</th>
             <th className="p-4 font-semibold text-slate-600 text-sm">Cartões (Nº)</th>
             <th className="p-4 font-semibold text-slate-600 text-sm">Documentos</th>
+            <th className="p-4 font-semibold text-slate-600 text-sm text-center">Anúncio</th> {/* Nova coluna de controlo */}
             <th className="p-4 font-semibold text-slate-600 text-sm text-right">Ações</th>
           </tr>
         </thead>
@@ -44,6 +51,7 @@ export default function VeiculosList({ veiculos, cartoes = [], onEdit, onDelete 
           {veiculos.map((v) => {
             const cartoesDoVeiculo = cartoes.filter(c => c.veiculoId === v.id);
             const incomplete = isVehicleIncomplete(v);
+            const anuncioAtivo = v.anuncioAtivo ?? false;
 
             return (
               <tr key={v.id} className="hover:bg-slate-50/50 transition-colors">
@@ -132,6 +140,23 @@ export default function VeiculosList({ veiculos, cartoes = [], onEdit, onDelete 
                       </span>
                     )}
                   </div>
+                </td>
+
+                {/* 🟢 COLUNA DO INTERRUPTOR DE ANÚNCIO DO CATÁLOGO PÚBLICO [NOVO] */}
+                <td className="p-4 text-center">
+                  <button
+                    type="button"
+                    onClick={() => onToggleAnuncio && onToggleAnuncio(v.id, !anuncioAtivo, v.matricula)}
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider transition-all border cursor-pointer select-none ${
+                      anuncioAtivo
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
+                        : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'
+                    }`}
+                    title={anuncioAtivo ? "Pausar anúncio no catálogo público" : "Ativar anúncio no catálogo público"}
+                  >
+                    <span className={`w-1.5 h-1.5 rounded-full ${anuncioAtivo ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`}></span>
+                    {anuncioAtivo ? 'Ativo' : 'Pausado'}
+                  </button>
                 </td>
 
                 <td className="p-4 text-right">

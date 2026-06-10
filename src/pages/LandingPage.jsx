@@ -4,9 +4,10 @@
  *
  * Página inicial pública consolidada (Ficheiro Único Monolítico).
  * Ajustada para fase de pré-lançamento (Aviso "Em Breve", Captação de Leads e Preços com Blur).
+ * Integração reativa com o catálogo público de viaturas.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { 
@@ -17,6 +18,9 @@ import {
 import { db } from '../firebase'; 
 import { registarLeadPública } from '../services/leadService';
 import { formatCurrency } from '../utils/formatters';
+
+// Importação do novo componente do catálogo de frotas
+import VehicleCatalog from '../components/public/VehicleCatalog';
 
 export default function LandingPage() {
   const navigate = useNavigate();
@@ -44,6 +48,27 @@ export default function LandingPage() {
 
   // 4. Acordeão de FAQs
   const [faqAtiva, setFaqAtiva] = useState(null);
+
+  // ─── ESCUTADOR DE SELEÇÃO DE VIATURAS DO CATÁLOGO [NOVO] ────────────────
+  useEffect(() => {
+    const lidarComSelecaoVeiculo = (e) => {
+      const modeloPretendido = e.detail;
+      if (modeloPretendido) {
+        setLeadCarro(prev => ({
+          ...prev,
+          mensagem: `Gostaria de solicitar informações de aluguer para a viatura selecionada no vosso catálogo: ${modeloPretendido}`
+        }));
+      }
+    };
+
+    // Adiciona o escutador de eventos customizado
+    window.addEventListener('selecionarVeiculoCatalogo', lidarComSelecaoVeiculo);
+    
+    // Remove o escutador ao desmontar para evitar fugas de memória
+    return () => {
+      window.removeEventListener('selecionarVeiculoCatalogo', lidarComSelecaoVeiculo);
+    };
+  }, []);
 
   // ─── LISTAGEM DE FAQS ─────────────────────────────────────────────────────
   const listaFaqs = [
@@ -92,7 +117,6 @@ export default function LandingPage() {
         mensagemAdicional: 'Solicitou acesso antecipado ao e-book Guia de Onboarding (Em Breve).'
       });
 
-      // Modificamos a mensagem de sucesso para refletir o acesso antecipado
       if (res.sucesso) {
         res.msg = "Inscrição antecipada realizada com sucesso! O e-book ser-lhe-á enviado diretamente para o email assim que for publicado.";
         setLeadEbook({ nome: '', email: '', telemovel: '' });
@@ -171,6 +195,7 @@ export default function LandingPage() {
           
           <div className="hidden md:flex items-center gap-8 text-sm font-semibold text-slate-600">
             <a href="#servicos" className="hover:text-blue-600 transition-colors">Assessoria</a>
+            <a href="#catalogo" className="hover:text-blue-600 transition-colors">Catálogo de Viaturas</a>
             <a href="#aluguer" className="hover:text-blue-600 transition-colors">Aluguer de Viaturas</a>
             <a href="#faq" className="hover:text-blue-600 transition-colors">Dúvidas Comuns</a>
           </div>
@@ -186,7 +211,7 @@ export default function LandingPage() {
         </div>
       </nav>
 
-      {/* 🚀 FAIXA GLOBAL DE "EM BREVE / PRÉ-LANÇAMENTO" [NOVO] */}
+      {/* 🚀 FAIXA GLOBAL DE "EM BREVE / PRÉ-LANÇAMENTO" */}
       <div className="bg-blue-600 text-white text-center py-2.5 px-4 text-xs font-bold flex items-center justify-center gap-2 shadow-xs shrink-0 select-none">
         <Sparkles size={13} className="animate-pulse" />
         <span>O nosso portal de e-books e assessoria está em fase final de lançamento. Garanta já o seu registo antecipado!</span>
@@ -261,7 +286,6 @@ export default function LandingPage() {
                     <BookOpen size={16} />
                     <span className="text-[10px] font-black uppercase tracking-wider">Acesso Antecipado</span>
                   </div>
-                  {/* Badge de "Em Breve" para o ebook */}
                   <span className="bg-amber-100 text-amber-700 text-[8px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider">
                     Em Breve
                   </span>
@@ -421,7 +445,6 @@ export default function LandingPage() {
             </div>
             <div className="text-left relative">
               <p className="text-xs text-slate-400 font-semibold uppercase">Investimento único</p>
-              {/* Desfocagem do preço para fase de pré-lançamento */}
               <p className="text-2xl font-black text-slate-900 filter blur-[5px] select-none">{formatCurrency(49.00)}</p>
               <span className="text-[10px] font-bold text-blue-600 block mt-1">Preço disponível em breve</span>
             </div>
@@ -446,7 +469,6 @@ export default function LandingPage() {
             </div>
             <div className="text-left relative">
               <p className="text-xs text-slate-400 font-semibold uppercase">Investimento único</p>
-              {/* Desfocagem do preço para fase de pré-lançamento */}
               <p className="text-2xl font-black text-blue-600 filter blur-[5px] select-none">{formatCurrency(149.00)}</p>
               <span className="text-[10px] font-bold text-blue-600 block mt-1">Preço disponível em breve</span>
             </div>
@@ -463,12 +485,11 @@ export default function LandingPage() {
               <ul className="space-y-2 pt-2 text-xs text-slate-600 font-medium">
                 <li className="flex items-center gap-2"><Check className="text-blue-500 shrink-0" size={14} /> Todo o apoio documental e IMT incluído</li>
                 <li className="flex items-center gap-2"><Check className="text-blue-500 shrink-0" size={14} /> Apoio na criação de contas Uber e Bolt</li>
-                <li className="flex items-center gap-2"><Check className="text-blue-500 shrink-0" size={14} /> Instrução prática do funcionamento das aplicações</li>
+                <li className="flex items-center gap-2"><Check className="text-blue-500 shrink-0" size={14} /> Instrução prático do funcionamento das aplicações</li>
               </ul>
             </div>
             <div className="text-left relative">
               <p className="text-xs text-slate-400 font-semibold uppercase">Investimento único</p>
-              {/* Desfocagem do preço para fase de pré-lançamento */}
               <p className="text-2xl font-black text-slate-900 filter blur-[5px] select-none">{formatCurrency(249.00)}</p>
               <span className="text-[10px] font-bold text-blue-600 block mt-1">Preço disponível em breve</span>
             </div>
@@ -477,7 +498,10 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ─── 4. SECÇÃO DE PROCURA DE VIATURAS (MATCHING DE ALUGUER) ───────────── */}
+      {/* ─── 4. CATÁLOGO INTERATIVO DE VIATURAS [NOVO] ──────────────────────── */}
+      <VehicleCatalog />
+
+      {/* ─── 5. SECÇÃO DE PROCURA DE VIATURAS (MATCHING DE ALUGUER) ───────────── */}
       <section id="aluguer" className="bg-slate-900 text-white py-20 px-6">
         <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
           
@@ -584,7 +608,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ─── 5. SECÇÃO DE PERGUNTAS E RESPOSTAS COMUNS (FAQ ACCORDION) ───────── */}
+      {/* ─── 6. SECÇÃO DE PERGUNTAS E RESPOSTAS COMUNS (FAQ ACCORDION) ───────── */}
       <section id="faq" className="py-20 px-6 max-w-4xl mx-auto space-y-12">
         <div className="text-center space-y-2">
           <HelpCircle size={32} className="text-blue-600 mx-auto" />
@@ -625,7 +649,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ─── 6. RODAPÉ INSTITUCIONAL ───────────────────────────────────────── */}
+      {/* ─── 7. RODAPÉ INSTITUCIONAL ───────────────────────────────────────── */}
       <footer className="bg-slate-950 text-slate-400 py-12 px-6 border-t border-slate-900">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6 text-xs text-center md:text-left">
           <div>

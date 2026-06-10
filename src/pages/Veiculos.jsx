@@ -11,6 +11,7 @@ import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { generateNextCode } from '../utils/idGenerator';
 import { logAcaoGlobal } from '../utils/logger';
+import { alternarEstadoAnuncioViatura } from '../services/veiculoService'; // Novo serviço importado
 import { 
   collection, addDoc, getDocs, query, 
   doc, deleteDoc, updateDoc, arrayUnion 
@@ -166,6 +167,33 @@ export default function Veiculos() {
     }
   };
 
+  // Handler transacional para ativar/pausar o anúncio público no catálogo
+  const handleToggleAnuncio = async (veiculoId, novoEstado, matricula) => {
+    try {
+      setLoading(true);
+      const alteradoPor = userData?.nome || 'Utilizador';
+      const resultado = await alternarEstadoAnuncioViatura(
+        db, 
+        veiculoId, 
+        novoEstado, 
+        matricula, 
+        alteradoPor
+      );
+
+      if (resultado.sucesso) {
+        alert(resultado.msg);
+        fetchData(); // Refresca os dados na tabela do ERP em tempo real
+      } else {
+        alert(resultado.msg);
+      }
+    } catch (err) {
+      console.error("Erro ao alternar anúncio da viatura:", err);
+      alert("Não foi possível atualizar o estado do anúncio.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const confirmarSalvamentoComLog = async (motivo) => {
     try {
       setLoading(true);
@@ -299,6 +327,7 @@ export default function Veiculos() {
           cartoes={cartoes}
           onEdit={handleEditClick}
           onDelete={handleDelete} 
+          onToggleAnuncio={handleToggleAnuncio} // Associação do callback integrada
         />
       )}
 
