@@ -48,8 +48,8 @@ export default function Sidebar() {
   const [isRegistrosOpen, setIsRegistrosOpen] = useState(true);
   const [isCartoesOpen, setIsCartoesOpen] = useState(false);
 
-  // Mapeamento que inclui as leads para manter a gaveta aberta de forma reativa
-  const isRegistrosActive = ['/motoristas', '/leads', '/veiculos', '/proprietarios', '/cartoes'].some(path => 
+  // Mapeamento que identifica se algum sub-registo está ativo
+  const isRegistrosActive = ['/motoristas', '/veiculos', '/proprietarios', '/cartoes'].some(path => 
     location.pathname.includes(path)
   );
 
@@ -112,8 +112,8 @@ export default function Sidebar() {
         <MenuItem 
           icon={LayoutDashboard} 
           label="Dashboard" 
-          to="/" 
-          active={location.pathname === '/'} 
+          to="/dashboard" 
+          active={location.pathname === '/dashboard'} 
         />
 
         <MenuItem 
@@ -121,6 +121,14 @@ export default function Sidebar() {
           label="Minhas Tarefas" 
           to="/tarefas" 
           active={location.pathname === '/tarefas'} 
+        />
+
+        {/* ✨ GESTÃO DE LEADS MOVIDO PARA PRIMEIRO NÍVEL (SEMPRE VISÍVEL) [NOVO] */}
+        <MenuItem 
+          icon={UserPlus} 
+          label="Gestão de Leads" 
+          to="/leads" 
+          active={location.pathname === '/leads'} 
         />
 
         {/* Grupo Administração */}
@@ -143,7 +151,6 @@ export default function Sidebar() {
           {isRegistrosOpen && (
             <div className="ml-3 pl-3 border-l border-slate-800/50 space-y-0.5 mt-0.5 animate-in slide-in-from-top-1 duration-200">
               <SubMenuItem icon={UserCheck} label="Motoristas" to="/motoristas" active={location.pathname === '/motoristas'} />
-              <SubMenuItem icon={UserPlus} label="Gestão de Leads" to="/leads" active={location.pathname === '/leads'} /> {/* Novo link adicionado */}
               <SubMenuItem icon={Car} label="Veículos" to="/veiculos" active={location.pathname === '/veiculos'} />
               <SubMenuItem icon={Users} label="Proprietários" to="/proprietarios" active={location.pathname === '/proprietarios'} />
 

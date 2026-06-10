@@ -18,9 +18,10 @@ export default function Login() {
     setLoading(true);
     try {
       await login(email, password);
-      navigate('/');
+      // Correção efetuada: Redireciona o utilizador para o interior do ERP privado
+      navigate('/dashboard'); 
     } catch (err) {
-      setError('Email ou senha incorretos. Verifique os dados e tente novamente.');
+      setError('Email ou palavra-passe incorretos. Verifique os dados e tente novamente.');
     } finally {
       setLoading(false);
     }
