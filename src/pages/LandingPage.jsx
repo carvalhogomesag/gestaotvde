@@ -3,8 +3,7 @@
  * Localização: src/pages/LandingPage.jsx
  *
  * Página inicial pública consolidada (Ficheiro Único Monolítico).
- * Ajustada para fase de pré-lançamento (Aviso "Em Breve", Captação de Leads e Preços com Blur).
- * Integração reativa com o catálogo público de viaturas.
+ * Otimizada com tipografia fluida, espaçamentos responsivos e suporte mobile completo.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -19,7 +18,7 @@ import { db } from '../firebase';
 import { registarLeadPública } from '../services/leadService';
 import { formatCurrency } from '../utils/formatters';
 
-// Importação do novo componente do catálogo de frotas
+// Importação do catálogo público de frotas
 import VehicleCatalog from '../components/public/VehicleCatalog';
 
 export default function LandingPage() {
@@ -49,7 +48,7 @@ export default function LandingPage() {
   // 4. Acordeão de FAQs
   const [faqAtiva, setFaqAtiva] = useState(null);
 
-  // ─── ESCUTADOR DE SELEÇÃO DE VIATURAS DO CATÁLOGO [NOVO] ────────────────
+  // ─── ESCUTADOR DE SELEÇÃO DE VIATURAS DO CATÁLOGO ────────────────────────
   useEffect(() => {
     const lidarComSelecaoVeiculo = (e) => {
       const modeloPretendido = e.detail;
@@ -61,10 +60,7 @@ export default function LandingPage() {
       }
     };
 
-    // Adiciona o escutador de eventos customizado
     window.addEventListener('selecionarVeiculoCatalogo', lidarComSelecaoVeiculo);
-    
-    // Remove o escutador ao desmontar para evitar fugas de memória
     return () => {
       window.removeEventListener('selecionarVeiculoCatalogo', lidarComSelecaoVeiculo);
     };
@@ -99,8 +95,6 @@ export default function LandingPage() {
     }
   ];
 
-  // ─── SUBMISSÃO DOS FORMULÁRIOS ───────────────────────────────────────────
-
   // Submissão do Download de Guia
   const handleSubmeterEbook = async (e) => {
     e.preventDefault();
@@ -108,7 +102,6 @@ export default function LandingPage() {
     setFeedbackEbook(null);
 
     try {
-      console.log("[LandingPage] A iniciar submissão de lead de ebook para acesso antecipado...");
       const res = await registarLeadPública({
         nome: leadEbook.nome,
         email: leadEbook.email,
@@ -137,7 +130,6 @@ export default function LandingPage() {
     setFeedbackCarro(null);
 
     try {
-      console.log("[LandingPage] A iniciar submissão de lead de aluguer de viatura...");
       const res = await registarLeadPública({
         nome: leadCarro.nome,
         email: leadCarro.email,
@@ -169,13 +161,9 @@ export default function LandingPage() {
     setLoadingLogin(true);
     setFeedbackLogin(null);
     try {
-      console.log("[LandingPage] A iniciar tentativa de autenticação direta no Firebase...");
       await login(credenciais.email, credenciais.password);
-      
-      console.log("[LandingPage] Autenticado com sucesso. A redirecionar para o ERP...");
       navigate('/dashboard');
     } catch (err) {
-      console.error("[LandingPage] Erro de login:", err);
       setFeedbackLogin({ tipo: 'erro', texto: 'Credenciais inválidas. Verifique os dados.' });
     } finally {
       setLoadingLogin(false);
@@ -185,14 +173,15 @@ export default function LandingPage() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans scroll-smooth">
       
-      {/* ─── 1. BARRA DE NAVEGAÇÃO SUPERIOR ────────────────────────────────── */}
-      <nav className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-200 px-6 py-4 shadow-xs">
+      {/* ─── 1. BARRA DE NAVEGAÇÃO SUPERIOR RESPONSIVA ────────────────────────── */}
+      <nav className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-200 px-4 sm:px-6 py-4 shadow-xs">
         <div className="max-w-6xl mx-auto flex justify-between items-center">
           <div className="flex items-center gap-2">
             <span className="text-xl font-black text-slate-900">Gestão</span>
             <span className="text-xl font-black text-blue-600">TVDE</span>
           </div>
           
+          {/* Oculto em ecrãs pequenos (Mobile) */}
           <div className="hidden md:flex items-center gap-8 text-sm font-semibold text-slate-600">
             <a href="#servicos" className="hover:text-blue-600 transition-colors">Assessoria</a>
             <a href="#catalogo" className="hover:text-blue-600 transition-colors">Catálogo de Viaturas</a>
@@ -203,7 +192,7 @@ export default function LandingPage() {
           <div>
             <a 
               href="/login" 
-              className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition-all shadow-xs"
+              className="px-3.5 sm:px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition-all shadow-xs"
             >
               Área de Clientes
             </a>
@@ -211,53 +200,53 @@ export default function LandingPage() {
         </div>
       </nav>
 
-      {/* 🚀 FAIXA GLOBAL DE "EM BREVE / PRÉ-LANÇAMENTO" */}
-      <div className="bg-blue-600 text-white text-center py-2.5 px-4 text-xs font-bold flex items-center justify-center gap-2 shadow-xs shrink-0 select-none">
-        <Sparkles size={13} className="animate-pulse" />
-        <span>O nosso portal de e-books e assessoria está em fase final de lançamento. Garanta já o seu registo antecipado!</span>
+      {/* 🚀 FAIXA GLOBAL DE "EM BREVE" RESPONSIVA */}
+      <div className="bg-blue-600 text-white text-center py-2.5 px-4 text-[11px] sm:text-xs font-bold flex items-center justify-center gap-2 shadow-xs shrink-0 select-none">
+        <Sparkles size={12} className="animate-pulse shrink-0" />
+        <span>O nosso portal de e-books e assessoria está em fase final de lançamento. Registe-se hoje!</span>
       </div>
 
-      {/* ─── 2. SECÇÃO HERO (ISCA DIGITAL E LOGIN INCORPORADOS) ──────────────── */}
-      <header className="relative py-16 md:py-24 px-6 bg-radial from-slate-900 to-slate-950 text-white overflow-hidden">
-        <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+      {/* ─── 2. SECÇÃO HERO (RESPONSIVA) ─────────────────────────────────────── */}
+      <header className="relative py-12 md:py-24 px-4 sm:px-6 bg-radial from-slate-900 to-slate-950 text-white overflow-hidden">
+        <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
           
-          {/* Lado Esquerdo: Proposta de Valor */}
-          <div className="lg:col-span-7 space-y-6 text-left">
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 text-xs font-semibold">
+          {/* Lado Esquerdo: Valor de Marca */}
+          <div className="lg:col-span-7 space-y-5 md:space-y-6 text-left">
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[10px] sm:text-xs font-semibold">
               <Shield size={12} />
               Assessoria de Apoio Documental & Plataformas
             </div>
-            <h1 className="text-4xl md:text-5xl font-black leading-tight tracking-tight">
+            <h1 className="text-3xl sm:text-4xl md:text-5xl font-black leading-tight tracking-tight">
               Apoio e Assessoria especializada para Motoristas TVDE
             </h1>
-            <p className="text-slate-300 text-base md:text-lg font-medium leading-relaxed max-w-xl">
+            <p className="text-slate-300 text-xs sm:text-sm md:text-base lg:text-lg leading-relaxed max-w-xl">
               Apoiamos em todas as etapas regulatórias em Portugal: apoio na etapa de formação homologada, orientação para providenciar documentos obrigatórios (exames e psicotécnicos de Grupo 2), organização de documentos junto do IMT, criação de contas e instrução prática das aplicações Uber e Bolt.
             </p>
-            <div className="flex flex-col sm:flex-row gap-4 pt-4 text-xs font-semibold">
+            <div className="flex flex-col sm:flex-row gap-3 pt-2 text-[11px] sm:text-xs font-semibold">
               <div className="flex items-center gap-2">
-                <Check className="text-blue-500 shrink-0" size={16} />
+                <Check className="text-blue-500 shrink-0" size={14} />
                 <span>Apoio na Etapa de Formação</span>
               </div>
               <div className="flex items-center gap-2">
-                <Check className="text-blue-500 shrink-0" size={16} />
+                <Check className="text-blue-500 shrink-0" size={14} />
                 <span>Organização Governamental (IMT)</span>
               </div>
               <div className="flex items-center gap-2">
-                <Check className="text-blue-500 shrink-0" size={16} />
+                <Check className="text-blue-500 shrink-0" size={14} />
                 <span>Criação de Contas & Instrução</span>
               </div>
             </div>
           </div>
 
-          {/* Lado Direito: Caixa com Separadores (Conversão Ebook vs. Login Rápido) */}
-          <div className="lg:col-span-5 bg-white text-slate-800 rounded-3xl p-6 shadow-2xl border border-slate-100 max-w-md mx-auto w-full">
+          {/* Lado Direito: Caixa com Separadores (Ebook vs. Login) */}
+          <div className="lg:col-span-5 bg-white text-slate-800 rounded-3xl p-5 sm:p-6 shadow-2xl border border-slate-100 max-w-md mx-auto w-full">
             
             {/* Seletor de Separadores */}
             <div className="grid grid-cols-2 gap-2 mb-5 bg-slate-100 p-1 rounded-xl shrink-0">
               <button
                 type="button"
                 onClick={() => setAbaHero('ebook')}
-                className={`py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                className={`py-2 text-[11px] sm:text-xs font-bold rounded-lg transition-all cursor-pointer ${
                   abaHero === 'ebook' 
                     ? 'bg-white text-indigo-600 shadow-xs' 
                     : 'text-slate-500 hover:text-slate-800'
@@ -268,7 +257,7 @@ export default function LandingPage() {
               <button
                 type="button"
                 onClick={() => setAbaHero('login')}
-                className={`py-2 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+                className={`py-2 text-[11px] sm:text-xs font-bold rounded-lg transition-all cursor-pointer ${
                   abaHero === 'login' 
                     ? 'bg-white text-indigo-600 shadow-xs' 
                     : 'text-slate-500 hover:text-slate-800'
@@ -278,7 +267,7 @@ export default function LandingPage() {
               </button>
             </div>
 
-            {/* A: CONTEÚDO DA ISCA DIGITAL (EBOOK - COM NOTA DE EM BREVE) */}
+            {/* A: CONTEÚDO DA ISCA DIGITAL (EBOOK) */}
             {abaHero === 'ebook' && (
               <div className="space-y-4 animate-in fade-in duration-200">
                 <div className="flex items-center justify-between text-blue-600">
@@ -418,11 +407,11 @@ export default function LandingPage() {
         </div>
       </header>
 
-      {/* ─── 3. SECÇÃO DOS PACOTES DE ASSESSORIA PÚBLICOS (COM BLUR NOS PREÇOS) ─── */}
-      <section id="servicos" className="py-20 px-6 max-w-6xl mx-auto space-y-12">
+      {/* ─── 3. SECÇÃO DOS PACOTES DE ASSESSORIA (RESPONSIVA) ────────────────── */}
+      <section id="servicos" className="py-16 md:py-20 px-4 sm:px-6 max-w-6xl mx-auto space-y-10 md:space-y-12">
         <div className="text-center space-y-2 max-w-xl mx-auto">
           <h2 className="text-2xl md:text-3xl font-black text-slate-900">Pacotes de Apoio à sua medida</h2>
-          <p className="text-slate-500 text-sm leading-relaxed">
+          <p className="text-slate-500 text-xs sm:text-sm leading-relaxed">
             Escolha o nível de assessoria e acompanhamento ideal para estruturar a sua formação, organizar documentos no IMT e ativar as suas contas.
           </p>
         </div>
@@ -430,7 +419,7 @@ export default function LandingPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           
           {/* Pacote Básico / Essencial */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 flex flex-col justify-between space-y-6 hover:shadow-md transition-shadow select-none">
+          <div className="bg-white border border-slate-200 rounded-2xl p-5 sm:p-6 flex flex-col justify-between space-y-6 hover:shadow-md transition-shadow select-none">
             <div className="space-y-4 text-left">
               <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Plano Essencial</span>
               <h3 className="text-xl font-black text-slate-900">Apoio Documental</h3>
@@ -443,15 +432,15 @@ export default function LandingPage() {
                 <li className="flex items-center gap-2"><Check className="text-blue-500 shrink-0" size={14} /> Guia de instrução para as aplicações</li>
               </ul>
             </div>
-            <div className="text-left relative">
-              <p className="text-xs text-slate-400 font-semibold uppercase">Investimento único</p>
+            <div className="text-left relative mt-auto pt-4 border-t border-slate-50">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Investimento único</p>
               <p className="text-2xl font-black text-slate-900 filter blur-[5px] select-none">{formatCurrency(49.00)}</p>
               <span className="text-[10px] font-bold text-blue-600 block mt-1">Preço disponível em breve</span>
             </div>
           </div>
 
           {/* Pacote Recomendado */}
-          <div className="bg-white border-2 border-blue-600 rounded-2xl p-6 flex flex-col justify-between space-y-6 relative shadow-sm select-none">
+          <div className="bg-white border-2 border-blue-600 rounded-2xl p-5 sm:p-6 flex flex-col justify-between space-y-6 relative shadow-sm select-none">
             <span className="absolute top-0 right-6 -translate-y-1/2 bg-blue-600 text-white text-[9px] font-black px-3 py-1 rounded-full uppercase tracking-wider shadow-xs">
               Mais Solicitado
             </span>
@@ -467,15 +456,15 @@ export default function LandingPage() {
                 <li className="flex items-center gap-2"><Check className="text-blue-500 shrink-0" size={14} /> Instrução de averbamento do código 997</li>
               </ul>
             </div>
-            <div className="text-left relative">
-              <p className="text-xs text-slate-400 font-semibold uppercase">Investimento único</p>
+            <div className="text-left relative mt-auto pt-4 border-t border-slate-50">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Investimento único</p>
               <p className="text-2xl font-black text-blue-600 filter blur-[5px] select-none">{formatCurrency(149.00)}</p>
               <span className="text-[10px] font-bold text-blue-600 block mt-1">Preço disponível em breve</span>
             </div>
           </div>
 
           {/* Pacote Chave na Mão */}
-          <div className="bg-white border border-slate-200 rounded-2xl p-6 flex flex-col justify-between space-y-6 hover:shadow-md transition-shadow select-none">
+          <div className="bg-white border border-slate-200 rounded-2xl p-5 sm:p-6 flex flex-col justify-between space-y-6 hover:shadow-md transition-shadow select-none">
             <div className="space-y-4 text-left">
               <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Plano Premium</span>
               <h3 className="text-xl font-black text-slate-900">Ativação & Instrução</h3>
@@ -488,8 +477,8 @@ export default function LandingPage() {
                 <li className="flex items-center gap-2"><Check className="text-blue-500 shrink-0" size={14} /> Instrução prático do funcionamento das aplicações</li>
               </ul>
             </div>
-            <div className="text-left relative">
-              <p className="text-xs text-slate-400 font-semibold uppercase">Investimento único</p>
+            <div className="text-left relative mt-auto pt-4 border-t border-slate-50">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Investimento único</p>
               <p className="text-2xl font-black text-slate-900 filter blur-[5px] select-none">{formatCurrency(249.00)}</p>
               <span className="text-[10px] font-bold text-blue-600 block mt-1">Preço disponível em breve</span>
             </div>
@@ -498,12 +487,12 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ─── 4. CATÁLOGO INTERATIVO DE VIATURAS [NOVO] ──────────────────────── */}
+      {/* ─── 4. CATÁLOGO INTERATIVO DE VIATURAS (RESPONSIVO) ───────────────── */}
       <VehicleCatalog />
 
       {/* ─── 5. SECÇÃO DE PROCURA DE VIATURAS (MATCHING DE ALUGUER) ───────────── */}
-      <section id="aluguer" className="bg-slate-900 text-white py-20 px-6">
-        <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+      <section id="aluguer" className="bg-slate-900 text-white py-16 md:py-20 px-4 sm:px-6">
+        <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
           
           <div className="lg:col-span-6 space-y-6 text-left">
             <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-xs font-semibold">
@@ -511,17 +500,18 @@ export default function LandingPage() {
               Frota de Viaturas TVDE Disponível
             </div>
             <h2 className="text-2xl md:text-3xl font-black leading-tight">Procura uma viatura para trabalhar?</h2>
-            <p className="text-slate-300 text-sm leading-relaxed max-w-xl">
+            <p className="text-slate-300 text-xs sm:text-sm leading-relaxed max-w-xl">
               Asseguramos contacto com operadores licenciados que disponibilizam viaturas em conformidade regulatória nas plataformas, equipadas com seguros TVDE específicos (responsabilidade civil e passageiros), Via Verde e cartões de desconto de combustível.
             </p>
-            <div className="space-y-3.5 text-xs font-semibold text-slate-200">
+            <div className="space-y-3 text-xs font-semibold text-slate-200">
               <p className="flex items-center gap-2"><Check size={14} className="text-emerald-500" /> Manutenção e Oficina a cargo do Operador parceiro</p>
               <p className="flex items-center gap-2"><Check size={14} className="text-emerald-500" /> Cobertura total de Seguros de Passageiros e Ocupantes</p>
               <p className="flex items-center gap-2"><Check size={14} className="text-emerald-500" /> Modelos económicos e elétricos de alta autonomia</p>
             </div>
           </div>
 
-          <div className="lg:col-span-6 bg-white text-slate-800 rounded-3xl p-6 shadow-xl max-w-md mx-auto w-full">
+          {/* Cartão de Encontrar Viatura */}
+          <div className="lg:col-span-6 bg-white text-slate-800 rounded-3xl p-5 sm:p-6 shadow-xl max-w-md mx-auto w-full">
             <h4 className="text-lg font-black text-slate-900">Encontrar Viatura Disponível</h4>
             <p className="text-slate-400 text-xs mt-1 mb-4 leading-relaxed">
               Diga-nos em que zona do país pretende trabalhar para encontrarmos as melhores viaturas de operadores parceiros disponíveis na sua região.
@@ -538,7 +528,7 @@ export default function LandingPage() {
                 />
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div className="relative">
                   <Smartphone className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
                   <input 
@@ -609,11 +599,11 @@ export default function LandingPage() {
       </section>
 
       {/* ─── 6. SECÇÃO DE PERGUNTAS E RESPOSTAS COMUNS (FAQ ACCORDION) ───────── */}
-      <section id="faq" className="py-20 px-6 max-w-4xl mx-auto space-y-12">
+      <section id="faq" className="py-16 md:py-20 px-4 sm:px-6 max-w-4xl mx-auto space-y-12">
         <div className="text-center space-y-2">
           <HelpCircle size={32} className="text-blue-600 mx-auto" />
           <h2 className="text-2xl md:text-3xl font-black text-slate-900">Perguntas Frequentes (FAQ)</h2>
-          <p className="text-slate-500 text-sm">Tudo o que precisa de saber sobre as regras de acesso ao mercado TVDE português.</p>
+          <p className="text-slate-500 text-xs sm:text-sm">Tudo o que precisa de saber sobre as regras de acesso ao mercado TVDE português.</p>
         </div>
 
         <div className="space-y-3.5 text-left max-w-3xl mx-auto">
@@ -649,17 +639,17 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ─── 7. RODAPÉ INSTITUCIONAL ───────────────────────────────────────── */}
-      <footer className="bg-slate-950 text-slate-400 py-12 px-6 border-t border-slate-900">
+      {/* ─── 7. RODAPÉ INSTITUCIONAL (RESPONSIVO) ───────────────────────────── */}
+      <footer className="bg-slate-950 text-slate-400 py-12 px-4 sm:px-6 border-t border-slate-900">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6 text-xs text-center md:text-left">
           <div>
             <p className="font-bold text-slate-200 text-sm">Gestão TVDE Portugal, Lda.</p>
             <p className="mt-1 text-slate-500">Avenida da Liberdade 100, 1250-145 Lisboa</p>
             <p className="text-slate-600">geral@gestaotvde.pt - NIF: 500123456</p>
           </div>
-          <div className="flex gap-6 text-slate-500 font-medium">
+          <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 text-slate-500 font-medium items-center">
             <a href="/login" className="hover:text-white transition-colors">Área Restrita (ERP)</a>
-            <span className="text-slate-800">|</span>
+            <span className="text-slate-800 hidden sm:inline">|</span>
             <span>&copy; {new Date().getFullYear()} Gestão TVDE. Todos os direitos reservados.</span>
           </div>
         </div>
