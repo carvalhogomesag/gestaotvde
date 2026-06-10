@@ -1,4 +1,4 @@
-import { useEffect } from 'react'; // Adicionado useEffect
+import { useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Sidebar from './components/layout/Sidebar';
@@ -27,7 +27,6 @@ import OnboardingMotorista from './pages/OnboardingMotorista';
 // ⚠️ TEMPORÁRIO — Remover após executar a migração de cartões
 import MigracaoCartoes from './pages/MigracaoCartoes';
 
-// Inicialização do Google Analytics (Segura contra ausência de chave em ambiente local)
 const GA_MEASUREMENT_ID = import.meta.env.VITE_GA_MEASUREMENT_ID;
 if (GA_MEASUREMENT_ID) {
   ReactGA.initialize(GA_MEASUREMENT_ID);
@@ -35,20 +34,22 @@ if (GA_MEASUREMENT_ID) {
 }
 
 /**
- * PrivateRoute: Proteção para qualquer utilizador autenticado.
+ * PrivateRoute: Se o utilizador não estiver logado,
+ * redireciona de volta para a Landing Page pública (/)
  */
 const PrivateRoute = ({ children }) => {
   const { user } = useAuth();
-  return user ? children : <Navigate to="/login" />;
+  return user ? children : <Navigate to="/" />; // Correção efetuada: Redireciona para / ao deslogar
 };
 
 /**
  * AdminRoute: Proteção EXCLUSIVA para o Diretor (admin).
+ * Se deslogado, redireciona para a Landing Page pública (/)
  */
 const AdminRoute = ({ children }) => {
   const { user, userData, loading } = useAuth();
   if (loading) return null;
-  if (!user) return <Navigate to="/login" />;
+  if (!user) return <Navigate to="/" />; // Correção efetuada: Redireciona para / ao deslogar
   if (userData?.role !== 'admin') return <Navigate to="/dashboard" />; 
   return children;
 };
@@ -57,7 +58,6 @@ function AppContent() {
   const { user } = useAuth();
   const location = useLocation();
 
-  // Enviar pageviews automaticamente para o GA4 sempre que a rota mudar
   useEffect(() => {
     if (GA_MEASUREMENT_ID) {
       ReactGA.send({ hitType: "pageview", page: location.pathname });
