@@ -3,7 +3,7 @@
  * Localização: src/features/veiculos/VeiculoForm.jsx
  *
  * Formulário de edição e criação de viaturas.
- * Atualizado com suporte a carregamento de fotografia do veículo, tarifa semanal e região.
+ * Atualizado com suporte a carregamento de fotografia do veículo, tarifa semanal, região e combustível.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -60,7 +60,8 @@ export default function VeiculoForm({
     // Novos campos do catálogo público de anúncios
     fotoUrl: initialData.fotoUrl || '', 
     precoSemanal: initialData.precoSemanal || '', 
-    cidade: initialData.cidade || 'Lisboa'
+    cidade: initialData.cidade || 'Lisboa',
+    combustivel: initialData.combustivel || 'Gasóleo' // Correção efetuada: Inicialização de combustível
   });
 
   const [movimentos, setMovimentos] = useState([]);
@@ -183,7 +184,7 @@ export default function VeiculoForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-1 max-h-[75vh] overflow-y-auto pr-4 custom-scrollbar">
       
-      {/* Secção de Identificação com os dados de Anúncio integrados */}
+      {/* Secção de Identificação com os dados de Anúncio e combustível integrados */}
       <div className="bg-slate-50 p-5 rounded-[2rem] border border-slate-100 mb-4 space-y-4">
         <h4 className="text-[11px] font-black text-tvde-primary uppercase tracking-wider flex items-center gap-2 mb-2"><Car size={14} /> Identificação do Veículo</h4>
         
@@ -194,8 +195,23 @@ export default function VeiculoForm({
           <div><label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Ano</label><input type="number" readOnly={isReadOnly} className={inputClass} value={formData.ano} onChange={(e) => setFormData({...formData, ano: e.target.value})} /></div>
         </div>
 
-        {/* Novos Campos do Anúncio do Catálogo público (Preço e Região de Operação) */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 border-t border-slate-200/50 pt-4">
+        {/* Campos do Anúncio do Catálogo público (Combustível, Preço e Região de Operação) [ATUALIZADO] */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border-t border-slate-200/50 pt-4">
+          <div>
+            <label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Tipo de Combustível</label>
+            <select 
+              disabled={isReadOnly} 
+              className={inputClass} 
+              value={formData.combustivel} 
+              onChange={(e) => setFormData({...formData, combustivel: e.target.value})}
+            >
+              <option value="Gasóleo">⛽ Gasóleo (Diesel)</option>
+              <option value="Gasolina">⛽ Gasolina</option>
+              <option value="Elétrico">⚡ Elétrico</option>
+              <option value="GPL">GPL</option>
+              <option value="Híbrido">🔋 Híbrido</option>
+            </select>
+          </div>
           <div>
             <label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Tarifa Semanal (€)</label>
             <div className="relative">
