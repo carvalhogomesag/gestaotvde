@@ -38,10 +38,11 @@ export const obterViaturasParaCatalogo = async (db) => {
         ano: dados.ano || '---',
         combustivel: dados.combustivel || '---',
         km: Number(dados.km || 0),
-        // Se o campo anuncioAtivo não existir na base de dados, assume false por padrão
         anuncioAtivo: dados.anuncioAtivo ?? false,
         precoSemanal: Number(dados.precoSemanal || 0),
-        cidade: dados.cidade || 'Lisboa'
+        cidade: dados.cidade || 'Lisboa',
+        // Correção efetuada: Mapeamento do campo fotoUrl para exibição no catálogo público
+        fotoUrl: dados.fotoUrl || "" 
       };
     });
 
