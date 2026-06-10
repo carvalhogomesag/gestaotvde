@@ -4,7 +4,7 @@
  *
  * Painel de CRM para gestão em tempo real das leads públicas captadas na Landing Page.
  * Permite filtrar por origem, alterar estados de funil, registar notas internas,
- * agendar ações futuras com calendário e converter leads diretamente em motoristas.
+ * agendar ações futuras personalizadas por texto manual com calendário e converter leads.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -34,8 +34,8 @@ export default function GestaoLeads() {
   const [novaNota, setNovaNota] = useState("");
   const [loadingAcao, setLoadingAcao] = useState(false);
 
-  // Lógica de Ações Futuras (Agenda)
-  const [novaAcao, setNovaAcao] = useState({ descricao: 'Ligar novamente', data: '' });
+  // Lógica de Ações Futuras (Agenda com campo de descrição de texto livre manual)
+  const [novaAcao, setNovaAcao] = useState({ descricao: '', data: '' });
 
   // Filtros de pesquisa
   const [filtroEstado, setFaqFiltroEstado] = useState("todos"); // 'todos', 'novo', 'contacto_iniciado', 'convertido', 'perdido'
@@ -116,10 +116,10 @@ export default function GestaoLeads() {
     }
   };
 
-  // 3. Agendar uma Ação Futura (Tarefa/Lembrete com Data)
+  // 3. Agendar uma Ação Futura (Tarefa/Lembrete com campo manual e Data)
   const handleAgendarAcaoFutura = async () => {
     if (!novaAcao.descricao.trim() || !novaAcao.data || !leadSelecionada) {
-      alert("Preencha a descrição da ação e escolha uma data futura.");
+      alert("Por favor, preencha o detalhe da ação manual e escolha uma data futura.");
       return;
     }
     setLoadingAcao(true);
@@ -139,7 +139,8 @@ export default function GestaoLeads() {
         agendaAcoes: [...acoesAtuais, novaAcaoObj]
       });
 
-      setNovaAcao({ descricao: 'Ligar novamente', data: '' });
+      // Repor estado limpo após gravação de sucesso
+      setNovaAcao({ descricao: '', data: '' });
       alert("Ação futura agendada com sucesso!");
     } catch (err) {
       console.error("Erro ao agendar ação:", err);
@@ -182,7 +183,6 @@ export default function GestaoLeads() {
 
     setLoadingAcao(true);
     try {
-      // A. Criar ficha de motorista associada na coleção 'motoristas'
       const novoMotoristaPayload = {
         nome: leadSelecionada.nome,
         email: leadSelecionada.email,
@@ -196,7 +196,6 @@ export default function GestaoLeads() {
 
       const docRef = await addDoc(collection(db, 'motoristas'), novoMotoristaPayload);
 
-      // B. Atualizar estado da Lead para 'convertido'
       await updateDoc(doc(db, 'leads_captadas', leadSelecionada.id), {
         estado: 'convertido',
         motoristaCriadoId: docRef.id,
@@ -247,7 +246,7 @@ export default function GestaoLeads() {
   return (
     <div className="space-y-6 text-slate-800">
       
-      {/* ─── Cabeçalho do Painel CRM ────────────────────────────────────────── */}
+      {/* Cabçalho do Painel CRM */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-2xl font-black tracking-tight text-slate-900">Gestão de Leads (CRM)</h2>
@@ -255,7 +254,7 @@ export default function GestaoLeads() {
         </div>
       </div>
 
-      {/* ─── Filtros Rápidos de Controlo ────────────────────────────────────── */}
+      {/* Filtros Rápidos de Controlo */}
       <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col md:flex-row gap-4 items-center justify-between shadow-xs">
         <div className="flex flex-wrap gap-3 items-center w-full md:w-auto">
           <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
@@ -290,7 +289,7 @@ export default function GestaoLeads() {
         </div>
       </div>
 
-      {/* ─── Grelha Principal Split-Pane ───────────────────────────────────── */}
+      {/* Grelha Principal Split-Pane */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
         {/* Lado Esquerdo: Lista de Leads */}
@@ -350,7 +349,7 @@ export default function GestaoLeads() {
           )}
         </div>
 
-        {/* Lado Direito: Detalhe, Ações e Agenda (Foco em Conversão Manual e Agendamento) */}
+        {/* Lado Direito: Detalhe, Ações e Agenda */}
         <div className="lg:col-span-5 space-y-6">
           {leadSelecionada ? (
             <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-6 text-left animate-in fade-in duration-200">
@@ -379,7 +378,7 @@ export default function GestaoLeads() {
                 </div>
               )}
 
-              {/* Ações Rápidas de Mudança de Funil (Três Botões Integrados) */}
+              {/* Ações Rápidas de Mudança de Funil */}
               <div className="space-y-2">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">Controlo de Funil</span>
                 <div className="grid grid-cols-3 gap-1.5">
@@ -430,13 +429,13 @@ export default function GestaoLeads() {
                 )}
               </div>
 
-              {/* 📅 SECÇÃO DE AGENDA DE AÇÕES FUTURAS [NOVO] */}
+              {/* 📅 SECÇÃO DE AGENDA DE AÇÕES FUTURAS (Com campo de texto livre) */}
               <div className="border-t border-slate-100 pt-4 space-y-3">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
                   <CalendarDays size={12} /> Agenda de Ações Futuras
                 </span>
 
-                {/* Lista de Ações futuras pendentes ou concluídas */}
+                {/* Lista de Ações futuras */}
                 <div className="space-y-2 max-h-32 overflow-y-auto pr-1">
                   {(!leadSelecionada.agendaAcoes || leadSelecionada.agendaAcoes.length === 0) ? (
                     <p className="text-slate-400 text-[10px] font-medium italic">Sem ações futuras agendadas.</p>
@@ -479,20 +478,17 @@ export default function GestaoLeads() {
                   )}
                 </div>
 
-                {/* Formulário rápido para agendar ação futura */}
+                {/* Formulário aprimorado: Campo de preenchimento manual da ação futura [ATUALIZADO] */}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 bg-slate-50 border border-slate-100 rounded-xl p-3">
                   <div className="flex flex-col">
-                    <span className="text-[8px] font-bold text-slate-400 mb-0.5">Ação</span>
-                    <select
+                    <span className="text-[8px] font-bold text-slate-400 mb-0.5">Ação (Preenchimento Manual)</span>
+                    <input
+                      type="text"
+                      placeholder="Ex: Ligar novamente, Enviar WhatsApp..."
                       value={novaAcao.descricao}
                       onChange={e => setNovaAcao({ ...novaAcao, descricao: e.target.value })}
-                      className="p-1.5 border border-slate-200 rounded-lg text-xs font-semibold bg-white text-slate-700 outline-none"
-                    >
-                      <option value="Ligar novamente">📞 Ligar novamente</option>
-                      <option value="Enviar WhatsApp">💬 Enviar WhatsApp</option>
-                      <option value="Revisar documentos">📁 Revisar documentos</option>
-                      <option value="Agendar reunião">👥 Agendar reunião</option>
-                    </select>
+                      className="p-1.5 border border-slate-200 rounded-lg text-xs font-semibold bg-white text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/20"
+                    />
                   </div>
                   <div className="flex flex-col">
                     <span className="text-[8px] font-bold text-slate-400 mb-0.5">Data Prevista</span>
@@ -507,7 +503,7 @@ export default function GestaoLeads() {
                       <button
                         type="button"
                         onClick={handleAgendarAcaoFutura}
-                        disabled={loadingAcao || !novaAcao.data}
+                        disabled={loadingAcao || !novaAcao.data || !novaAcao.descricao.trim()}
                         className="px-2.5 bg-slate-800 text-white rounded-lg text-xs font-bold hover:bg-slate-950 transition-colors disabled:opacity-40"
                       >
                         OK
@@ -517,7 +513,7 @@ export default function GestaoLeads() {
                 </div>
               </div>
 
-              {/* Bloco de Notas / Comentários Internos (Diário) */}
+              {/* Bloco de Notas / Comentários Internos */}
               <div className="border-t border-slate-100 pt-4 space-y-3.5">
                 <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
                   <MessageSquare size={12} /> Diário de Triagem & Notas Internas
