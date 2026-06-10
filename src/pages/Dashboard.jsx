@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   UserCheck, Car, Building2, TrendingUp, Calendar, 
-  AlertTriangle, CheckCircle2, Info, ChevronLeft, ChevronRight, ArrowRight 
+  AlertTriangle, CheckCircle2, Info, ChevronLeft, ChevronRight, ArrowRight, UserPlus 
 } from 'lucide-react';
 import { db } from '../firebase';
 import { collection, getDocs } from 'firebase/firestore';
@@ -47,7 +47,11 @@ export default function Dashboard() {
   const [stats, setStats] = useState({
     motoristas: 0,
     veiculos: 0,
-    proprietarios: 0
+    proprietarios: 0,
+    // Novas métricas para o card de Leads
+    leadsTotais: 0,
+    leadsNovas: 0,
+    leadsContacto: 0
   });
   const [alertas, setAlertas] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -55,16 +59,25 @@ export default function Dashboard() {
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [motSnap, veiSnap, propSnap] = await Promise.all([
+        const [motSnap, veiSnap, propSnap, leadsSnap] = await Promise.all([
           getDocs(collection(db, "motoristas")),
           getDocs(collection(db, "veiculos")),
-          getDocs(collection(db, "proprietarios"))
+          getDocs(collection(db, "proprietarios")),
+          getDocs(collection(db, "leads_captadas")) // Nova consulta integrada de Leads
         ]);
+
+        // Contabilização de estados do funil de Leads
+        const todasLeads = leadsSnap.docs.map(doc => doc.data());
+        const novas = todasLeads.filter(l => l.estado === 'novo').length;
+        const contacto = todasLeads.filter(l => l.estado === 'contacto_iniciado').length;
 
         setStats({
           motoristas: motSnap.size,
           veiculos: veiSnap.size,
-          proprietarios: propSnap.size
+          proprietarios: propSnap.size,
+          leadsTotais: leadsSnap.size,
+          leadsNovas: novas,
+          leadsContacto: contacto
         });
 
         let listaAlertas = [];
@@ -127,7 +140,7 @@ export default function Dashboard() {
     if (semanaVisivel > 1) {
       setSemanaVisivel(semanaVisivel - 1);
     } else {
-      setSemanaVisivel(52);
+      setSemanaVisivel(SEMANA_ATUAL); // Alinhado com fallback de segurança
       setAnoVisivel(anoVisivel - 1);
     }
   };
@@ -204,7 +217,7 @@ export default function Dashboard() {
         </div>
       </header>
 
-      {/* Grid de Estatísticas */}
+      {/* Grid de Estatísticas Gerais */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <div className="space-y-2">
           <StatCard 
@@ -255,8 +268,10 @@ export default function Dashboard() {
         <div className="absolute right-[-50px] bottom-[-50px] w-64 h-64 bg-tvde-primary/20 rounded-full blur-3xl"></div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* ALERTAS REAIS CLICÁVEIS */}
+      {/* Seção Inferior: Três colunas responsivas para monitorização */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        
+        {/* COLUNA 1: ALERTAS REAIS CLICÁVEIS */}
         <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
           <div className="flex items-center justify-between mb-6">
             <div>
@@ -270,7 +285,7 @@ export default function Dashboard() {
             </div>
             {alertas.length > 0 && (
               <span className="text-[10px] font-black bg-orange-100 text-orange-600 px-2 py-1 rounded-md uppercase">
-                Atenção Necessária
+                Atenção
               </span>
             )}
           </div>
@@ -288,12 +303,12 @@ export default function Dashboard() {
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <div className={`w-2 h-2 rounded-full flex-shrink-0 ${alerta.dias < 0 ? 'bg-red-500 animate-pulse' : 'bg-orange-500'}`}></div>
-                    <span className="text-sm font-medium text-slate-700 text-left">{alerta.label}</span>
+                    <div className={`w-2 h-2 rounded-full flex-shrink-0 ${alerta.dias < 0 ? 'bg-red-500' : 'bg-orange-500'}`}></div>
+                    <span className="text-sm font-medium text-slate-700 text-left truncate max-w-[130px]">{alerta.label}</span>
                   </div>
                   <div className="flex items-center gap-2 flex-shrink-0">
                     <span className={`text-xs font-bold ${alerta.dias < 0 ? 'text-red-600' : 'text-orange-600'}`}>
-                      {alerta.dias < 0 ? `EXPIRADO (${Math.abs(alerta.dias)}d)` : `Expira em ${alerta.dias} dias`}
+                      {alerta.dias < 0 ? `EXPIRADO` : `em ${alerta.dias} dias`}
                     </span>
                     <ArrowRight size={14} className={`transition-transform group-hover:translate-x-1 ${
                       alerta.dias < 0 ? 'text-red-300' : 'text-orange-300'
@@ -307,13 +322,52 @@ export default function Dashboard() {
                   <CheckCircle2 size={24} />
                 </div>
                 <p className="text-slate-500 font-medium">Tudo em dia!</p>
-                <p className="text-slate-400 text-xs mt-1">Nenhum documento expira nos próximos 30 dias.</p>
+                <p className="text-slate-400 text-xs mt-1">Nenhum documento expira em 30 dias.</p>
               </div>
             )}
           </div>
         </div>
 
-        {/* Dicas / Atividade */}
+        {/* COLUNA 2: FUNIL DE CAPTAÇÃO DE LEADS (CRM) [NOVO] */}
+        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between">
+          <div className="space-y-4">
+            <div className="flex items-center justify-between mb-2">
+              <h4 className="font-bold text-slate-800 flex items-center gap-2">
+                <UserPlus className="text-indigo-600" size={20} />
+                Funil de Leads (CRM)
+              </h4>
+              <span className="text-[10px] font-black bg-indigo-100 text-indigo-700 px-2 py-1 rounded-md uppercase">
+                Em Tempo Real
+              </span>
+            </div>
+
+            {/* Quadro de Estados Rápidos */}
+            <div className="space-y-2.5">
+              <div className="flex items-center justify-between p-3 bg-blue-50/60 border border-blue-100/50 rounded-xl">
+                <span className="text-xs font-bold text-slate-700">🆕 Novas Leads</span>
+                <span className="text-sm font-black text-blue-700">{loading ? "..." : stats.leadsNovas}</span>
+              </div>
+              <div className="flex items-center justify-between p-3 bg-amber-50/60 border border-amber-100/50 rounded-xl">
+                <span className="text-xs font-bold text-slate-700">📞 Contacto Iniciado</span>
+                <span className="text-sm font-black text-amber-700">{loading ? "..." : stats.leadsContacto}</span>
+              </div>
+              <div className="flex items-center justify-between p-3 bg-slate-50 border border-slate-100 rounded-xl">
+                <span className="text-xs font-bold text-slate-700">📊 Total no Funil</span>
+                <span className="text-sm font-black text-slate-800">{loading ? "..." : stats.leadsTotais}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Botão de Redirecionamento para o CRM */}
+          <button 
+            onClick={() => navigate('/leads')}
+            className="w-full mt-4 py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer"
+          >
+            Ir para o CRM <ArrowRight size={13} />
+          </button>
+        </div>
+
+        {/* COLUNA 3: DICAS DE GESTÃO */}
         <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
           <h4 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
             <Info size={20} className="text-tvde-primary" />
@@ -334,6 +388,7 @@ export default function Dashboard() {
             </div>
           </div>
         </div>
+
       </div>
     </div>
   );
