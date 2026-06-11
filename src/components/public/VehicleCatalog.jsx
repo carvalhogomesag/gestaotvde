@@ -41,10 +41,10 @@ export default function VehicleCatalog() {
     carregarViaturas();
   }, []);
 
-  // Handler de pré-reserva com transição suave e preenchimento automático
+  // Handler de pré-reserva com transição suave e preenchimento automático para viatura disponível
   const handleSolicitarViatura = (marca, modelo) => {
     const modeloCompleto = `${marca} ${modelo}`;
-    console.log(`[VehicleCatalog] A selecionar viatura: ${modeloCompleto}`);
+    console.log(`[VehicleCatalog] A selecionar viatura disponível: ${modeloCompleto}`);
 
     // Guarda a viatura pretendida temporariamente em memória para o formulário ler
     sessionStorage.setItem('veiculoPretendido', modeloCompleto);
@@ -52,6 +52,26 @@ export default function VehicleCatalog() {
     // Dispara um evento personalizado para atualizar o formulário na mesma página em tempo real
     window.dispatchEvent(new CustomEvent('selecionarVeiculoCatalogo', { 
       detail: modeloCompleto 
+    }));
+
+    // Desliza suavemente até à secção do formulário de aluguer
+    const seccaoAluguer = document.getElementById('aluguer');
+    if (seccaoAluguer) {
+      seccaoAluguer.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
+  // Handler de captação de leads alternativa para viatura indisponível / reservada
+  const handleSolicitarInteresseIgual = (marca, modelo) => {
+    const modeloCompleto = `${marca} ${modelo} (Indisponível - Tenho Interesse)`;
+    console.log(`[VehicleCatalog] Captura de lead por interesse em viatura idêntica: ${modeloCompleto}`);
+
+    // Guarda o modelo indisponível em memória com nota de interesse
+    sessionStorage.setItem('veiculoPretendido', modeloCompleto);
+
+    // Dispara o evento de preenchimento do formulário
+    window.dispatchEvent(new CustomEvent('selecionarVeiculoCatalogo', {
+      detail: modeloCompleto
     }));
 
     // Desliza suavemente até à secção do formulário de aluguer
@@ -165,7 +185,7 @@ export default function VehicleCatalog() {
                 className="bg-white border border-slate-200 rounded-3xl flex flex-col justify-between overflow-hidden hover:shadow-md transition-all duration-300 relative group"
               >
                 
-                {/* 1. Imagem no topo do cartão com Badge Flutuante [ATUALIZADO] */}
+                {/* 1. Imagem no topo do cartão com Badge Flutuante */}
                 <div className="w-full h-40 bg-slate-100 relative overflow-hidden shrink-0 border-b border-slate-100">
                   {viatura.fotoUrl ? (
                     <img 
@@ -247,10 +267,10 @@ export default function VehicleCatalog() {
                     ) : (
                       <button
                         type="button"
-                        disabled
-                        className="px-4 py-2 bg-slate-100 text-slate-400 rounded-xl text-xs font-bold border border-slate-200 cursor-not-allowed select-none"
+                        onClick={() => handleSolicitarInteresseIgual(viatura.marca, viatura.modelo)}
+                        className="px-3 py-2 bg-slate-900 hover:bg-slate-800 text-white rounded-xl text-[10.5px] font-bold flex items-center gap-1 transition-colors cursor-pointer shadow-xs border border-slate-900"
                       >
-                        Reservado
+                        Tenho interesse <ArrowRight size={12} />
                       </button>
                     )}
                   </div>
