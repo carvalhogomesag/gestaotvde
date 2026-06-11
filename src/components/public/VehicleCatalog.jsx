@@ -112,7 +112,7 @@ export default function VehicleCatalog() {
           Encontre a viatura ideal para o seu turno
         </h2>
         <p className="text-slate-500 text-sm leading-relaxed">
-          Explore as viaturas da nossa frota parceira em Portugal. Ative ou desative anúncios no ERP e veja as atualizações em tempo real aqui.
+          Explore as viaturas da nossa frota parceira em Portugal. 
         </p>
       </div>
 
