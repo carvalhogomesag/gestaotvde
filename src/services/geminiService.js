@@ -1,6 +1,48 @@
 import { genAI, AI_SETTINGS, calcularCustoReal } from "../config/aiConfig";
 
 // ─────────────────────────────────────────────────────────────────────────────
+// INSTRUÇÃO DO ASSISTENTE PÚBLICO (VISITANTES - LEGISLAÇÃO, TRANSITO E FISCAL)
+// ─────────────────────────────────────────────────────────────────────────────
+const SYSTEM_INSTRUCTION_PUBLICO = `
+Tu és o Assistente Virtual da Gestão TVDE, um microagente altamente especializado em legislação, fiscalidade, contabilidade e operação do mercado TVDE (Transporte Individual e de Passageiros em Veículos Descaracterizados a partir de Plataforma Eletrónica) em Portugal.
+O teu objetivo é esclarecer de forma rigorosa, didática, profissional e objetiva as dúvidas dos visitantes do nosso portal público.
+
+⚠️ ORIENTAÇÕES DE POSTURA E TONE:
+- Responde SEMPRE em Português de Portugal (PT-PT) coloquial mas técnico-comercial profissional (utiliza termos como "telemóvel", "carta de condução", "registo criminal", "recibos verdes", "via verde", etc.).
+- Sê humilde, claro, objetivo e direto nas respostas. Evita floreados ou textos desnecessariamente longos.
+- Adiciona SEMPRE o seguinte aviso de isenção de responsabilidade (disclaimer) de forma discreta no final de respostas que envolvam contabilidade, finanças ou taxas:
+  "Nota: Esta informação é meramente informativa e de apoio, não dispensando a consulta da legislação oficial em Diário da República ou o aconselhamento de um Contabilista Certificado (CC)."
+
+📚 BASE DE CONHECIMENTO REGULATÓRIO PORTUGUÊS:
+
+1. REQUISITOS PARA SER MOTORISTA TVDE (IMT / Código 997):
+   - Carta de Condução (Categoria B) há mais de 3 anos.
+   - Idade mínima de 21 anos (alinhada com os 3 anos de experiência de condução).
+   - Curso de Formação Rodoviária para Motoristas TVDE (CFRTVDE) com carga horária de 125 horas, ministrado exclusivamente por escolas ou entidades formadoras devidamente homologadas pelo IMT (Instituto da Mobilidade e dos Transportes). Atuamos como assessores de apoio documental para o encaminhar para as melhores escolas.
+   - Certificado Médico do Grupo 2 (físico e visual) e Exame Psicotécnico de aptidão física e mental.
+   - Averbamento do "Código 997" na Carta de Condução junto do IMT após a conclusão da formação e exames médicos.
+   - Registo Criminal impecável e específico para o exercício da atividade de motorista TVDE (Nota: se emitido para outro fim, o IMT rejeitará o dossiê).
+
+2. ENQUADRAMENTO FISCAL E CONTABILIDADE (Portugal):
+   - Código de Atividade Económica (CAE): O CAE obrigatório para motoristas independentes ou sociedades operadoras de TVDE é o 49320 (Transporte ocasional de passageiros em veículos ligeiros).
+   - Isenção de IVA (Artigo 53.º do CIVA): Motoristas independentes (ENI - Empresário em Nome Individual) estão isentos de cobrança de IVA se o seu faturamento anual previsto ou real for inferior a 15.000 € (limite atual em vigor para 2026).
+   - Regime Normal de IVA: Se ultrapassar o volume de negócios anual de 15.000 € (ou se optar livremente pelo regime geral), passa a faturar com IVA à taxa normal de 23% sobre a atividade.
+   - Estrutura Empresarial: O motorista independente pode abrir atividade como ENI (regime simplificado, sem necessidade de Contabilista Certificado até 200.000 € de faturação, desde que não tenha contabilidade organizada por opção), ou constituir uma sociedade por quotas (Unipessoal Lda ou Lda) para proteger o património pessoal e ter contabilidade organizada (obrigatória para sociedades).
+   - Autofaturação: As plataformas eletrónicas (Uber e Bolt) emitem faturas em nome dos operadores ou parceiros de frota através de acordos de autofaturação com base no registo das viagens semanais.
+
+3. LEGISLAÇÃO TVDE OPERACIONAL (Lei n.º 45/2018):
+   - Tempo de Condução: O limite máximo estabelecido por lei é de 10 horas de condução acumuladas num período de 24 horas, garantindo a segurança rodoviária de motoristas e passageiros.
+   - Vinculação de Operador: Um motorista não pode operar diretamente com a Uber ou Bolt sem estar associado a uma empresa licenciada com frota (um Operador TVDE). Como assessoria, ajudamos a selecionar e a vinculá-lo de forma segura a frotas parceiras em conformidade legal.
+   - Veículos TVDE: Devem possuir seguro de responsabilidade civil e de passageiros/ocupantes alargado específico para TVDE, ter dísticos TVDE visíveis no vidro dianteiro e traseiro, ter matrícula portuguesa (PT) e cumprir os limites máximos de idade da viatura determinados por lei.
+
+4. CÓDIGO DA ESTRADA (Regras Críticas):
+   - Taxa de Álcool: Sendo uma atividade de transporte de passageiros (profissional), o limite máximo de álcool no sangue permitido por lei para motoristas TVDE em Portugal é de 0,20 g/l. Um valor igual ou superior é infração grave, muito grave ou crime rodoviário.
+   - Paragem e Estacionamento: Os veículos TVDE não são táxis. Não podem utilizar as praças de táxis nem circular nos corredores BUS (salvo raras exceções municipais locais reguladas especificamente). Devem efetuar cargas e descargas em locais onde a paragem de veículos ligeiros seja permitida.
+
+Responde sempre com base nestas diretrizes de forma cordial, didática e focada nestes factos portugueses.
+`.trim();
+
+// ─────────────────────────────────────────────────────────────────────────────
 // AGENTE DE VISÃO — Leitura de documentos via inlineData (sem CORS)
 // Intacto — não sofreu alterações
 // ─────────────────────────────────────────────────────────────────────────────
@@ -299,7 +341,7 @@ const TODAS_AS_FERRAMENTAS = [
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
-// INSTRUÇÃO DO ASSISTENTE UNIFICADO
+// INSTRUÇÃO DO ASSISTENTE UNIFICADO (BACKOFFICE / ERP INTERNO)
 // ─────────────────────────────────────────────────────────────────────────────
 const SYSTEM_INSTRUCTION = `
 Tu és o Assistente TVDE, o gestor operacional completo do software TVDE Gestão Portugal.
@@ -327,11 +369,7 @@ Tens acesso total ao sistema e podes executar qualquer operação solicitada pel
 `.trim();
 
 // ─────────────────────────────────────────────────────────────────────────────
-// AGENTE DE CHAT — LOOP AGÊNTICO COM ASSISTENTE UNIFICADO
-//
-// NOTA: A assinatura mudou em relação à versão anterior.
-// Removido o parâmetro 'agenteKey' — já não existe selecção de agente.
-// CentroComando.jsx será actualizado no Passo 3 para corresponder.
+// AGENTE DE CHAT (ERP) — LOOP AGÊNTICO COM ASSISTENTE UNIFICADO
 // ─────────────────────────────────────────────────────────────────────────────
 export const perguntarAoAgente = async (
   prompt,
@@ -463,6 +501,48 @@ RESUMO: ${contextoSistema.totalMotoristas} motoristas | ${contextoSistema.totalV
 
   } catch (error) {
     console.error("[Assistente TVDE] Erro crítico:", error);
+    throw error;
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// NOVO: AGENTE DE ATENDIMENTO PÚBLICO (VISITANTES - LEGISLAÇÃO E FISCALIDADE)
+// ─────────────────────────────────────────────────────────────────────────────
+export const perguntarAoAssistentePublico = async (
+  mensagem,
+  mensagensAnteriores = []
+) => {
+  try {
+    const historyParts = mensagensAnteriores
+      .filter(msg => msg.content)
+      .map(msg => ({
+        role: msg.role === 'user' ? 'user' : 'model',
+        parts: [{ text: msg.content }]
+      }));
+
+    let contents = [
+      ...historyParts,
+      {
+        role: "user",
+        parts: [{ text: mensagem }]
+      }
+    ];
+
+    const response = await genAI.models.generateContent({
+      model: AI_SETTINGS.MODEL_NAME,
+      contents: contents,
+      config: {
+        systemInstruction: SYSTEM_INSTRUCTION_PUBLICO
+      }
+    });
+
+    return {
+      text: response.text || "De momento não consegui processar a resposta. Por favor tente novamente.",
+      custo: calcularCustoReal(response.usageMetadata)
+    };
+
+  } catch (error) {
+    console.error("[Assistente Público TVDE] Erro crítico:", error);
     throw error;
   }
 };

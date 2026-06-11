@@ -18,8 +18,9 @@ import ReactGA from 'react-ga4';
 import { registarLeadPública } from '../services/leadService';
 import { formatCurrency } from '../utils/formatters';
 
-// Importação do catálogo público de frotas
+// Importação do catálogo público de frotas e do widget de atendimento com IA
 import VehicleCatalog from '../components/public/VehicleCatalog';
+import PublicChatWidget from '../components/public/PublicChatWidget';
 
 export default function LandingPage() {
   const navigate = useNavigate();
@@ -295,7 +296,7 @@ export default function LandingPage() {
         </div>
       </header>
 
-      {/* ─── 3. SECÇÃO NOSSOS SERVIÇOS [NOVO / ATUALIZADO] ───────────────────── */}
+      {/* ─── 3. SECÇÃO NOSSOS SERVIÇOS ───────────────────────────────────────── */}
       <section id="servicos" className="py-16 md:py-20 px-4 sm:px-6 max-w-6xl mx-auto space-y-10">
         <div className="text-center space-y-2 max-w-xl mx-auto">
           <h2 className="text-2xl md:text-3xl font-black text-slate-900">Nossos Serviços</h2>
@@ -612,7 +613,7 @@ export default function LandingPage() {
             <p className="text-slate-600">geral@gestaotvde.pt - NIF: 500123456</p>
           </div>
           <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 text-slate-500 font-medium items-center">
-            <a href="/login" className="hover:text-white transition-colors">Área Restrita (ERP)</a>
+            <a href="/login" className="hover:text-white transition-colors">Area Restrita (ERP)</a>
             <span className="text-slate-800 hidden sm:inline">|</span>
             <span>&copy; {new Date().getFullYear()} Gestão TVDE. Todos os direitos reservados.</span>
           </div>
