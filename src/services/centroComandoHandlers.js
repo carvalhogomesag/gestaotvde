@@ -296,6 +296,50 @@ export const executorFuncoes = async (db, name, args) => {
       return { sucesso: true, msg: `${totalApagados} registo(s) financeiro(s) eliminado(s).` };
     }
 
+    // ==========================================
+    // ── SUPORTE PÚBLICO (ANÁLISE DE CONVERSAS) [NOVO]
+    // ==========================================
+    if (name === "analisarDuvidasFrequentes") {
+      const limite = Math.min(args.limite || 10, 50);
+      try {
+        const snap = await getDocs(collection(db, "conversas_suporte_publicas"));
+        if (snap.empty) {
+          return { sucesso: true, msg: "Não existem conversas registadas no suporte público de momento.", conversas: [] };
+        }
+
+        const conversas = snap.docs.map(docu => ({
+          id: docu.id,
+          ...docu.data()
+        }));
+
+        // Ordenação em memória para estabilidade do Firestore (sem índices compostos exigidos)
+        conversas.sort((a, b) => {
+          const dataA = new Date(a.atualizadoEm || a.criadoEm || 0);
+          const dataB = new Date(b.atualizadoEm || b.criadoEm || 0);
+          return dataB - dataA;
+        });
+
+        // Limita a quantidade de conversas selecionadas
+        const conversasSelecionadas = conversas.slice(0, limite);
+
+        return { 
+          sucesso: true, 
+          msg: `Foram carregadas com sucesso as ${conversasSelecionadas.length} conversas públicas mais recentes para análise.`, 
+          conversas: conversasSelecionadas.map(c => ({
+            id: c.id,
+            criadoEm: c.criadoEm,
+            atualizadoEm: c.atualizadoEm,
+            totalInteracoes: c.mensagens?.length || 0,
+            primeiraPergunta: c.mensagens?.[0]?.content || "Sem conteúdo",
+            historicoCompleto: c.mensagens || []
+          }))
+        };
+      } catch (err) {
+        console.error("[centroComandoHandlers] Erro ao obter histórico público:", err);
+        return { sucesso: false, msg: `Erro ao aceder à base de dados do suporte: ${err.message}` };
+      }
+    }
+
     return { sucesso: false, msg: `Ação não parametrizada no sistema: ${name}` };
   } catch (error) {
     console.error(`[Executor Error]`, error);
