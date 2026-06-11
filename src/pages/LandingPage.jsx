@@ -11,10 +11,10 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { 
   Shield, Check, ArrowRight, Loader2, BookOpen, 
-  Car, HelpCircle, FileText, Smartphone, Mail, User, Key,
-  CheckCircle2, ChevronDown, ChevronUp, AlertCircle, LogIn, Sparkles 
+  Car, HelpCircle, FileText, Smartphone, Mail, User,
+  CheckCircle2, ChevronDown, ChevronUp, AlertCircle, Sparkles 
 } from 'lucide-react';
-import { db } from '../firebase'; 
+import ReactGA from 'react-ga4';
 import { registarLeadPública } from '../services/leadService';
 import { formatCurrency } from '../utils/formatters';
 
@@ -23,29 +23,20 @@ import VehicleCatalog from '../components/public/VehicleCatalog';
 
 export default function LandingPage() {
   const navigate = useNavigate();
-  const { login } = useAuth();
-
-  // ─── ESTADOS DE CONTROLO DO HERO (TABS) ──────────────────────────────────
-  const [abaHero, setAbaHero] = useState('ebook'); // 'ebook' | 'login'
 
   // ─── ESTADOS DOS FORMULÁRIOS ──────────────────────────────────────────────
   
-  // 1. Isca Digital (Ebook Onboarding)
-  const [leadEbook, setLeadEbook] = useState({ nome: '', email: '', telemovel: '' });
-  const [loadingEbook, setLoadingEbook] = useState(false);
-  const [feedbackEbook, setFeedbackEbook] = useState(null);
+  // 1. Isca Digital (eGuia Onboarding - Apenas Nome e Telemóvel)
+  const [leadGuia, setLeadGuia] = useState({ nome: '', telemovel: '' });
+  const [loadingGuia, setLoadingGuia] = useState(false);
+  const [feedbackGuia, setFeedbackGuia] = useState(null);
 
   // 2. Procura de Viatura
   const [leadCarro, setLeadCarro] = useState({ nome: '', email: '', telemovel: '', regiao: 'Lisboa', mensagem: '' });
   const [loadingCarro, setLoadingCarro] = useState(false);
   const [feedbackCarro, setFeedbackCarro] = useState(null);
 
-  // 3. Login Direto Integrado
-  const [credenciais, setCredenciais] = useState({ email: '', password: '' });
-  const [loadingLogin, setLoadingLogin] = useState(false);
-  const [feedbackLogin, setFeedbackLogin] = useState(null);
-
-  // 4. Acordeão de FAQs
+  // 3. Acordeão de FAQs
   const [faqAtiva, setFaqAtiva] = useState(null);
 
   // ─── ESCUTADOR DE SELEÇÃO DE VIATURAS DO CATÁLOGO ────────────────────────
@@ -95,31 +86,43 @@ export default function LandingPage() {
     }
   ];
 
-  // Submissão do Download de Guia
-  const handleSubmeterEbook = async (e) => {
+  // Submissão de Acesso ao eGuia Onboarding
+  const handleSubmeterGuia = async (e) => {
     e.preventDefault();
-    setLoadingEbook(true);
-    setFeedbackEbook(null);
+    setLoadingGuia(true);
+    setFeedbackGuia(null);
 
     try {
       const res = await registarLeadPública({
-        nome: leadEbook.nome,
-        email: leadEbook.email,
-        telemovel: leadEbook.telemovel,
-        origem: 'isca_ebook',
-        mensagemAdicional: 'Solicitou acesso antecipado ao e-book Guia de Onboarding (Em Breve).'
+        nome: leadGuia.nome,
+        email: '', // O email não é solicitado neste formulário
+        telemovel: leadGuia.telemovel,
+        origem: 'eguia_onboarding',
+        mensagemAdicional: 'Solicitou acesso imediato ao eGuia de Onboarding TVDE.'
       });
 
       if (res.sucesso) {
-        res.msg = "Inscrição antecipada realizada com sucesso! O e-book ser-lhe-á enviado diretamente para o email assim que for publicado.";
-        setLeadEbook({ nome: '', email: '', telemovel: '' });
+        // Disparo de Evento de Conversão no Google Analytics 4
+        ReactGA.event({
+          category: 'Lead Generation',
+          action: 'Submissao_eGuia_TVDE',
+          label: 'Campanha Organica - Landing Page',
+          value: 1
+        });
+
+        // Limpeza dos campos
+        setLeadGuia({ nome: '', telemovel: '' });
+        
+        // Redirecionamento seguro passando estado de autorização para o Router
+        navigate('/guia-onboarding', { state: { authorized: true } });
+      } else {
+        setFeedbackGuia(res);
       }
-      setFeedbackEbook(res);
     } catch (err) {
       console.error(err);
-      setFeedbackEbook({ sucesso: false, msg: "Erro técnico de rede. Tente de novo." });
+      setFeedbackGuia({ sucesso: false, msg: "Erro técnico de rede. Tente de novo." });
     } finally {
-      setLoadingEbook(false);
+      setLoadingGuia(false);
     }
   };
 
@@ -147,26 +150,6 @@ export default function LandingPage() {
       setFeedbackCarro({ sucesso: false, msg: "Erro técnico de rede. Tente de novo." });
     } finally {
       setLoadingCarro(false);
-    }
-  };
-
-  // Submissão de Autenticação Direta do Portal
-  const handleLoginDireto = async (e) => {
-    e.preventDefault();
-    if (!credenciais.email || !credenciais.password) {
-      setFeedbackLogin({ tipo: 'erro', texto: 'Preencha todos os campos.' });
-      return;
-    }
-
-    setLoadingLogin(true);
-    setFeedbackLogin(null);
-    try {
-      await login(credenciais.email, credenciais.password);
-      navigate('/dashboard');
-    } catch (err) {
-      setFeedbackLogin({ tipo: 'erro', texto: 'Credenciais inválidas. Verifique os dados.' });
-    } finally {
-      setLoadingLogin(false);
     }
   };
 
@@ -200,14 +183,14 @@ export default function LandingPage() {
         </div>
       </nav>
 
-      {/* 🚀 FAIXA GLOBAL DE "EM BREVE" RESPONSIVA */}
+      {/* 🚀 FAIXA GLOBAL DE "NOVIDADE" RESPONSIVA */}
       <div className="bg-blue-600 text-white text-center py-2.5 px-4 text-[11px] sm:text-xs font-bold flex items-center justify-center gap-2 shadow-xs shrink-0 select-none">
         <Sparkles size={12} className="animate-pulse shrink-0" />
-        <span>O nosso portal de e-books e assessoria está em fase final de lançamento. Registe-se hoje!</span>
+        <span>O nosso eGuia oficial para novos motoristas TVDE em Portugal já está disponível. Aceda grátis!</span>
       </div>
 
       {/* ─── 2. SECÇÃO HERO (RESPONSIVA) ─────────────────────────────────────── */}
-      <header className="relative py-12 md:py-24 px-4 sm:px-6 bg-radial from-slate-900 to-slate-950 text-white overflow-hidden">
+      <header className="relative py-12 md:py-24 px-4 sm:px-6 bg-slate-950 text-white overflow-hidden">
         <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
           
           {/* Lado Esquerdo: Valor de Marca */}
@@ -238,169 +221,70 @@ export default function LandingPage() {
             </div>
           </div>
 
-          {/* Lado Direito: Caixa com Separadores (Ebook vs. Login) */}
+          {/* Lado Direito: Formulário Exclusivo de Captura do eGuia */}
           <div className="lg:col-span-5 bg-white text-slate-800 rounded-3xl p-5 sm:p-6 shadow-2xl border border-slate-100 max-w-md mx-auto w-full">
             
-            {/* Seletor de Separadores */}
-            <div className="grid grid-cols-2 gap-2 mb-5 bg-slate-100 p-1 rounded-xl shrink-0">
-              <button
-                type="button"
-                onClick={() => setAbaHero('ebook')}
-                className={`py-2 text-[11px] sm:text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                  abaHero === 'ebook' 
-                    ? 'bg-white text-indigo-600 shadow-xs' 
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                📥 Candidatura (Ebook)
-              </button>
-              <button
-                type="button"
-                onClick={() => setAbaHero('login')}
-                className={`py-2 text-[11px] sm:text-xs font-bold rounded-lg transition-all cursor-pointer ${
-                  abaHero === 'login' 
-                    ? 'bg-white text-indigo-600 shadow-xs' 
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                🔐 Área de Membros
-              </button>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between text-blue-600">
+                <div className="flex items-center gap-2">
+                  <BookOpen size={16} />
+                  <span className="text-[10px] font-black uppercase tracking-wider">Acesso Imediato Gratuito</span>
+                </div>
+                <span className="bg-emerald-100 text-emerald-700 text-[8px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider">
+                  Disponível
+                </span>
+              </div>
+              <h3 className="text-lg font-black text-slate-900 leading-tight">📖 eGuia Novo Motorista TVDE</h3>
+              <p className="text-slate-500 text-xs leading-relaxed">
+                Descubra o caminho estratégico da decisão à sua primeira viagem. Introduza os dados abaixo para aceder imediatamente ao guia completo online e realizar o download em PDF.
+              </p>
+
+              <form onSubmit={handleSubmeterGuia} className="space-y-3.5 text-left">
+                <div className="relative">
+                  <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                  <input 
+                    type="text" 
+                    required 
+                    placeholder="O seu nome completo"
+                    value={leadGuia.nome}
+                    onChange={e => setLeadGuia({ ...leadGuia, nome: e.target.value })}
+                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  />
+                </div>
+
+                <div className="relative">
+                  <Smartphone className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                  <input 
+                    type="tel" 
+                    required 
+                    placeholder="Telemóvel (ex: +351 912 345 678)"
+                    value={leadGuia.telemovel}
+                    onChange={e => setLeadGuia({ ...leadGuia, telemovel: e.target.value })}
+                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                  />
+                </div>
+
+                <button 
+                  type="submit"
+                  disabled={loadingGuia}
+                  className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition-all shadow-md disabled:opacity-40 cursor-pointer animate-pulse"
+                >
+                  {loadingGuia ? (
+                    <Loader2 size={14} className="animate-spin" />
+                  ) : (
+                    <ArrowRight size={14} />
+                  )}
+                  Desbloquear Acesso ao eGuia
+                </button>
+              </form>
+
+              {feedbackGuia && (
+                <div className="flex items-center gap-2 text-xs font-semibold rounded-xl px-3 py-2.5 border bg-red-50 text-red-700 border-red-100">
+                  <AlertCircle size={14} />
+                  <span className="leading-relaxed">{feedbackGuia.msg}</span>
+                </div>
+              )}
             </div>
-
-            {/* A: CONTEÚDO DA ISCA DIGITAL (EBOOK) */}
-            {abaHero === 'ebook' && (
-              <div className="space-y-4 animate-in fade-in duration-200">
-                <div className="flex items-center justify-between text-blue-600">
-                  <div className="flex items-center gap-2">
-                    <BookOpen size={16} />
-                    <span className="text-[10px] font-black uppercase tracking-wider">Acesso Antecipado</span>
-                  </div>
-                  <span className="bg-amber-100 text-amber-700 text-[8px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider">
-                    Em Breve
-                  </span>
-                </div>
-                <h3 className="text-base font-black text-slate-900 leading-tight">Garanta o Guia de Onboarding</h3>
-                <p className="text-slate-500 text-xs leading-relaxed">
-                  O nosso e-book oficial está em fase final de paginação [1]. Registe o seu telemóvel e email hoje para garantir o download gratuito imediato assim que for publicado [1]!
-                </p>
-
-                <form onSubmit={handleSubmeterEbook} className="space-y-3.5 text-left">
-                  <div className="relative">
-                    <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                    <input 
-                      type="text" required placeholder="O seu nome completo"
-                      value={leadEbook.nome}
-                      onChange={e => setLeadEbook({ ...leadEbook, nome: e.target.value })}
-                      className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                    />
-                  </div>
-
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                    <input 
-                      type="email" required placeholder="O seu endereço de email"
-                      value={leadEbook.email}
-                      onChange={e => setLeadEbook({ ...leadEbook, email: e.target.value })}
-                      className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                    />
-                  </div>
-
-                  <div className="relative">
-                    <Smartphone className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                    <input 
-                      type="tel" required placeholder="O seu número de telemóvel"
-                      value={leadEbook.telemovel}
-                      onChange={e => setLeadEbook({ ...leadEbook, telemovel: e.target.value })}
-                      className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                    />
-                  </div>
-
-                  <button 
-                    type="submit"
-                    disabled={loadingEbook}
-                    className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition-all shadow-md disabled:opacity-40 cursor-pointer animate-pulse"
-                  >
-                    {loadingEbook ? (
-                      <Loader2 size={14} className="animate-spin" />
-                    ) : (
-                      <FileText size={14} />
-                    )}
-                    Garantir Acesso Antecipado
-                  </button>
-                </form>
-
-                {feedbackEbook && (
-                  <div className={`flex items-center gap-2 text-xs font-semibold rounded-xl px-3 py-2.5 border ${
-                    feedbackEbook.sucesso 
-                      ? 'bg-emerald-50 text-emerald-700 border-emerald-100' 
-                      : 'bg-red-50 text-red-700 border-red-100'
-                  }`}>
-                    {feedbackEbook.sucesso ? <CheckCircle2 size={14} /> : <AlertCircle size={14} />}
-                    <span className="leading-relaxed">{feedbackEbook.msg}</span>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* B: CONTEÚDO DO LOGIN RÁPIDO DO PORTAL/ERP */}
-            {abaHero === 'login' && (
-              <div className="space-y-4 animate-in fade-in duration-200">
-                <div className="flex items-center gap-2 text-indigo-600">
-                  <LogIn size={16} />
-                  <span className="text-[10px] font-black uppercase tracking-wider">Acesso Restrito</span>
-                </div>
-                <h3 className="text-base font-black text-slate-900 leading-tight">Área de Clientes & Gestores</h3>
-                <p className="text-slate-500 text-xs leading-relaxed">
-                  Introduza os seus dados de acesso configurados para aceder ao ERP interno e controlo de frotas.
-                </p>
-
-                <form onSubmit={handleLoginDireto} className="space-y-3.5 text-left">
-                  <div className="relative">
-                    <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                    <input 
-                      type="email" 
-                      required 
-                      placeholder="Email de registo"
-                      value={credenciais.email}
-                      onChange={e => setCredenciais({ ...credenciais, email: e.target.value })}
-                      className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                    />
-                  </div>
-
-                  <div className="relative">
-                    <Key className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                    <input 
-                      type="password" 
-                      required 
-                      placeholder="Palavra-passe"
-                      value={credenciais.password}
-                      onChange={e => setCredenciais({ ...credenciais, password: e.target.value })}
-                      className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500"
-                    />
-                  </div>
-
-                  <button 
-                    type="submit"
-                    disabled={loadingLogin}
-                    className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition-all shadow-md disabled:opacity-40 cursor-pointer"
-                  >
-                    {loadingLogin ? (
-                      <Loader2 size={14} className="animate-spin" />
-                    ) : (
-                      <LogIn size={14} />
-                    )}
-                    Entrar no Sistema Restrito
-                  </button>
-                </form>
-
-                {feedbackLogin && (
-                  <div className="flex items-center gap-2 text-xs font-semibold rounded-xl px-3 py-2.5 border bg-red-50 text-red-700 border-red-100">
-                    <AlertCircle size={14} />
-                    <span>{feedbackLogin.texto}</span>
-                  </div>
-                )}
-              </div>
-            )}
 
           </div>
 

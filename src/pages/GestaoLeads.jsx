@@ -42,7 +42,7 @@ export default function GestaoLeads() {
 
   // Filtros de pesquisa
   const [filtroEstado, setFaqFiltroEstado] = useState("todos"); // 'todos', 'novo', 'contacto_iniciado', 'convertido', 'perdido'
-  const [filtroOrigem, setFaqFiltroOrigem] = useState("todos"); // 'todos', 'isca_ebook', 'procura_viatura'
+  const [filtroOrigem, setFaqFiltroOrigem] = useState("todos"); // 'todos', 'eguia_onboarding', 'procura_viatura', 'isca_ebook'
 
   // Obter data de hoje no formato ISO YYYY-MM-DD para o fuso horário português
   const hojeStr = new Date().toLocaleDateString('pt-PT', { year: 'numeric', month: '2-digit', day: '2-digit' }).split('/').reverse().join('-');
@@ -82,7 +82,7 @@ export default function GestaoLeads() {
             leadId: lead.id,
             leadNome: lead.nome,
             leadTelemovel: lead.telemovel,
-            leadEmail: lead.email,
+            leadEmail: lead.email || '',
             leadOrigem: lead.origem
           });
         }
@@ -222,7 +222,7 @@ export default function GestaoLeads() {
     try {
       const novoMotoristaPayload = {
         nome: leadSelecionada.nome,
-        email: leadSelecionada.email,
+        email: leadSelecionada.email || '', // Garante string vazia se não fornecido
         telemovel: leadSelecionada.telemovel,
         nif: '---', 
         iban: '---',
@@ -281,7 +281,7 @@ export default function GestaoLeads() {
   return (
     <div className="space-y-6 text-slate-800">
       
-      {/* ─── Cabçalho do Painel CRM ────────────────────────────────────────── */}
+      {/* ─── Cabeçalho do Painel CRM ────────────────────────────────────────── */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-2xl font-black tracking-tight text-slate-900">Gestão de Leads (CRM)</h2>
@@ -290,7 +290,7 @@ export default function GestaoLeads() {
       </div>
 
       {/* ─── Filtros Rápidos de Controlo ────────────────────────────────────── */}
-      <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col md:flex-row gap-4 items-center justify-between shadow-xs">
+      <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col md:flex-row gap-4 items-center justify-between shadow-xs text-left">
         <div className="flex flex-wrap gap-3 items-center w-full md:w-auto">
           <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
             <Filter size={14} /> Filtros:
@@ -314,8 +314,9 @@ export default function GestaoLeads() {
             className="p-2 border border-slate-200 rounded-xl bg-slate-50 text-xs font-bold text-slate-600 outline-none focus:ring-2 focus:ring-slate-100"
           >
             <option value="todos">Todas as Origens</option>
-            <option value="isca_ebook">📖 Download de Guia (Ebook)</option>
+            <option value="eguia_onboarding">📖 eGuia Onboarding</option>
             <option value="procura_viatura">🚗 Procura Viatura (Aluguer)</option>
+            <option value="isca_ebook">📖 Download de Guia (Legado)</option>
           </select>
         </div>
 
@@ -327,7 +328,7 @@ export default function GestaoLeads() {
       {/* ─── Grelha Principal Split-Pane ───────────────────────────────────── */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
-        {/* Lado Esquerdo: Lista de Leads / Agenda Diária por Separador [NOVO] */}
+        {/* Lado Esquerdo: Lista de Leads / Agenda Diária por Separador */}
         <div className="lg:col-span-7 bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-xs p-5 space-y-4">
           
           {/* Seletor de Separador da Coluna Esquerda */}
@@ -393,14 +394,23 @@ export default function GestaoLeads() {
                             {formatDatePT(new Date(lead.criadoEm))}
                           </span>
                         </div>
-                        <p className="text-xs text-slate-500 font-medium truncate max-w-[150px] sm:max-w-[250px]">{lead.email}</p>
                         
+                        {/* Exibição condicional caso o email não exista */}
+                        {lead.email ? (
+                          <p className="text-xs text-slate-500 font-medium truncate max-w-[150px] sm:max-w-[250px]">{lead.email}</p>
+                        ) : (
+                          <p className="text-xs text-slate-400 font-medium italic truncate max-w-[150px] sm:max-w-[250px]">Sem email (Contacto exclusivo)</p>
+                        )}
+                        
+                        {/* Estilização por origem da lead */}
                         <span className={`inline-block text-[9px] font-bold px-2 py-0.5 rounded-lg border ${
                           lead.origem === 'procura_viatura' 
                             ? 'bg-emerald-50 text-emerald-700 border-emerald-100' 
-                            : 'bg-indigo-50 text-indigo-700 border-indigo-100'
+                            : lead.origem === 'eguia_onboarding'
+                              ? 'bg-blue-50 text-blue-700 border-blue-100'
+                              : 'bg-indigo-50 text-indigo-700 border-indigo-100'
                         }`}>
-                          {lead.origem === 'procura_viatura' ? '🚗 Aluguer' : '📖 Ebook'}
+                          {lead.origem === 'procura_viatura' ? '🚗 Aluguer' : lead.origem === 'eguia_onboarding' ? '📖 eGuia Onboarding' : '📖 Ebook (Legado)'}
                         </span>
                       </div>
 
@@ -530,7 +540,11 @@ export default function GestaoLeads() {
               <div className="flex justify-between items-start border-b border-slate-100 pb-4">
                 <div className="space-y-1 min-w-0">
                   <h3 className="font-bold text-slate-900 text-base truncate">{leadSelecionada.nome}</h3>
-                  <p className="text-xs text-slate-500 font-semibold">{leadSelecionada.email}</p>
+                  {leadSelecionada.email ? (
+                    <p className="text-xs text-slate-500 font-semibold">{leadSelecionada.email}</p>
+                  ) : (
+                    <p className="text-xs text-slate-400 font-semibold italic">Sem email (Contacto exclusivo)</p>
+                  )}
                   <p className="text-xs text-indigo-600 font-bold">{leadSelecionada.telemovel}</p>
                 </div>
                 <button
@@ -557,21 +571,21 @@ export default function GestaoLeads() {
                   <button
                     onClick={() => handleAlterarEstado(leadSelecionada.id, 'contacto_iniciado')}
                     disabled={loadingAcao || leadSelecionada.estado === 'contacto_iniciado'}
-                    className="flex items-center justify-center gap-1.5 py-2 px-1 border border-amber-200 hover:bg-amber-50 text-amber-700 font-semibold rounded-xl text-xs transition-colors disabled:opacity-40"
+                    className="flex items-center justify-center gap-1.5 py-2 px-1 border border-amber-200 hover:bg-amber-50 text-amber-700 font-semibold rounded-xl text-xs transition-colors disabled:opacity-40 cursor-pointer"
                   >
                     <PhoneCall size={11} /> Contactar
                   </button>
                   <button
                     onClick={() => handleAlterarEstado(leadSelecionada.id, 'convertido')}
                     disabled={loadingAcao || leadSelecionada.estado === 'convertido'}
-                    className="flex items-center justify-center gap-1.5 py-2 px-1 border border-emerald-200 hover:bg-emerald-50 text-emerald-700 font-semibold rounded-xl text-xs transition-colors disabled:opacity-40"
+                    className="flex items-center justify-center gap-1.5 py-2 px-1 border border-emerald-200 hover:bg-emerald-50 text-emerald-700 font-semibold rounded-xl text-xs transition-colors disabled:opacity-40 cursor-pointer"
                   >
                     <CheckCircle2 size={11} /> Converter
                   </button>
                   <button
                     onClick={() => handleAlterarEstado(leadSelecionada.id, 'perdido')}
                     disabled={loadingAcao || leadSelecionada.estado === 'perdido'}
-                    className="flex items-center justify-center gap-1.5 py-2 px-1 border border-red-200 hover:bg-red-50 text-red-600 font-semibold rounded-xl text-xs transition-colors disabled:opacity-40"
+                    className="flex items-center justify-center gap-1.5 py-2 px-1 border border-red-200 hover:bg-red-50 text-red-600 font-semibold rounded-xl text-xs transition-colors disabled:opacity-40 cursor-pointer"
                   >
                     <XCircle size={11} /> Descartar
                   </button>
@@ -636,7 +650,7 @@ export default function GestaoLeads() {
                               <button
                                 type="button"
                                 onClick={() => handleConcluirAcaoFutura(leadSelecionada.id, act.id)}
-                                className="p-1 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-md transition-colors flex-shrink-0"
+                                className="p-1 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-md transition-colors flex-shrink-0 cursor-pointer"
                                 title="Marcar como Concluída"
                               >
                                 <CalendarCheck size={14} />
@@ -676,7 +690,7 @@ export default function GestaoLeads() {
                         type="button"
                         onClick={handleAgendarAcaoFutura}
                         disabled={loadingAcao || !novaAcao.data || !novaAcao.descricao.trim()}
-                        className="px-2.5 bg-slate-800 text-white rounded-lg text-xs font-bold hover:bg-slate-950 transition-colors disabled:opacity-40"
+                        className="px-2.5 bg-slate-800 text-white rounded-lg text-xs font-bold hover:bg-slate-950 transition-colors disabled:opacity-40 cursor-pointer"
                       >
                         OK
                       </button>
@@ -719,7 +733,7 @@ export default function GestaoLeads() {
                   <button
                     onClick={handleAdicionarNota}
                     disabled={loadingAcao || !novaNota.trim()}
-                    className="px-3 bg-slate-800 text-white rounded-xl text-xs font-semibold hover:bg-slate-950 transition-colors disabled:opacity-40"
+                    className="px-3 bg-slate-800 text-white rounded-xl text-xs font-semibold hover:bg-slate-950 transition-colors disabled:opacity-40 cursor-pointer"
                   >
                     Adicionar
                   </button>

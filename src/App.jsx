@@ -16,6 +16,7 @@ import FechoSemanal from './pages/FechoSemanal';
 import Login from './pages/Login';
 import LandingPage from './pages/LandingPage'; 
 import GestaoLeads from './pages/GestaoLeads'; 
+import EGuiaPage from './pages/EGuiaPage'; // Importação da nova página do Guia de Onboarding
 
 // Importação do Google Analytics
 import ReactGA from 'react-ga4';
@@ -39,7 +40,7 @@ if (GA_MEASUREMENT_ID) {
  */
 const PrivateRoute = ({ children }) => {
   const { user } = useAuth();
-  return user ? children : <Navigate to="/" />; // Correção efetuada: Redireciona para / ao deslogar
+  return user ? children : <Navigate to="/" />; 
 };
 
 /**
@@ -49,7 +50,7 @@ const PrivateRoute = ({ children }) => {
 const AdminRoute = ({ children }) => {
   const { user, userData, loading } = useAuth();
   if (loading) return null;
-  if (!user) return <Navigate to="/" />; // Correção efetuada: Redireciona para / ao deslogar
+  if (!user) return <Navigate to="/" />; 
   if (userData?.role !== 'admin') return <Navigate to="/dashboard" />; 
   return children;
 };
@@ -69,6 +70,7 @@ function AppContent() {
   const isPublicPath = 
     location.pathname === '/' || 
     location.pathname === '/login' || 
+    location.pathname === '/guia-onboarding' ||
     location.pathname.startsWith('/onboarding');
 
   // O ERP com Sidebar e Header só é exibido se o utilizador estiver autenticado e fora de rotas públicas
@@ -87,6 +89,7 @@ function AppContent() {
             <Route path="/" element={<LandingPage />} />
             <Route path="/login" element={!user ? <Login /> : <Navigate to="/dashboard" />} />
             <Route path="/onboarding/:driverId" element={<OnboardingMotorista />} />
+            <Route path="/guia-onboarding" element={<EGuiaPage />} />
 
             {/* ⚠️ TEMPORÁRIO — Remover após executar a migração de cartões */}
             <Route path="/migracao-cartoes" element={<MigracaoCartoes />} />
