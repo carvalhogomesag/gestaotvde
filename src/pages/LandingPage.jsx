@@ -24,19 +24,22 @@ import VehicleCatalog from '../components/public/VehicleCatalog';
 export default function LandingPage() {
   const navigate = useNavigate();
 
-  // ─── ESTADOS DOS FORMULÁRIOS ──────────────────────────────────────────────
+  // ─── ESTADOS DOS FORMULÁRIOS E ABAS ───────────────────────────────────────
   
-  // 1. Isca Digital (eGuia Onboarding - Apenas Nome e Telemóvel)
+  // Controlo das abas de Nossos Serviços
+  const [abaServicos, setAbaServicos] = useState('motoristas'); // 'motoristas' | 'proprietarios'
+
+  // Isca Digital (eGuia Onboarding - Apenas Nome e Telemóvel)
   const [leadGuia, setLeadGuia] = useState({ nome: '', telemovel: '' });
   const [loadingGuia, setLoadingGuia] = useState(false);
   const [feedbackGuia, setFeedbackGuia] = useState(null);
 
-  // 2. Procura de Viatura
+  // Procura de Viatura
   const [leadCarro, setLeadCarro] = useState({ nome: '', email: '', telemovel: '', regiao: 'Lisboa', mensagem: '' });
   const [loadingCarro, setLoadingCarro] = useState(false);
   const [feedbackCarro, setFeedbackCarro] = useState(null);
 
-  // 3. Acordeão de FAQs
+  // Acordeão de FAQs
   const [faqAtiva, setFaqAtiva] = useState(null);
 
   // ─── ESCUTADOR DE SELEÇÃO DE VIATURAS DO CATÁLOGO ────────────────────────
@@ -165,8 +168,9 @@ export default function LandingPage() {
           </div>
           
           {/* Oculto em ecrãs pequenos (Mobile) */}
-          <div className="hidden md:flex items-center gap-8 text-sm font-semibold text-slate-600">
-            <a href="#servicos" className="hover:text-blue-600 transition-colors">Assessoria</a>
+          <div className="hidden md:flex items-center gap-6 lg:gap-8 text-sm font-semibold text-slate-600">
+            <a href="#servicos" className="hover:text-blue-600 transition-colors">Nossos Serviços</a>
+            <a href="#planos" className="hover:text-blue-600 transition-colors">Planos de Assessoria</a>
             <a href="#catalogo" className="hover:text-blue-600 transition-colors">Catálogo de Viaturas</a>
             <a href="#aluguer" className="hover:text-blue-600 transition-colors">Aluguer de Viaturas</a>
             <a href="#faq" className="hover:text-blue-600 transition-colors">Dúvidas Comuns</a>
@@ -291,8 +295,84 @@ export default function LandingPage() {
         </div>
       </header>
 
-      {/* ─── 3. SECÇÃO DOS PACOTES DE ASSESSORIA (RESPONSIVA) ────────────────── */}
-      <section id="servicos" className="py-16 md:py-20 px-4 sm:px-6 max-w-6xl mx-auto space-y-10 md:space-y-12">
+      {/* ─── 3. SECÇÃO NOSSOS SERVIÇOS [NOVO / ATUALIZADO] ───────────────────── */}
+      <section id="servicos" className="py-16 md:py-20 px-4 sm:px-6 max-w-6xl mx-auto space-y-10">
+        <div className="text-center space-y-2 max-w-xl mx-auto">
+          <h2 className="text-2xl md:text-3xl font-black text-slate-900">Nossos Serviços</h2>
+          <p className="text-slate-500 text-xs sm:text-sm leading-relaxed">
+            Soluções completas desenhadas para apoiar tanto quem conduz profissionalmente como quem gere frotas parceiras em Portugal [1].
+          </p>
+        </div>
+
+        {/* Seletor de Abas de Serviços */}
+        <div className="flex justify-center gap-3 bg-slate-100 p-1.5 rounded-2xl w-fit mx-auto select-none shrink-0">
+          <button
+            type="button"
+            onClick={() => setAbaServicos('motoristas')}
+            className={`px-5 sm:px-6 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+              abaServicos === 'motoristas' 
+                ? 'bg-slate-950 text-white shadow-md' 
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            🙋‍♂️ Para Motoristas
+          </button>
+          <button
+            type="button"
+            onClick={() => setAbaServicos('proprietarios')}
+            className={`px-5 sm:px-6 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+              abaServicos === 'proprietarios' 
+                ? 'bg-slate-950 text-white shadow-md' 
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            🏢 Para Proprietários
+          </button>
+        </div>
+
+        {/* Conteúdo Aba A: Motoristas */}
+        {abaServicos === 'motoristas' && (
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-10 text-center space-y-6 max-w-3xl mx-auto relative overflow-hidden animate-in fade-in duration-300">
+            <div className="absolute top-4 right-4 bg-amber-100 text-amber-800 text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-wider shrink-0">
+              Em Breve
+            </div>
+            <div className="max-w-md mx-auto space-y-4">
+              <BookOpen size={40} className="text-blue-600 mx-auto" />
+              <h3 className="text-xl font-black text-slate-900">Área Dedicada ao Motorista</h3>
+              <p className="text-slate-500 text-xs sm:text-sm leading-relaxed text-center">
+                Estamos a estruturar um portal de apoio onde poderá submeter faturas semanais de combustível, gerir despesas operacionais de portagens, acompanhar quitações e depósitos de caução parametrizados como crédito, e aceder a relatórios automatizados.
+              </p>
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-50 border border-slate-200 text-[11px] font-semibold text-slate-500">
+                <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-ping shrink-0"></span>
+                Fase de modelagem técnica e regulatória
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Conteúdo Aba B: Proprietários */}
+        {abaServicos === 'proprietarios' && (
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-10 text-center space-y-6 max-w-3xl mx-auto relative overflow-hidden animate-in fade-in duration-300">
+            <div className="absolute top-4 right-4 bg-amber-100 text-amber-800 text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-wider shrink-0">
+              Em Breve
+            </div>
+            <div className="max-w-md mx-auto space-y-4">
+              <Car size={40} className="text-indigo-600 mx-auto" />
+              <h3 className="text-xl font-black text-slate-900">Portal de Gestão de Frotas (Operadores)</h3>
+              <p className="text-slate-500 text-xs sm:text-sm leading-relaxed text-center">
+                Um painel administrativo para proprietários de frotas parceiras acompanharem a rentabilidade operacional, controlo técnico de manutenção, processamentos financeiros semanais e atribuição automática de cartões de abastecimento e Via Verde.
+              </p>
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-50 border border-slate-200 text-[11px] font-semibold text-slate-500">
+                <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-ping shrink-0"></span>
+                Fase de modelagem técnica e regulatória
+              </div>
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* ─── 4. SECÇÃO PLANOS DE ASSESSORIA (RESPONSIVA) ────────────────────── */}
+      <section id="planos" className="py-16 md:py-20 px-4 sm:px-6 max-w-6xl mx-auto space-y-10 md:space-y-12 border-t border-slate-200">
         <div className="text-center space-y-2 max-w-xl mx-auto">
           <h2 className="text-2xl md:text-3xl font-black text-slate-900">Pacotes de Apoio à sua medida</h2>
           <p className="text-slate-500 text-xs sm:text-sm leading-relaxed">
@@ -371,10 +451,10 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ─── 4. CATÁLOGO INTERATIVO DE VIATURAS (RESPONSIVO) ───────────────── */}
+      {/* ─── 5. CATÁLOGO INTERATIVO DE VIATURAS (RESPONSIVO) ───────────────── */}
       <VehicleCatalog />
 
-      {/* ─── 5. SECÇÃO DE PROCURA DE VIATURAS (MATCHING DE ALUGUER) ───────────── */}
+      {/* ─── 6. SECÇÃO DE PROCURA DE VIATURAS (MATCHING DE ALUGUER) ───────────── */}
       <section id="aluguer" className="bg-slate-900 text-white py-16 md:py-20 px-4 sm:px-6">
         <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
           
@@ -482,7 +562,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ─── 6. SECÇÃO DE PERGUNTAS E RESPOSTAS COMUNS (FAQ ACCORDION) ───────── */}
+      {/* ─── 7. SECÇÃO DE PERGUNTAS E RESPOSTAS COMUNS (FAQ ACCORDION) ───────── */}
       <section id="faq" className="py-16 md:py-20 px-4 sm:px-6 max-w-4xl mx-auto space-y-12">
         <div className="text-center space-y-2">
           <HelpCircle size={32} className="text-blue-600 mx-auto" />
@@ -523,7 +603,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ─── 7. RODAPÉ INSTITUCIONAL (RESPONSIVO) ───────────────────────────── */}
+      {/* ─── 8. RODAPÉ INSTITUCIONAL (RESPONSIVO) ───────────────────────────── */}
       <footer className="bg-slate-950 text-slate-400 py-12 px-4 sm:px-6 border-t border-slate-900">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6 text-xs text-center md:text-left">
           <div>
