@@ -4,6 +4,7 @@
  *
  * Widget flutuante de chat com assistente especializado em legislação,
  * trânsito e contabilidade TVDE em Portugal. Disponível 24/7 para visitantes.
+ * Grava e sincroniza as interações em tempo real no Firestore para análise do ERP.
  */
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -13,12 +14,19 @@ import {
 } from 'lucide-react';
 import { perguntarAoAssistentePublico } from '../../services/geminiService';
 
+// Importação do Firebase Firestore para gravação de interações
+import { db } from '../../firebase';
+import { collection, addDoc, updateDoc, doc } from 'firebase/firestore';
+
 export default function PublicChatWidget() {
   const [aberto, setAberto] = useState(false);
   const [mensagem, setMensagem] = useState("");
   const [loading, setLoading] = useState(false);
   const [historico, setHistorico] = useState([]);
   const [mostrouAviso, setMostrouAviso] = useState(false);
+  
+  // Estado para guardar o ID do documento desta sessão de chat no Firestore
+  const [conversaDocId, setConversaDocId] = useState(null);
 
   const fimMensagensRef = useRef(null);
 
@@ -52,16 +60,40 @@ export default function PublicChatWidget() {
 
     // Adiciona a mensagem do utilizador ao histórico
     const novaMensagemUser = { role: 'user', content: textoLimpo };
-    setHistorico(prev => [...prev, novaMensagemUser]);
+    const novoHistorico = [...historico, novaMensagemUser];
+    setHistorico(novoHistorico);
     setMensagem("");
     setLoading(true);
 
     try {
       // Chama o microagente público especializado
       const resposta = await perguntarAoAssistentePublico(textoLimpo, historico);
+      const novaMensagemModel = { role: 'model', content: resposta.text };
+      const historicoAtualizado = [...novoHistorico, novaMensagemModel];
+      
+      setHistorico(historicoAtualizado);
 
-      // Adiciona a resposta do assistente ao histórico
-      setHistorico(prev => [...prev, { role: 'model', content: resposta.text }]);
+      // Persistência em background no Firestore para análise comercial posterior
+      try {
+        if (!conversaDocId) {
+          // Sessão nova: cria documento na coleção conversas_suporte_publicas
+          const docRef = await addDoc(collection(db, 'conversas_suporte_publicas'), {
+            criadoEm: new Date().toISOString(),
+            atualizadoEm: new Date().toISOString(),
+            mensagens: historicoAtualizado
+          });
+          setConversaDocId(docRef.id);
+        } else {
+          // Sessão existente: atualiza o array de mensagens e a data de atividade
+          await updateDoc(doc(db, 'conversas_suporte_publicas', conversaDocId), {
+            atualizadoEm: new Date().toISOString(),
+            mensagens: historicoAtualizado
+          });
+        }
+      } catch (fsErr) {
+        console.error("[PublicChatWidget] Erro ao gravar interação no Firestore:", fsErr);
+      }
+
     } catch (err) {
       console.error("[PublicChatWidget] Erro ao obter resposta:", err);
       setHistorico(prev => [...prev, { 

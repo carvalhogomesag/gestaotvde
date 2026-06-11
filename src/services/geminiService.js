@@ -334,6 +334,18 @@ const TODAS_AS_FERRAMENTAS = [
           },
           required: ["atribuidoA", "nota", "prioridade"]
         }
+      },
+
+      // ── SUPORTE PÚBLICO (ANÁLISE DE CONVERSAS) ──────────────────────────────
+      {
+        name: "analisarDuvidasFrequentes",
+        description: "Obtém as conversas mais recentes mantidas pelos visitantes da Landing Page com o Assistente de Suporte Público para que possas analisar as dúvidas comuns, sugestões e dores de cabeça mais reportadas.",
+        parameters: {
+          type: "object",
+          properties: {
+            limite: { type: "number", description: "Número de conversas recentes a obter para análise (padrão: 10, máximo: 50)." }
+          }
+        }
       }
 
     ]
@@ -354,6 +366,7 @@ Tens acesso total ao sistema e podes executar qualquer operação solicitada pel
 - Cartões: gerir cartões de combustível ("combustivel") e eléctricos ("eletrico")
 - Financeiro: lançar, editar e eliminar débitos e créditos na conta corrente
 - Tarefas: criar e atribuir tickets a funcionários
+- Suporte Público: ler e analisar as dúvidas e conversas mais frequentes obtidas na Landing Page
 
 ⚠️ REGRAS DE SEGURANÇA (OBRIGATÓRIAS):
 1. Para ELIMINAR ou EXCLUIR qualquer registo (motorista, veículo, cartão, lançamento), NUNCA chames a ferramenta de imediato. Pede sempre confirmação explícita ao utilizador citando o nome/descrição do item antes de avançar.
@@ -412,7 +425,7 @@ ${contextoSistema.adjustesAtuais && contextoSistema.adjustesAtuais.length > 0
   : '  (nenhum lançamento pendente)'
 }
 
-RESUMO: ${contextoSistema.totalMotoristas} motoristas | ${contextoSistema.totalVeiculos} veículos | ${contextoSistema.ticketsPendentes || 0} tickets pendentes
+RESUMO: ${contextoSistema.totalMotoristas} motoristas | ${contextoSistema.totalVeiculos} vehicles | ${contextoSistema.ticketsPendentes || 0} tickets pendentes
     `.trim();
 
     const historyParts = mensagensAnteriores
