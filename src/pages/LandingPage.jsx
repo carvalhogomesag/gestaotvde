@@ -18,7 +18,7 @@ import ReactGA from 'react-ga4';
 import { registarLeadPública } from '../services/leadService';
 import { formatCurrency } from '../utils/formatters';
 
-// Importação do catálogo público de frotas e do widget de atendimento com IA
+// Importações do catálogo público de frotas e do assistente virtual de IA 24/7
 import VehicleCatalog from '../components/public/VehicleCatalog';
 import PublicChatWidget from '../components/public/PublicChatWidget';
 
@@ -619,6 +619,9 @@ export default function LandingPage() {
           </div>
         </div>
       </footer>
+
+      {/* 🟢 Microagente de Inteligência Artificial para Apoio Legislativo, Fiscal e Operacional (Disponível 24/7) */}
+      <PublicChatWidget />
 
     </div>
   );
