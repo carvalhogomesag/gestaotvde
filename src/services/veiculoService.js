@@ -1,11 +1,6 @@
 /**
  * veiculoService.js
  * Localização: src/services/veiculoService.js
- *
- * Funções Firestore para a gestão de viaturas e controlo de catálogo público.
- *
- * Todas as funções recebem `db` como primeiro argumento para seguir
- * o padrão de consistência já adotado no projeto.
  */
 
 import { 
@@ -41,8 +36,14 @@ export const obterViaturasParaCatalogo = async (db) => {
         anuncioAtivo: dados.anuncioAtivo ?? false,
         precoSemanal: Number(dados.precoSemanal || 0),
         cidade: dados.cidade || 'Lisboa',
-        // Correção efetuada: Mapeamento do campo fotoUrl para exibição no catálogo público
-        fotoUrl: dados.fotoUrl || "" 
+        fotoUrl: dados.fotoUrl || "", 
+        
+        // ◄ ADICIONADO: Novos mapeamentos com fallback para garantir a UX do catálogo
+        transmissao: dados.transmissao || 'Automática',
+        autonomia: Number(dados.autonomia || 350),
+        lugares: Number(dados.lugares || 5),
+        categoria: dados.categoria || 'Standard',
+        estado: dados.estado || (dados.anuncioAtivo ? 'Disponível' : 'Alugado')
       };
     });
 
@@ -57,13 +58,6 @@ export const obterViaturasParaCatalogo = async (db) => {
 /**
  * Altera o estado de ativação do anúncio público de uma viatura.
  * Atualiza o campo 'anuncioAtivo' no Firestore e regista um log na auditoria global do ERP.
- *
- * @param {Firestore} db
- * @param {string} veiculoId     - ID do documento da viatura no Firestore
- * @param {boolean} novoEstado   - true (para ativar anúncio) | false (para pausar anúncio)
- * @param {string} matricula     - Matrícula da viatura (para o texto do log de auditoria)
- * @param {string} alteradoPor   - Nome do gestor/admin que realizou a alteração
- * @returns {Promise<{ sucesso: boolean, msg: string }>}
  */
 export const alternarEstadoAnuncioViatura = async (db, veiculoId, novoEstado, matricula, alteradoPor) => {
   try {
