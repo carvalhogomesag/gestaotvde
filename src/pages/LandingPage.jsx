@@ -21,9 +21,9 @@ import { registarLeadPública } from '../services/leadService';
 import { formatCurrency } from '../utils/formatters';
 
 // Importações do catálogo público de frotas e do assistente virtual de IA 24/7
-import VehicleCatalog from '../components/public/VehicleCatalog';
 import PublicChatWidget from '../components/public/PublicChatWidget';
 import NavbarLanding from '../components/public/NavbarLanding';
+import CatalogoViaturas from '../components/public/CatalogoViaturas';
 
 export default function LandingPage() {
   const navigate = useNavigate();
@@ -186,7 +186,7 @@ export default function LandingPage() {
       <header className="relative py-12 md:py-24 px-4 sm:px-6 bg-slate-950 text-white overflow-hidden">
         <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
           
-          {/* LADO ESQUERDO: Carrossel de Texto Rotativo (Sem card, raw text) [ATUALIZADO] */}
+          {/* LADO ESQUERDO: Carrossel de Texto Rotativo (Sem card, raw text) */}
           <div className="lg:col-span-7 space-y-6 text-left min-h-[360px] flex flex-col justify-between">
             
             <div className="space-y-5 flex-1 flex flex-col justify-center">
@@ -313,7 +313,7 @@ export default function LandingPage() {
 
           </div>
 
-          {/* LADO DIREITO: Form do eGuia Totalmente FIXO e Estático (Captação de leads direta) [RETORNADO] */}
+          {/* LADO DIREITO: Form do eGuia Totalmente FIXO e Estático (Captação de leads direta) */}
           <div className="lg:col-span-5 bg-white text-slate-800 rounded-3xl p-5 sm:p-6 shadow-2xl border border-slate-100 max-w-md mx-auto w-full relative min-h-[420px] flex flex-col justify-between">
             
             <div className="space-y-4 text-left">
@@ -539,8 +539,8 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ─── 5. CATÁLOGO INTERATIVO DE VIATURAS (RESPONSIVO) ───────────────── */}
-      <VehicleCatalog />
+      {/* ─── 5. CATÁLOGO INTERATIVO DE VIATURAS COM CARROSSEL (RESPONSIVO) ──── */}
+      <CatalogoViaturas />
 
       {/* ─── 6. SECÇÃO DE PROCURA DE VIATURAS (MATCHING DE ALUGUER) ───────────── */}
       <section id="aluguer" className="bg-slate-900 text-white py-16 md:py-20 px-4 sm:px-6 border-t border-slate-800">
