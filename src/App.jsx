@@ -22,6 +22,7 @@ import GeradorDistico from './pages/GeradorDistico';
 import ReactGA from 'react-ga4';
 import CentroComando from './pages/CentroComando';
 import OnboardingMotorista from './pages/OnboardingMotorista';
+import MigracaoFirestore from './pages/MigracaoFirestore'; // ◄ Importado temporariamente para manutenção
 
 const GA_MEASUREMENT_ID = import.meta.env.VITE_GA_MEASUREMENT_ID;
 if (GA_MEASUREMENT_ID) {
@@ -56,6 +57,7 @@ function AppContent() {
     location.pathname === '/login' || 
     location.pathname === '/guia-onboarding' ||
     location.pathname === '/gerador-distico' ||
+    location.pathname === '/migracao' || // ◄ Adicionado para limpar layout na página de migração
     location.pathname.startsWith('/blog') ||
     location.pathname.startsWith('/onboarding');
 
@@ -78,6 +80,9 @@ function AppContent() {
             <Route path="/blog" element={<Blog />} />
             <Route path="/blog/:slug" element={<Blog />} />
             <Route path="/gerador-distico" element={<GeradorDistico />} />
+            
+            {/* ROTA TEMPORÁRIA DE MIGRAÇÃO */}
+            <Route path="/migracao" element={<MigracaoFirestore />} />
 
             {/* ROTAS PROTEGIDAS — ERP */}
             <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
