@@ -387,6 +387,8 @@ import Login from './pages/Login';
 import LandingPage from './pages/LandingPage'; 
 import GestaoLeads from './pages/GestaoLeads'; 
 import EGuiaPage from './pages/EGuiaPage'; // Importação da nova página do Guia de Onboarding
+import Blog from './pages/Blog'; // Importação do novo módulo de Blog e SEO
+import GeradorDistico from './pages/GeradorDistico'; // Importação do gerador gratuito de dísticos TVDE
 
 // Importação do Google Analytics
 import ReactGA from 'react-ga4';
@@ -441,6 +443,8 @@ function AppContent() {
     location.pathname === '/' || 
     location.pathname === '/login' || 
     location.pathname === '/guia-onboarding' ||
+    location.pathname === '/gerador-distico' ||
+    location.pathname.startsWith('/blog') ||
     location.pathname.startsWith('/onboarding');
 
   // O ERP com Sidebar e Header só é exibido se o utilizador estiver autenticado e fora de rotas públicas
@@ -460,6 +464,9 @@ function AppContent() {
             <Route path="/login" element={!user ? <Login /> : <Navigate to="/dashboard" />} />
             <Route path="/onboarding/:driverId" element={<OnboardingMotorista />} />
             <Route path="/guia-onboarding" element={<EGuiaPage />} />
+            <Route path="/blog" element={<Blog />} />
+            <Route path="/blog/:slug" element={<Blog />} />
+            <Route path="/gerador-distico" element={<GeradorDistico />} />
 
             {/* ⚠️ TEMPORÁRIO — Remover após executar a migração de cartões */}
             <Route path="/migracao-cartoes" element={<MigracaoCartoes />} />
@@ -6319,6 +6326,485 @@ createRoot(document.getElementById('root')).render(
 --------------------------------------------------
 
 
+### ARQUIVO: src\pages\Blog.jsx ###
+--------------------------------------------------
+/**
+ * Blog.jsx
+ * Localização: src/pages/Blog.jsx
+ *
+ * Módulo de Blog público integrado com índice de artigos e leitor dinâmico.
+ * Otimizado para SEO em Portugal com base nos termos mais pesquisados do AnswerThePublic.
+ */
+
+import React from 'react';
+import { useParams, Link } from 'react-router-dom';
+import { 
+  ArrowLeft, BookOpen, Clock, Calendar, ShieldCheck, 
+  ChevronRight, PhoneCall, FileText, Sparkles, Scale, AlertTriangle 
+} from 'lucide-react';
+import { formatDatePT } from '../utils/formatters';
+
+// Base de Dados de Artigos do Blog (Conteúdos Estáticos e Completos Otimizados para SEO)
+const ARTIGOS = [
+  {
+    id: 1,
+    slug: "cae-correto-tvde-isencao-iva-artigo-53",
+    titulo: "Abertura de Atividade TVDE: Qual o CAE Correto e como Funciona a Isenção de IVA?",
+    resumo: "Descubra qual o Código de Atividade Económica (CAE) obrigatório para motoristas em Portugal e como beneficiar do regime de isenção de IVA ao abrigo do Artigo 53.º do CIVA.",
+    categoria: "Fiscalidade & Contabilidade",
+    dataPublicacao: "2026-06-12T08:00:00.000Z",
+    tempoLeitura: "5 min",
+    imagemCapa: "https://images.unsplash.com/photo-1554224155-8d04cb21cd6c?auto=format&fit=crop&w=800&q=80",
+    conteudoCompleto: (
+      <div className="space-y-6 text-slate-700 leading-relaxed text-sm sm:text-base">
+        <p>
+          Iniciar atividade profissional como motorista de plataformas em Portugal exige uma passagem obrigatória pelas Finanças [2]. No entanto, uma das maiores dúvidas de quem começa é saber que enquadramento fiscal escolher para faturar legalmente e evitar surpresas no final do ano fiscal.
+        </p>
+
+        <h3 className="text-lg font-black text-slate-900 pt-2">1. Qual o CAE Correto para TVDE?</h3>
+        <p>
+          Quer opte por trabalhar em Nome Individual (Recibos Verdes) ou por abrir uma empresa de cariz comercial (Unipessoal Lda. ou Lda.), o código de atividade exigido pela Autoridade Tributária e Aduaneira em Portugal é o <strong>CAE 49320</strong> (*Transporte ocasional de passageiros em veículos ligeiros*).
+        </p>
+        <p>
+          Este código de classificação engloba as atividades de transporte de passageiros em veículos descaracterizados a partir de plataforma eletrónica, garantindo que o seu faturamento nas plataformas seja reportado sob a natureza legal correta.
+        </p>
+
+        <h3 className="text-lg font-black text-slate-900 pt-2">2. Como funciona a Isenção de IVA (Artigo 53.º do CIVA)?</h3>
+        <p>
+          Para os motoristas que decidem atuar em nome próprio como Empresários em Nome Individual (ENI), a lei portuguesa oferece uma vantagem significativa para quem está a começar a faturar. 
+        </p>
+        <p>
+          Ao abrigo do <strong>Artigo 53.º do Código do IVA (CIVA)</strong>, fica isento de cobrar ou declarar IVA se o seu volume de negócios (faturamento bruto estimado) não ultrapassar o teto legal de <strong>15.000 € por ano civil</strong>.
+        </p>
+        <div className="bg-amber-50 border border-amber-200 text-amber-900 p-4 rounded-2xl text-xs sm:text-sm font-semibold flex gap-2">
+          <AlertTriangle size={20} className="shrink-0 text-amber-600" />
+          <div>
+            <p className="font-bold">Regra de Proporcionalidade:</p>
+            <p className="font-normal mt-1">
+              Atenção! Se abrir atividade a meio do ano civil, o teto de 15.000 € é calculado proporcionalmente aos meses restantes de faturamento. Ultrapassar este teto proporcional obriga à transição imediata para o regime normal de IVA à taxa de 23%.
+            </p>
+          </div>
+        </div>
+
+        <h3 className="text-lg font-black text-slate-900 pt-2">3. O que acontece se ultrapassar os 15.000 €?</h3>
+        <p>
+          Caso o seu faturamento real ou previsto ultrapasse o limite de 15.000 € (ou ultrapasse a tolerância de 18.750 € no próprio ano), passará automaticamente para o <strong>Regime Normal de IVA (23%)</strong>. 
+        </p>
+        <p>
+          A partir desse momento, as faturas e recibos que emite para o seu Operador ou para as plataformas devem incluir a liquidação de IVA. Adicionalmente, as comissões cobradas pela Uber e pela Bolt (que também estão sujeitas a regras de faturação europeia sob o regime de *reverse charge*) passam a exigir uma gestão contabilística minuciosa.
+        </p>
+
+        <h3 className="text-lg font-black text-slate-900 pt-2">4. Autofaturação e Recibos Verdes</h3>
+        <p>
+          As plataformas Uber e Bolt não emitem faturas comuns de prestação de serviços diretas de forma manual. Elas operam sob acordos de <strong>autofaturação</strong>. Semanalmente, os sistemas emitem e registam faturas automáticas em nome do motorista ou do operador, correspondentes às viagens liquidadas. Cabe ao motorista ou ao seu contabilista garantir que estes registos são validados e integrados junto do portal das Finanças.
+        </p>
+
+        <div className="border-t border-slate-200 pt-4 mt-6">
+          <p className="text-[10px] text-slate-400 italic">
+            Nota: Esta informação é de caráter meramente informativo e de apoio comercial, não dispensando de forma alguma a consulta de legislação oficial em Diário da República ou o apoio contínuo de um Contabilista Certificado (CC).
+          </p>
+        </div>
+      </div>
+    )
+  },
+  {
+    id: 2,
+    slug: "requisitos-licenca-imt-codigo-997",
+    titulo: "Como obter o Certificado de Motorista TVDE e o Código 997 na Carta?",
+    resumo: "Um guia prático sobre os exames médicos, escolas de formação rodoviária homologadas e os passos para averbar o Código 997 e conseguir a licença do IMT em Portugal.",
+    categoria: "Requisitos & IMT",
+    dataPublicacao: "2026-06-11T14:30:00.000Z",
+    tempoLeitura: "6 min",
+    imagemCapa: "https://images.unsplash.com/photo-1549317661-bd32c8ce0db2?auto=format&fit=crop&w=800&q=80",
+    conteudoCompleto: (
+      <div className="space-y-6 text-slate-700 leading-relaxed text-sm sm:text-base">
+        <p>
+          O mercado TVDE em Portugal é rigorosamente regulado. Já lá vai o tempo em que bastava ter uma conta de utilizador ativa e começar a conduzir passageiros. Hoje, para estar apto e legalizado, existe um conjunto de exames, cursos e autorizações governamentais que deve concluir [2].
+        </p>
+
+        <h3 className="text-lg font-black text-slate-900 pt-2">1. Os Requisitos de Base Obrigatórios</h3>
+        <p>
+          Antes de avançar para a inscrição em qualquer escola ou clínica, deve garantir que cumpre cumulativamente as seguintes regras básicas [2]:
+        </p>
+        <ul className="list-disc pl-5 space-y-2 text-xs sm:text-sm font-medium text-slate-600">
+          <li><strong>Carta de Condução Categoria B</strong>: Obbtida há mais de 3 anos (requisito legal absoluto).</li>
+          <li><strong>Idade Mínima</strong>: 21 anos (associada aos 3 anos de experiência mínima de condução exigida por lei).</li>
+          <li><strong>Registo Criminal Limpo</strong>: Focado especificamente no exercício da profissão TVDE [2].</li>
+        </ul>
+
+        <h3 className="text-lg font-black text-slate-900 pt-2">2. Aptidão Médica e Psicotécnica (Grupo 2)</h3>
+        <p>
+          Por se tratar de transporte público de passageiros, o condutor deve pertencer ao <strong>Grupo 2 de condutores</strong> [2]. Isto exige:
+        </p>
+        <p>
+          <strong>Exame Médico do Grupo 2:</strong> Realizado por um médico certificado, que valida a aptidão física e visão [2].
+        </p>
+        <p>
+          <strong>Avaliação Psicotécnica:</strong> Exame psicotécnico conduzido por um psicólogo creditado, focado em reflexos, estabilidade emocional, controlo de stresse e capacidade de atenção [2].
+        </p>
+
+        <h3 className="text-lg font-black text-slate-900 pt-2">3. O Curso de Formação Homologada (125 Horas)</h3>
+        <p>
+          O motorista TVDE deve frequentar obrigatoriamente o <strong>Curso de Formação Rodoviária para Motoristas TVDE (CFRTVDE)</strong> [2]. Este curso possui uma carga horária mínima legal de <strong>125 horas</strong> (divididas em formação teórica e prática de condução defensiva) [2].
+        </p>
+        <p>
+          A formação aborda legislação rodoviária, mecânica básica, atendimento ao cliente, condução defensiva urbana e relações interpessoais [2]. Nota: este curso só é válido se ministrado por uma escola de condução ou entidade certificada formalmente homologada pelo IMT [2].
+        </p>
+
+        <h3 className="text-lg font-black text-slate-900 pt-2">4. O Averbamento do Código 997 e o Pedido ao IMT</h3>
+        <p>
+          Concluído o curso e os exames de Grupo 2, o motorista TVDE deve submeter todo o dossier eletrónico através do portal do IMT online [2].
+        </p>
+        <p>
+          Este pedido irá resultar no averbamento do <strong>Código 997</strong> no verso da sua Carta de Condução física e na emissão do seu **Certificado de Motorista TVDE** [2]. A falta deste dístico técnico impossibilita a ativação da sua conta de motorista nas aplicações parceiras da Uber e Bolt [2].
+        </p>
+
+        <div className="border-t border-slate-200 pt-4 mt-6">
+          <p className="text-[10px] text-slate-400 italic">
+            Nota: Esta informação é de caráter meramente informativo e de apoio comercial, não dispensando de forma alguma a consulta de legislação oficial em Diário da República ou o apoio contínuo do IMT.
+          </p>
+        </div>
+      </div>
+    )
+  },
+  {
+    id: 3,
+    slug: "distico-tvde-regulamento-onde-comprar-fiscalizacao",
+    titulo: "Dístico TVDE em Portugal: Onde Comprar, Regras e como Evitar Coimas?",
+    resumo: "Entenda a regulamentação dos dísticos TVDE obrigatórios (placas) em Portugal, a proibição de cópias em papel comum e como passar com sucesso nas fiscalizações de trânsito.",
+    categoria: "Regulamento de Frota",
+    dataPublicacao: "2026-06-10T11:15:00.000Z",
+    tempoLeitura: "4 min",
+    imagemCapa: "https://images.unsplash.com/photo-1619642751034-765dfdf7c58e?auto=format&fit=crop&w=800&q=80",
+    conteudoCompleto: (
+      <div className="space-y-6 text-slate-700 leading-relaxed text-sm sm:text-base">
+        <p>
+          As viaturas que operam ao serviço das plataformas Uber e Bolt são consideradas legalmente veículos ligeiros descaracterizados [2]. No entanto, para garantir que as forças de segurança (como a PSP, GNR e inspetores da ACT e IMT) identifiquem a viatura em exercício de funções, a lei portuguesa exige a afixação visível de dísticos de identificação [2].
+        </p>
+
+        <h3 className="text-lg font-black text-slate-900 pt-2">1. Como e Onde Devem ser Afixados os Dísticos TVDE?</h3>
+        <p>
+          O dístico TVDE é uma placa retangular, amarela, com a inscrição "TVDE" a preto. A lei determina a afixação obrigatória de <strong>dois dísticos idênticos</strong> por viatura:
+        </p>
+        <ul className="list-disc pl-5 space-y-1 text-slate-600 text-xs sm:text-sm font-medium">
+          <li><strong>Dístico Dianteiro:</strong> Afixado no canto inferior direito do para-brisas (pelo interior, no lado do passageiro).</li>
+          <li><strong>Dístico Traseiro:</strong> Afixado no canto inferior esquerdo do vidro traseiro (pelo interior, no lado oposto ao condutor).</li>
+        </ul>
+        <p>
+          Ambos os dísticos devem estar completamente desimpedidos, livres de quaisquer películas ou decorações de vidro que impeçam a sua leitura clara pelo exterior do veículo.
+        </p>
+
+        <h3 className="text-lg font-black text-slate-900 pt-2">2. É Permitido Usar Dísticos de Papel Impressos?</h3>
+        <p>
+          Esta é uma causa comum de contraordenações e coimas pesadas em Portugal. <strong>Não é permitido imprimir o dístico em papel simples de impressora de escritório comum</strong>.
+        </p>
+        <p>
+          A regulamentação do IMT exige que o dístico possua propriedades de rigidez e espessura específicas (normalmente acrílico ou material plástico homologado de alta resistência) com as dimensões oficiais exatas. Dísticos em papel que se deformem com a humidade, sol ou calor são considerados infrações, originando autos de coima em fiscalizações rodoviárias.
+        </p>
+
+        <h3 className="text-lg font-black text-slate-900 pt-2">3. Onde Comprar Placas Regulamentares?</h3>
+        <p>
+          As placas devem ser adquiridas em lojas de acessórios auto, centros de impressão industrial de matrículas homologados ou através de operadores de frota credenciados. Garanta sempre que a loja ou fornecedor confirma que a placa segue rigorosamente as dimensões, o tom de amarelo e os acabamentos regulados por lei.
+        </p>
+
+        <h3 className="text-lg font-black text-slate-900 pt-2">4. Quem Fiscaliza a Atividade na Estrada?</h3>
+        <p>
+          A fiscalização da atividade TVDE em Portugal é efetuada por várias entidades:
+        </p>
+        <ul className="list-disc pl-5 space-y-1 text-slate-600 text-xs sm:text-sm font-medium">
+          <li><strong>GNR e PSP:</strong> Fiscalização rodoviária, verificação de seguros específicos e averbamento do Código 997 [2].</li>
+          <li><strong>IMT:</strong> Conformidade das licenças de operador da empresa e dísticos de motoristas [2].</li>
+          <li><strong>ACT (Autoridade para as Condições do Trabalho):</strong> Fiscalização das relações laborais, garantindo que motoristas de frotas possuem contratos válidos de trabalho ou de prestação de serviços declarados [2].</li>
+        </ul>
+
+        <div className="border-t border-slate-200 pt-4 mt-6">
+          <p className="text-[10px] text-slate-400 italic">
+            Nota: Esta informação é de caráter meramente informativo e de apoio comercial, não dispensando de forma alguma a consulta de legislação oficial em Diário da República ou o apoio contínuo do IMT.
+          </p>
+        </div>
+      </div>
+    )
+  },
+  {
+    id: 4,
+    slug: "aima-atrasos-documentais-motoristas-tvde",
+    titulo: "AIMA e TVDE: Como Lidar com os Atrasos Documentais para Motoristas Estrangeiros?",
+    resumo: "Análise sobre como os atrasos de agendamentos e emissões documentais da AIMA afetam os motoristas TVDE imigrantes e quais as alternativas legais de conformidade.",
+    categoria: "Regularização & Migrações",
+    dataPublicacao: "2026-06-09T09:00:00.000Z",
+    tempoLeitura: "5 min",
+    imagemCapa: "https://images.unsplash.com/photo-1517486808906-6ca8b3f04846?auto=format&fit=crop&w=800&q=80",
+    conteudoCompleto: (
+      <div className="space-y-6 text-slate-700 leading-relaxed text-sm sm:text-base">
+        <p>
+          O mercado TVDE em Portugal é caracterizado por uma forte componente multicultural, atraindo milhares de motoristas de países terceiros (especialmente do Brasil, PALOP e Sul da Ásia). No entanto, a transição do antigo SEF para a <strong>AIMA (Agência para a Integração, Migrações e Asilo)</strong> trouxe desafios burocráticos significativos e atrasos que afetam diretamente o direito ao trabalho destes condutores.
+        </p>
+
+        <h3 className="text-lg font-black text-slate-900 pt-2">1. O Impacto dos Atrasos na Emissão de Licenças</h3>
+        <p>
+          Para obter o Certificado de Motorista TVDE junto do IMT, o motorista imigrante tem de apresentar, além do registo criminal e curso homologado, um documento de residência válido em território nacional [2].
+        </p>
+        <p>
+          Com os atrasos persistentes da AIMA na concessão e renovação de **Autorizações de Residência (AR)** e na análise de manifestações de interesse, milhares de motoristas veem-se bloqueados, incapazes de iniciar ou renovar o seu Certificado de Motorista no portal do IMT.
+        </p>
+
+        <h3 className="text-lg font-black text-slate-900 pt-2">2. Manifestação de Interesse e Vistos de Procura de Trabalho</h3>
+        <p>
+          O IMT apenas aceita documentos que atestem a legalidade de permanência e de direito ao trabalho em Portugal. Atualmente, os documentos mais comuns aceites nas candidaturas TVDE para cidadãos estrangeiros são:
+        </p>
+        <ul className="list-disc pl-5 space-y-1 text-slate-600 text-xs sm:text-sm font-medium">
+          <li><strong>Título de Residência Válido:</strong> Físico ou em formato digital certificado [2].</li>
+          <li><strong>Visto de Procura de Trabalho / Residência:</strong> Emitido nos consulados de origem, com o devido enquadramento legal de entrada [2].</li>
+          <li><strong>Manifestação de Interesse com Recibo de Submissão:</strong> Aceite pelo IMT sob regimes transitórios específicos, desde que acompanhado por contrato de trabalho ou abertura de atividade em vigor [2].</li>
+        </ul>
+
+        <h3 className="text-lg font-black text-slate-900 pt-2">3. O Erro do Registo Criminal</h3>
+        <p>
+          Candidatos estrangeiros enfrentam uma armadilha burocrática dupla: devem apresentar o Registo Criminal do país de nacionalidade (devidamente apostilado na Haia ou consularizado) e o Registo Criminal português [2].
+        </p>
+        <p>
+          Ambos os documentos devem ser requeridos para o fim específico de <strong>"Motorista de TVDE"</strong> [2]. Um registo criminal geral para "fim comercial" ou "trabalho geral" emitido pelo país de origem será recusado pelo IMT, obrigando a reiniciar o processo do zero e a sofrer novas semanas de atraso.
+        </p>
+
+        <h3 className="text-lg font-black text-slate-900 pt-2">4. Como a Gestão TVDE Apoia Estes Processos?</h3>
+        <p>
+          Como assessoria documental especializada, não conseguimos acelerar os agendamentos da AIMA, mas garantimos que <strong>todo o dossiê do motorista seja submetido sem erros ao IMT</strong>.
+        </p>
+        <p>
+          Analisamos os seus documentos de vistos, certidões criminais estrangeiras e averbamentos antes de serem submetidos, evitando que o IMT coloque o seu processo em estado de "Comunique" (o que causaria a rejeição temporária do pedido e meses adicionais de paragem laboral).
+        </p>
+
+        <div className="border-t border-slate-200 pt-4 mt-6">
+          <p className="text-[10px] text-slate-400 italic">
+            Nota: Esta informação é de caráter meramente informativo e de apoio comercial, não dispensando de forma alguma a consulta oficial do Diário da República ou aconselhamento profissional de advogados especialistas em migrações.
+          </p>
+        </div>
+      </div>
+    )
+  }
+];
+
+export default function Blog() {
+  const { slug } = useParams();
+
+  // Verifica se estamos em modo Leitura de Artigo
+  const artigoAtivo = slug ? ARTIGOS.find(a => a.slug === slug) : null;
+
+  return (
+    <div className="min-h-screen bg-slate-50 text-slate-800 font-sans antialiased">
+      
+      {/* ─── BARRA DE NAVEGAÇÃO SUPERIOR DO BLOG ────────────────────────────────── */}
+      <nav className="sticky top-0 z-50 bg-white border-b border-slate-200 px-4 py-4 shadow-xs">
+        <div className="max-w-6xl mx-auto flex justify-between items-center">
+          <Link 
+            to="/" 
+            className="flex items-center gap-2 text-slate-600 hover:text-slate-950 font-bold text-xs transition-colors"
+          >
+            <ArrowLeft size={16} />
+            <span>Voltar à Landing Page</span>
+          </Link>
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-black text-slate-900">Gestão</span>
+            <span className="text-sm font-black text-blue-600">TVDE</span>
+            <span className="text-[9px] font-black uppercase tracking-wider bg-slate-100 px-2 py-0.5 rounded-md text-slate-500 border border-slate-200">
+              Blog & SEO
+            </span>
+          </div>
+        </div>
+      </nav>
+
+      {/* ─── 1. MODO: LEITOR DE ARTIGO INDIVIDUAL ──────────────────────────────── */}
+      {artigoAtivo ? (
+        <div className="max-w-6xl mx-auto px-4 py-12 grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
+          
+          {/* Lado Esquerdo: Conteúdo do Artigo */}
+          <article className="lg:col-span-8 bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-2xs space-y-6 text-left">
+            
+            <Link 
+              to="/blog" 
+              className="inline-flex items-center gap-1.5 text-xs font-bold text-blue-600 hover:text-blue-700 transition-colors"
+            >
+              <ArrowLeft size={14} /> Voltar à lista de artigos
+            </Link>
+
+            <header className="space-y-4">
+              <span className="inline-block text-[10px] font-black uppercase tracking-wider bg-blue-50 text-blue-600 border border-blue-100 px-2.5 py-1 rounded-md">
+                {artigoAtivo.categoria}
+              </span>
+              <h1 className="text-xl sm:text-2xl md:text-3xl font-black text-slate-900 leading-tight">
+                {artigoAtivo.titulo}
+              </h1>
+              <div className="flex flex-wrap gap-4 text-xs font-semibold text-slate-400">
+                <span className="flex items-center gap-1"><Calendar size={14} /> {formatDatePT(new Date(artigoAtivo.dataPublicacao))}</span>
+                <span className="flex items-center gap-1"><Clock size={14} /> {artigoAtivo.tempoLeitura} de leitura</span>
+              </div>
+            </header>
+
+            {/* Imagem de Capa do Artigo */}
+            <div className="w-full h-56 sm:h-80 bg-slate-100 rounded-2xl overflow-hidden shadow-inner">
+              <img 
+                src={artigoAtivo.imagemCapa} 
+                alt={artigoAtivo.titulo} 
+                className="w-full h-full object-cover"
+              />
+            </div>
+
+            {/* Corpo do Artigo */}
+            <div className="pt-2">
+              {artigoAtivo.conteudoCompleto}
+            </div>
+
+          </article>
+
+          {/* Lado Direito: Barra Lateral de Conversão (CTA) */}
+          <aside className="lg:col-span-4 space-y-6 text-left sticky top-24">
+            
+            <div className="bg-slate-950 text-white rounded-3xl p-6 shadow-xl space-y-6">
+              <div className="space-y-2">
+                <div className="inline-flex items-center gap-1 bg-blue-500/10 text-blue-400 px-2 py-0.5 rounded text-[10px] font-bold">
+                  <Sparkles size={10} className="animate-pulse" />
+                  Facilitamos a Burocracia
+                </div>
+                <h4 className="text-lg font-black leading-tight">Precisa de Assessoria no seu Processo TVDE?</h4>
+                <p className="text-slate-400 text-xs leading-relaxed">
+                  Não perca semanas a decifrar portais estatais do IMT ou Finanças. Tratamos de toda a organização documental, encaminhamento de exames e submissão por si.
+                </p>
+              </div>
+
+              <div className="space-y-3 pt-2 text-xs font-semibold text-slate-200">
+                <div className="flex items-center gap-2">
+                  <ShieldCheck size={16} className="text-blue-500 shrink-0" />
+                  <span>Apoio na abertura do CAE correto</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <ShieldCheck size={16} className="text-blue-500 shrink-0" />
+                  <span>Submissão correta no IMT (Código 997)</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <ShieldCheck size={16} className="text-blue-500 shrink-0" />
+                  <span>Vinculação a Operadores parceiros</span>
+                </div>
+              </div>
+
+              <Link 
+                to="/"
+                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition-all shadow-md cursor-pointer"
+              >
+                <PhoneCall size={14} />
+                Falar com um Consultor
+              </Link>
+            </div>
+
+            <div className="bg-white border border-slate-200 rounded-3xl p-6 shadow-xs space-y-4">
+              <h5 className="text-sm font-black text-slate-900">📖 Descarregue o eGuia Completo</h5>
+              <p className="text-slate-500 text-xs leading-relaxed">
+                Preencha os dados na página inicial para obter o eGuia de Onboarding e as melhores práticas comerciais para faturar mais.
+              </p>
+              <Link 
+                to="/"
+                className="inline-flex items-center gap-1.5 text-xs font-black text-blue-600 hover:text-blue-700 transition-colors"
+              >
+                Aceder ao eGuia Grátis <ChevronRight size={14} />
+              </Link>
+            </div>
+
+          </aside>
+
+        </div>
+      ) : (
+        
+        // ─── 2. MODO: ÍNDICE DO BLOG (GRID DE ARTIGOS) ───────────────────────────
+        <div className="max-w-6xl mx-auto px-4 py-12 space-y-12">
+          
+          {/* Cabeçalho da Lista */}
+          <div className="text-center space-y-3 max-w-xl mx-auto">
+            <div className="inline-flex items-center gap-1.5 justify-center text-xs font-black uppercase tracking-wider text-blue-600 bg-blue-50 px-3 py-1 rounded-full border border-blue-100">
+              <BookOpen size={14} />
+              Blog Central do Motorista
+            </div>
+            <h1 className="text-2xl sm:text-3xl font-black text-slate-900 leading-tight">
+              Tudo o que precisa de saber sobre TVDE em Portugal
+            </h1>
+            <p className="text-slate-500 text-xs sm:text-sm leading-relaxed">
+              Esclareça de forma exata e fundamentada as suas dúvidas sobre CAE, fiscalidade, dísticos obrigatórios, IMT e regularização documental [2, 3].
+            </p>
+          </div>
+
+          {/* Grelha de Artigos */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-8 items-stretch">
+            {ARTIGOS.map((artigo) => (
+              <div 
+                key={artigo.id}
+                className="bg-white border border-slate-200 rounded-3xl overflow-hidden shadow-2xs flex flex-col justify-between hover:shadow-md transition-shadow group text-left"
+              >
+                <div className="space-y-4">
+                  {/* Foto de Capa */}
+                  <div className="w-full h-48 bg-slate-100 relative overflow-hidden">
+                    <img 
+                      src={artigo.imagemCapa} 
+                      alt={artigo.titulo} 
+                      className="w-full h-full object-cover group-hover:scale-102 transition-transform duration-500"
+                    />
+                    <span className="absolute top-3 left-3 text-[9px] font-black uppercase tracking-wider bg-white/95 text-slate-900 px-2.5 py-1 rounded-md border border-slate-200">
+                      {artigo.categoria}
+                    </span>
+                  </div>
+
+                  {/* Detalhes Técnicos */}
+                  <div className="px-5 sm:px-6 space-y-2">
+                    <div className="flex gap-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                      <span className="flex items-center gap-1"><Calendar size={12} /> {formatDatePT(new Date(artigo.dataPublicacao))}</span>
+                      <span className="flex items-center gap-1"><Clock size={12} /> {artigo.tempoLeitura}</span>
+                    </div>
+
+                    <h2 className="text-base sm:text-lg font-black text-slate-900 group-hover:text-blue-600 transition-colors leading-tight">
+                      {artigo.titulo}
+                    </h2>
+                    
+                    <p className="text-xs text-slate-500 leading-relaxed font-medium">
+                      {artigo.resumo}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-5 sm:px-6 shrink-0 pt-4 border-t border-slate-50 flex justify-end">
+                  <Link
+                    to={`/blog/${artigo.slug}`}
+                    className="flex items-center gap-1.5 px-4 py-2 bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs rounded-xl transition-all cursor-pointer"
+                  >
+                    Ler Artigo <ChevronRight size={14} />
+                  </Link>
+                </div>
+
+              </div>
+            ))}
+          </div>
+
+          {/* Banner de Encerramento Inferior */}
+          <section className="bg-slate-900 text-white rounded-3xl p-6 sm:p-10 text-left space-y-4 max-w-4xl mx-auto">
+            <h4 className="text-lg font-black">Pretende iniciar atividade na estrada sem dores de cabeça?</h4>
+            <p className="text-slate-400 text-xs sm:text-sm max-w-xl leading-relaxed">
+              Dispomos de pacotes completos de assessoria documental chave-na-mão para tratar de toda a burocracia do IMT, abertura de atividade em Finanças e integração em frotas idóneas.
+            </p>
+            <div className="pt-2">
+              <Link 
+                to="/"
+                className="inline-flex items-center gap-2 px-5 py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs rounded-xl transition-all shadow-md cursor-pointer"
+              >
+                Falar com um Especialista <PhoneCall size={12} />
+              </Link>
+            </div>
+          </section>
+
+        </div>
+      )}
+
+    </div>
+  );
+}
+--------------------------------------------------
+
+
 ### ARQUIVO: src\pages\CartoesGestao.jsx ###
 --------------------------------------------------
 import React, { useState, useEffect } from 'react';
@@ -8180,6 +8666,313 @@ const UploadBox = ({ title, icon: Icon, color, onChange, ready }) => (
 --------------------------------------------------
 
 
+### ARQUIVO: src\pages\GeradorDistico.jsx ###
+--------------------------------------------------
+/**
+ * GeradorDistico.jsx
+ * Localização: src/pages/GeradorDistico.jsx
+ *
+ * Serviço público gratuito para geração de dísticos TVDE regulamentares em Portugal.
+ * Gera dois dísticos por página A4 (dianteiro e traseiro) à escala real legal de 145x68mm [2].
+ */
+
+import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
+import { jsPDF } from 'jspdf';
+import { 
+  ArrowLeft, Download, ShieldCheck, Printer, AlertTriangle, 
+  Loader2, Info, Sparkles, CheckCircle2 
+} from 'lucide-react';
+import ReactGA from 'react-ga4';
+
+export default function GeradorDistico() {
+  const [licenca, setLicenca] = useState("");
+  const [erro, setErro] = useState("");
+  const [gerando, setGerando] = useState(false);
+
+  // Expressão regular para validar a licença: 6 dígitos, uma barra e o ano de 4 dígitos
+  const regexLicenca = /^\d{6}\/\d{4}$/;
+
+  // Formatador automático do input à medida que o utilizador digita
+  const handleInputChange = (e) => {
+    setErro("");
+    let val = e.target.value.replace(/\D/g, ''); // Remove tudo o que não for dígito
+
+    if (val.length > 6) {
+      val = val.slice(0, 6) + '/' + val.slice(6, 10);
+    }
+    setLicenca(val);
+  };
+
+  // Função interna para desenhar um dístico perfeito numa coordenada específica (x, y) do PDF
+  const desenharDisticoIndividual = (doc, x, y, licencaTexto) => {
+    const larguraDistico = 145; // mm
+    const alturaDistico = 68;   // mm
+    const espessuraBorda = 5;   // mm
+
+    // 1. DESENHO DAS MARCAS DE CORTE TRACEJADAS (HAIRLINES)
+    doc.setDrawColor(200, 200, 200); // cinzento suave
+    doc.setLineWidth(0.2);
+
+    // Marcas Canto Superior Esquerdo
+    doc.line(x - 8, y, x, y);
+    doc.line(x, y - 8, x, y);
+
+    // Marcas Canto Superior Direito
+    doc.line(x + larguraDistico, y, x + larguraDistico + 8, y);
+    doc.line(x + larguraDistico, y - 8, x + larguraDistico, y);
+
+    // Marcas Canto Inferior Esquerdo
+    doc.line(x - 8, y + alturaDistico, x, y + alturaDistico);
+    doc.line(x, y + alturaDistico, x, y + alturaDistico + 8);
+
+    // Marcas Canto Inferior Direito
+    doc.line(x + larguraDistico, y + alturaDistico, x + larguraDistico + 8, y + alturaDistico);
+    doc.line(x + larguraDistico, y + alturaDistico, x + larguraDistico, y + alturaDistico + 8);
+
+    // 2. DESENHO DO RETÂNGULO DO DÍSTICO (COMPENSAÇÃO DO STROKE DO JSPDF)
+    doc.setDrawColor(0, 0, 0); // preto sólido
+    doc.setFillColor(255, 255, 255); // fundo branco
+    doc.setLineWidth(espessuraBorda);
+    
+    doc.rect(
+      x + (espessuraBorda / 2), 
+      y + (espessuraBorda / 2), 
+      larguraDistico - espessuraBorda, 
+      alturaDistico - espessuraBorda, 
+      "FD"
+    );
+
+    // 3. TEXTO "TVDE" RIGOROSAMENTE CENTRADO NO RETÂNGULO
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(95); // Escala perfeita para o interior
+    doc.setTextColor(0, 0, 0);
+    // x + 72.5mm é o centro horizontal exato (145/2)
+    // y + 46.5mm é o cálculo da linha de base de cap-height para centralizar verticalmente em 68mm [1]
+    doc.text("TVDE", x + 72.5, y + 46.5, { align: "center" });
+
+    // 4. SUBTEXTO DA LICENÇA DE OPERADOR (ALINHADO À DIREITA EM CONFORMIDADE)
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10.5);
+    // Alinhado a 10mm do canto inferior direito para mimetizar o padrão do IMT
+    doc.text(`Licença de Operador nº ${licencaTexto}`, x + 135, y + 60, { align: "right" });
+  };
+
+  // Handler de exportação para PDF de tamanho A4 contendo dois dísticos
+  const handleGerarPDF = () => {
+    if (!regexLicenca.test(licenca)) {
+      setErro("Por favor, introduza a licença no formato correto: 6 dígitos, barra e ano (ex: 123456/2018).");
+      return;
+    }
+
+    setGerando(true);
+
+    try {
+      // Criar documento PDF A4 Vertical
+      const doc = new jsPDF({
+        orientation: 'portrait',
+        unit: 'mm',
+        format: 'a4'
+      });
+
+      const xCentrado = (210 - 145) / 2; // 32.5 mm
+
+      // ─── DESENHAR DÍSTICO 1 (TOPO DA PÁGINA) ────────────────────────────────
+      desenharDisticoIndividual(doc, xCentrado, 25, licenca);
+
+      // ─── DESENHAR DÍSTICO 2 (CENTRO DA PÁGINA) ──────────────────────────────
+      desenharDisticoIndividual(doc, xCentrado, 115, licenca);
+
+      // ─── INSTRUÇÕES DE IMPRESSÃO (BASE DA PÁGINA A4) ────────────────────────
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.setTextColor(15, 23, 42); // slate-900
+      doc.text("⚠️ INSTRUÇÕES DE IMPRESSÃO IMPORTANTES (LEIA ANTES DE IMPRIMIR):", 20, 225);
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      doc.setTextColor(71, 85, 105); // slate-600
+      doc.text("1. Configurações da Impressora: Imprima este ficheiro em tamanho real (Escala a 100%). NUNCA selecione 'ajustar à página'.", 20, 231);
+      doc.text("2. Tipo de Papel: Recomenda-se a utilização de uma folha de papel branca ou cartolina com gramagem superior (ex: 120g a 200g).", 20, 236);
+      doc.text("3. Aplicação do Dístico: Recorte cuidadosamente ao longo das marcas tracejadas cinzentas exteriores do dístico.", 20, 241);
+      doc.text("4. Afixação Legal: Fixe as duas cópias (uma no vidro dianteiro direito e outra no vidro traseiro esquerdo) pelo interior do carro.", 20, 246);
+
+      // Rodapé institucional
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(8);
+      doc.setTextColor(148, 163, 184); // slate-400
+      doc.text("Serviço Gratuito de Utilidade Pública — Gestão TVDE Portugal", 105, 265, { align: "center" });
+
+      // Rastreamento Analítico do Google Analytics 4
+      ReactGA.event({
+        category: 'Free Service',
+        action: 'Gerou_Distico_TVDE',
+        label: licenca
+      });
+
+      // Gravação e download
+      doc.save(`Disticos_TVDE_Licenca_${licenca.replace('/', '_')}.pdf`);
+
+    } catch (err) {
+      console.error("[GeradorDistico] Erro técnico de exportação:", err);
+      setErro("Ocorreu um erro ao processar o seu ficheiro PDF. Por favor, tente de novo.");
+    } finally {
+      setGerando(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen bg-slate-50 text-slate-800 font-sans antialiased">
+      
+      {/* BARRA DE NAVEGAÇÃO SUPERIOR */}
+      <nav className="sticky top-0 z-50 bg-white border-b border-slate-200 px-4 py-4 shadow-xs">
+        <div className="max-w-6xl mx-auto flex justify-between items-center">
+          <Link 
+            to="/" 
+            className="flex items-center gap-2 text-slate-600 hover:text-slate-950 font-bold text-xs transition-colors"
+          >
+            <ArrowLeft size={16} />
+            <span>Voltar ao Site</span>
+          </Link>
+          <div className="flex items-center gap-1.5">
+            <span className="text-sm font-black text-slate-900">Gestão</span>
+            <span className="text-sm font-black text-blue-600">TVDE</span>
+            <span className="text-[9px] font-black uppercase tracking-wider bg-emerald-50 text-emerald-700 border border-emerald-200 px-2 py-0.5 rounded-md">
+              Serviço Gratuito
+            </span>
+          </div>
+        </div>
+      </nav>
+
+      {/* ÁREA CENTRAL DO GERADOR */}
+      <main className="max-w-6xl mx-auto px-4 py-12 space-y-12">
+        
+        {/* Cabeçalho da Página */}
+        <div className="text-center space-y-3 max-w-xl mx-auto">
+          <div className="inline-flex items-center gap-1.5 justify-center text-xs font-black uppercase tracking-wider text-blue-600 bg-blue-50 px-3 py-1 rounded-full border border-blue-100">
+            <Printer size={14} />
+            Duplo Dístico TVDE (Dianteiro & Traseiro)
+          </div>
+          <h1 className="text-2xl sm:text-3xl font-black text-slate-900 leading-tight">
+            Gerador de Dístico TVDE Gratuito
+          </h1>
+          <p className="text-slate-500 text-xs sm:text-sm leading-relaxed">
+            Gere num único PDF os dois dísticos regulamentares exigidos por lei (um para o vidro dianteiro e outro para o traseiro) prontos a imprimir à escala real exata (145x68mm) [2].
+          </p>
+        </div>
+
+        {/* Painel de Controlo e Pré-Visualização */}
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start max-w-5xl mx-auto">
+          
+          {/* Lado Esquerdo: Formulário */}
+          <div className="lg:col-span-5 bg-white border border-slate-200 rounded-3xl p-6 shadow-2xs space-y-6 text-left">
+            <div className="space-y-2">
+              <h3 className="text-base font-black text-slate-900">Configurar Licença</h3>
+              <p className="text-slate-400 text-xs leading-relaxed">
+                Introduza os dados da licença de operador TVDE da sua empresa parceira ou frota [2]. O dístico legal exige o formato: <strong>6 dígitos / Ano</strong> [2].
+              </p>
+            </div>
+
+            <div className="space-y-4">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider block">
+                  N.º da Licença de Operador
+                </label>
+                <input
+                  type="text"
+                  placeholder="Ex: 343654/2021"
+                  value={licenca}
+                  onChange={handleInputChange}
+                  maxLength="11"
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-black text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 uppercase placeholder-slate-300"
+                />
+              </div>
+
+              {erro && (
+                <div className="flex items-start gap-2 p-3 bg-red-50 border border-red-100 rounded-xl text-xs font-semibold text-red-700 leading-relaxed">
+                  <AlertCircle size={16} className="shrink-0 mt-0.5" />
+                  <span>{erro}</span>
+                </div>
+              )}
+
+              <button
+                type="button"
+                onClick={handleGerarPDF}
+                disabled={gerando || !regexLicenca.test(licenca)}
+                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition-all shadow-md disabled:opacity-40 cursor-pointer"
+              >
+                {gerando ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <Download size={14} />
+                )}
+                Descarregar PDF com os 2 Dísticos
+              </button>
+            </div>
+
+            {/* Aviso Técnico / Regulamentar */}
+            <div className="bg-slate-50 border border-slate-100 rounded-2xl p-4 space-y-2 flex gap-2">
+              <Info size={20} className="shrink-0 text-slate-400" />
+              <div className="space-y-1">
+                <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Regra de Fiscalização</span>
+                <p className="text-[11px] text-slate-500 leading-relaxed">
+                  O dístico TVDE impresso não deve ser deformado ou modificado. A utilização de cópias de dístico deformadas, rasuradas ou de tamanho incorreto pode ser punida com coimas pesadas pelas autoridades [2].
+                </p>
+              </div>
+            </div>
+
+          </div>
+
+          {/* Lado Direito: Pré-Visualização Física Real Reativa */}
+          <div className="lg:col-span-7 space-y-6">
+            <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-2xs space-y-4">
+              <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1 text-left">
+                <Sparkles size={12} className="text-blue-500" /> Pré-visualização reativa e centrada
+              </span>
+
+              {/* Caixa da placa TVDE com proporções 145x68mm real */}
+              <div className="w-full bg-slate-100 rounded-2xl p-6 sm:p-12 flex items-center justify-center border border-dashed border-slate-200 select-none">
+                
+                <div className="w-full max-w-sm aspect-[145/68] bg-white border-[10px] sm:border-[14px] border-black flex flex-col justify-between p-3 relative shadow-md">
+                  
+                  {/* Letras Centradas "TVDE" via posicionamento absoluto robusto */}
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <span className="text-slate-950 font-black text-5xl sm:text-6xl md:text-7xl tracking-widest leading-none mt-[-4px]">
+                      TVDE
+                    </span>
+                  </div>
+
+                  {/* Número de licença ao canto inferior direito */}
+                  <div className="absolute bottom-3 right-4 text-[8px] sm:text-[10px] font-bold text-slate-900">
+                    {licenca ? (
+                      <span>Licença de Operador nº {licenca}</span>
+                    ) : (
+                      <span className="text-slate-300 italic">Licença de Operador nº xxxxxx/AAAA</span>
+                    )}
+                  </div>
+
+                </div>
+
+              </div>
+
+              {/* Nota sobre marcas de corte */}
+              <p className="text-[10px] text-slate-400 italic text-center leading-relaxed">
+                * O PDF conterá marcas de corte e as instruções para que possa cortar perfeitamente os seus dois dísticos a 145x68mm [2].
+              </p>
+
+            </div>
+          </div>
+
+        </div>
+
+      </main>
+
+    </div>
+  );
+}
+--------------------------------------------------
+
+
 ### ARQUIVO: src\pages\GestaoLeads.jsx ###
 --------------------------------------------------
 /**
@@ -9173,41 +9966,62 @@ export default function GestaoUtilizadores() {
  * Localização: src/pages/LandingPage.jsx
  *
  * Página inicial pública consolidada (Ficheiro Único Monolítico).
- * Otimizada com tipografia fluida, espaçamentos responsivos e suporte mobile completo.
+ * Otimizada com carrossel dinâmico de texto à esquerda, formulário eGuia fixo à direita,
+ * catálogo de viaturas, destaques de blog e IA.
  */
 
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { 
   Shield, Check, ArrowRight, Loader2, BookOpen, 
   Car, HelpCircle, FileText, Smartphone, Mail, User,
-  CheckCircle2, ChevronDown, ChevronUp, AlertCircle, Sparkles 
+  CheckCircle2, ChevronDown, ChevronUp, AlertCircle, Sparkles, Clock,
+  ChevronRight, ChevronLeft, Printer, LayoutGrid 
 } from 'lucide-react';
 import ReactGA from 'react-ga4';
 import { registarLeadPública } from '../services/leadService';
 import { formatCurrency } from '../utils/formatters';
 
-// Importação do catálogo público de frotas
+// Importações do catálogo público de frotas e do assistente virtual de IA 24/7
 import VehicleCatalog from '../components/public/VehicleCatalog';
+import PublicChatWidget from '../components/public/PublicChatWidget';
 
 export default function LandingPage() {
   const navigate = useNavigate();
 
-  // ─── ESTADOS DOS FORMULÁRIOS ──────────────────────────────────────────────
+  // ─── ESTADOS DOS FORMULÁRIOS E CARROSSEL ──────────────────────────────────
   
-  // 1. Isca Digital (eGuia Onboarding - Apenas Nome e Telemóvel)
+  // Controlo do Carrossel de Texto à Esquerda (Hero)
+  const [slideTexto, setSlideAtivo] = useState(0);
+  const totalSlides = 3;
+
+  // Controlo das abas de Nossos Serviços (Abaixo no corpo)
+  const [abaServicos, setAbaServicos] = useState('motoristas'); // 'motoristas' | 'proprietarios'
+
+  // Isca Digital (eGuia Onboarding - Apenas Nome e Telemóvel) - FIXO À DIREITA
   const [leadGuia, setLeadGuia] = useState({ nome: '', telemovel: '' });
   const [loadingGuia, setLoadingGuia] = useState(false);
   const [feedbackGuia, setFeedbackGuia] = useState(null);
 
-  // 2. Procura de Viatura
+  // Procura de Viatura (Formulário do Meio)
   const [leadCarro, setLeadCarro] = useState({ nome: '', email: '', telemovel: '', regiao: 'Lisboa', mensagem: '' });
   const [loadingCarro, setLoadingCarro] = useState(false);
   const [feedbackCarro, setFeedbackCarro] = useState(null);
 
-  // 3. Acordeão de FAQs
+  // Acordeão de FAQs
   const [faqAtiva, setFaqAtiva] = useState(null);
+
+  // ─── LÓGICA DE ROTAÇÃO AUTOMÁTICA DO TEXTO (ESQUERDA) ──────────────────────
+  useEffect(() => {
+    const temporizador = setInterval(() => {
+      setSlideAtivo((prev) => (prev + 1) % totalSlides);
+    }, 5000); // Rotação do carrossel esquerdo a cada 5 segundos
+    return () => clearInterval(temporizador);
+  }, []);
+
+  const handleProximoSlide = () => setSlideAtivo((prev) => (prev + 1) % totalSlides);
+  const handleSlideAnterior = () => setSlideAtivo((prev) => (prev - 1 + totalSlides) % totalSlides);
 
   // ─── ESCUTADOR DE SELEÇÃO DE VIATURAS DO CATÁLOGO ────────────────────────
   useEffect(() => {
@@ -9256,7 +10070,7 @@ export default function LandingPage() {
     }
   ];
 
-  // Submissão de Acesso ao eGuia Onboarding
+  // Submissão de Acesso ao eGuia Onboarding (Formulário Fixo da Direita)
   const handleSubmeterGuia = async (e) => {
     e.preventDefault();
     setLoadingGuia(true);
@@ -9265,14 +10079,13 @@ export default function LandingPage() {
     try {
       const res = await registarLeadPública({
         nome: leadGuia.nome,
-        email: '', // O email não é solicitado neste formulário
+        email: '', 
         telemovel: leadGuia.telemovel,
         origem: 'eguia_onboarding',
         mensagemAdicional: 'Solicitou acesso imediato ao eGuia de Onboarding TVDE.'
       });
 
       if (res.sucesso) {
-        // Disparo de Evento de Conversão no Google Analytics 4
         ReactGA.event({
           category: 'Lead Generation',
           action: 'Submissao_eGuia_TVDE',
@@ -9280,10 +10093,7 @@ export default function LandingPage() {
           value: 1
         });
 
-        // Limpeza dos campos
         setLeadGuia({ nome: '', telemovel: '' });
-        
-        // Redirecionamento seguro passando estado de autorização para o Router
         navigate('/guia-onboarding', { state: { authorized: true } });
       } else {
         setFeedbackGuia(res);
@@ -9296,7 +10106,7 @@ export default function LandingPage() {
     }
   };
 
-  // Submissão de Procura de Carro
+  // Submissão de Procura de Carro (Formulário do Meio)
   const handleSubmeterCarro = async (e) => {
     e.preventDefault();
     setLoadingCarro(true);
@@ -9308,7 +10118,7 @@ export default function LandingPage() {
         email: leadCarro.email,
         telemovel: leadCarro.telemovel,
         origem: 'procura_viatura',
-        mensagemAdicional: `Procura carro em: ${leadCarro.regiao}. Mensagem: ${leadCarro.mensagem}`
+        mensagemAdicional: `Procura carro em: ${leadCarro.regiao}. Em: ${leadCarro.mensagem}`
       });
 
       setFeedbackCarro(res);
@@ -9335,10 +10145,13 @@ export default function LandingPage() {
           </div>
           
           {/* Oculto em ecrãs pequenos (Mobile) */}
-          <div className="hidden md:flex items-center gap-8 text-sm font-semibold text-slate-600">
-            <a href="#servicos" className="hover:text-blue-600 transition-colors">Assessoria</a>
+          <div className="hidden md:flex items-center gap-4 lg:gap-6 text-sm font-semibold text-slate-600">
+            <a href="#servicos" className="hover:text-blue-600 transition-colors">Nossos Serviços</a>
+            <a href="#planos" className="hover:text-blue-600 transition-colors">Planos de Assessoria</a>
             <a href="#catalogo" className="hover:text-blue-600 transition-colors">Catálogo de Viaturas</a>
             <a href="#aluguer" className="hover:text-blue-600 transition-colors">Aluguer de Viaturas</a>
+            <Link to="/gerador-distico" className="hover:text-blue-600 transition-colors text-emerald-600">Dístico Grátis</Link>
+            <Link to="/blog" className="hover:text-blue-600 transition-colors">Artigos & Legislação</Link>
             <a href="#faq" className="hover:text-blue-600 transition-colors">Dúvidas Comuns</a>
           </div>
 
@@ -9363,38 +10176,137 @@ export default function LandingPage() {
       <header className="relative py-12 md:py-24 px-4 sm:px-6 bg-slate-950 text-white overflow-hidden">
         <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
           
-          {/* Lado Esquerdo: Valor de Marca */}
-          <div className="lg:col-span-7 space-y-5 md:space-y-6 text-left">
-            <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[10px] sm:text-xs font-semibold">
-              <Shield size={12} />
-              Assessoria de Apoio Documental & Plataformas
+          {/* LADO ESQUERDO: Carrossel de Texto Rotativo (Sem card, raw text) [ATUALIZADO] */}
+          <div className="lg:col-span-7 space-y-6 text-left min-h-[360px] flex flex-col justify-between">
+            
+            <div className="space-y-5 flex-1 flex flex-col justify-center">
+              
+              {/* SLIDE 0: Assessoria Geral */}
+              {slideTexto === 0 && (
+                <div className="space-y-5 animate-in fade-in duration-300">
+                  <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 text-[10px] sm:text-xs font-semibold">
+                    <Shield size={12} />
+                    Assessoria de Apoio Documental & Plataformas
+                  </div>
+                  <h1 className="text-3xl sm:text-4xl md:text-5xl font-black leading-tight tracking-tight">
+                    Apoio e Assessoria especializada para Motoristas TVDE
+                  </h1>
+                  <p className="text-slate-300 text-xs sm:text-sm md:text-base leading-relaxed max-w-xl">
+                    Apoiamos em todas as etapas regulatórias em Portugal: apoio na etapa de formação homologada, orientação para providenciar documentos obrigatórios (exames e psicotécnicos de Grupo 2), organização de documentos junto do IMT, criação de contas e instrução prática das aplicações Uber e Bolt.
+                  </p>
+                  <div className="flex flex-col sm:flex-row gap-3 pt-1 text-[11px] sm:text-xs font-semibold text-slate-200">
+                    <div className="flex items-center gap-2">
+                      <Check className="text-blue-500 shrink-0" size={14} />
+                      <span>Apoio na Etapa de Formação</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Check className="text-blue-500 shrink-0" size={14} />
+                      <span>Organização Governamental (IMT)</span>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Check className="text-blue-500 shrink-0" size={14} />
+                      <span>Criação de Contas & Instrução</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* SLIDE 1: Gerador de Dístico Gratuito */}
+              {slideTexto === 1 && (
+                <div className="space-y-5 animate-in fade-in duration-300">
+                  <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 text-[10px] sm:text-xs font-semibold">
+                    <Printer size={12} />
+                    Ferramenta Gratuita ao Motorista
+                  </div>
+                  <h1 className="text-3xl sm:text-4xl md:text-5xl font-black leading-tight tracking-tight text-white">
+                    Gere e Imprima o seu Dístico TVDE Grátis
+                  </h1>
+                  <p className="text-slate-300 text-xs sm:text-sm md:text-base leading-relaxed max-w-xl">
+                    Precisa de colocar as placas regulamentares na sua viatura? Insira a sua licença de operador e obtenha um ficheiro PDF A4 pronto a imprimir à escala real exata (145x68mm) com as marcas de corte oficiais do IMT [2].
+                  </p>
+                  
+                  <div className="flex flex-wrap gap-4 pt-1">
+                    <Link 
+                      to="/gerador-distico"
+                      className="inline-flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-black rounded-xl text-xs transition-all shadow-md cursor-pointer uppercase tracking-wider animate-bounce"
+                    >
+                      <Printer size={14} />
+                      Imprima Agora
+                    </Link>
+                  </div>
+                </div>
+              )}
+
+              {/* SLIDE 2: Catálogo de Frota */}
+              {slideTexto === 2 && (
+                <div className="space-y-5 animate-in fade-in duration-300">
+                  <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 text-[10px] sm:text-xs font-semibold">
+                    <Car size={12} />
+                    Catálogo de Frota de Parceiros
+                  </div>
+                  <h1 className="text-3xl sm:text-4xl md:text-5xl font-black leading-tight tracking-tight text-white">
+                    Aluguer de Viaturas TVDE Prontas a Faturar
+                  </h1>
+                  <p className="text-slate-300 text-xs sm:text-sm md:text-base leading-relaxed max-w-xl">
+                    Encontre o veículo ideal para os seus turnos de condução. Disponibilizamos modelos económicos, a GPL, híbridos ou elétricos, com seguros de passageiros incluídos, Via Verde e cartões de abastecimento.
+                  </p>
+                  
+                  <div className="flex flex-wrap gap-4 pt-1">
+                    <button 
+                      type="button"
+                      onClick={() => {
+                        const seccaoCatalogo = document.getElementById('catalogo');
+                        if (seccaoCatalogo) seccaoCatalogo.scrollIntoView({ behavior: 'smooth' });
+                      }}
+                      className="inline-flex items-center gap-2 px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-black rounded-xl text-xs transition-all shadow-md cursor-pointer uppercase tracking-wider"
+                    >
+                      <Car size={14} />
+                      Ver Viaturas
+                    </button>
+                  </div>
+                </div>
+              )}
+
             </div>
-            <h1 className="text-3xl sm:text-4xl md:text-5xl font-black leading-tight tracking-tight">
-              Apoio e Assessoria especializada para Motoristas TVDE
-            </h1>
-            <p className="text-slate-300 text-xs sm:text-sm md:text-base lg:text-lg leading-relaxed max-w-xl">
-              Apoiamos em todas as etapas regulatórias em Portugal: apoio na etapa de formação homologada, orientação para providenciar documentos obrigatórios (exames e psicotécnicos de Grupo 2), organização de documentos junto do IMT, criação de contas e instrução prática das aplicações Uber e Bolt.
-            </p>
-            <div className="flex flex-col sm:flex-row gap-3 pt-2 text-[11px] sm:text-xs font-semibold">
-              <div className="flex items-center gap-2">
-                <Check className="text-blue-500 shrink-0" size={14} />
-                <span>Apoio na Etapa de Formação</span>
+
+            {/* CONTROLOS DO CARROSSEL DE TEXTO (DOTS E SETAS DISCRETAS) */}
+            <div className="flex items-center gap-4 pt-4 border-t border-slate-900/60 select-none text-slate-500 shrink-0">
+              <button 
+                type="button"
+                onClick={handleSlideAnterior}
+                className="p-1 rounded-lg hover:bg-slate-900 text-slate-500 hover:text-white transition-colors cursor-pointer"
+              >
+                <ChevronLeft size={16} />
+              </button>
+
+              <div className="flex gap-1.5">
+                {[...Array(totalSlides)].map((_, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => setSlideAtivo(idx)}
+                    className={`h-1.5 rounded-full transition-all cursor-pointer ${
+                      slideTexto === idx ? 'w-4 bg-white' : 'w-1.5 bg-slate-700'
+                    }`}
+                  />
+                ))}
               </div>
-              <div className="flex items-center gap-2">
-                <Check className="text-blue-500 shrink-0" size={14} />
-                <span>Organização Governamental (IMT)</span>
-              </div>
-              <div className="flex items-center gap-2">
-                <Check className="text-blue-500 shrink-0" size={14} />
-                <span>Criação de Contas & Instrução</span>
-              </div>
+
+              <button 
+                type="button"
+                onClick={handleProximoSlide}
+                className="p-1 rounded-lg hover:bg-slate-900 text-slate-500 hover:text-white transition-colors cursor-pointer"
+              >
+                <ChevronRight size={16} />
+              </button>
             </div>
+
           </div>
 
-          {/* Lado Direito: Formulário Exclusivo de Captura do eGuia */}
-          <div className="lg:col-span-5 bg-white text-slate-800 rounded-3xl p-5 sm:p-6 shadow-2xl border border-slate-100 max-w-md mx-auto w-full">
+          {/* LADO DIREITO: Form do eGuia Totalmente FIXO e Estático (Captação de leads direta) [RETORNADO] */}
+          <div className="lg:col-span-5 bg-white text-slate-800 rounded-3xl p-5 sm:p-6 shadow-2xl border border-slate-100 max-w-md mx-auto w-full relative min-h-[420px] flex flex-col justify-between">
             
-            <div className="space-y-4">
+            <div className="space-y-4 text-left">
               <div className="flex items-center justify-between text-blue-600">
                 <div className="flex items-center gap-2">
                   <BookOpen size={16} />
@@ -9451,7 +10363,7 @@ export default function LandingPage() {
               {feedbackGuia && (
                 <div className="flex items-center gap-2 text-xs font-semibold rounded-xl px-3 py-2.5 border bg-red-50 text-red-700 border-red-100">
                   <AlertCircle size={14} />
-                  <span className="leading-relaxed">{feedbackGuia.msg}</span>
+                  <span className="leading-relaxed text-[11px]">{feedbackGuia.msg}</span>
                 </div>
               )}
             </div>
@@ -9461,8 +10373,84 @@ export default function LandingPage() {
         </div>
       </header>
 
-      {/* ─── 3. SECÇÃO DOS PACOTES DE ASSESSORIA (RESPONSIVA) ────────────────── */}
-      <section id="servicos" className="py-16 md:py-20 px-4 sm:px-6 max-w-6xl mx-auto space-y-10 md:space-y-12">
+      {/* ─── 3. SECÇÃO NOSSOS SERVIÇOS ───────────────────────────────────────── */}
+      <section id="servicos" className="py-16 md:py-20 px-4 sm:px-6 max-w-6xl mx-auto space-y-10">
+        <div className="text-center space-y-2 max-w-xl mx-auto">
+          <h2 className="text-2xl md:text-3xl font-black text-slate-900">Nossos Serviços</h2>
+          <p className="text-slate-500 text-xs sm:text-sm leading-relaxed">
+            Soluções completas desenhadas para apoiar tanto quem conduz profissionalmente como quem gere frotas parceiras em Portugal [1].
+          </p>
+        </div>
+
+        {/* Seletor de Abas de Serviços */}
+        <div className="flex justify-center gap-3 bg-slate-100 p-1.5 rounded-2xl w-fit mx-auto select-none shrink-0">
+          <button
+            type="button"
+            onClick={() => setAbaServicos('motoristas')}
+            className={`px-5 sm:px-6 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+              abaServicos === 'motoristas' 
+                ? 'bg-slate-950 text-white shadow-md' 
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            🙋‍♂️ Para Motoristas
+          </button>
+          <button
+            type="button"
+            onClick={() => setAbaServicos('proprietarios')}
+            className={`px-5 sm:px-6 py-2.5 text-xs font-bold rounded-xl transition-all cursor-pointer ${
+              abaServicos === 'proprietarios' 
+                ? 'bg-slate-950 text-white shadow-md' 
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            🏢 Para Proprietários
+          </button>
+        </div>
+
+        {/* Conteúdo Aba A: Motoristas */}
+        {abaServicos === 'motoristas' && (
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-10 text-center space-y-6 max-w-3xl mx-auto relative overflow-hidden animate-in fade-in duration-300">
+            <div className="absolute top-4 right-4 bg-amber-100 text-amber-800 text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-wider shrink-0">
+              Em Breve
+            </div>
+            <div className="max-w-md mx-auto space-y-4">
+              <BookOpen size={40} className="text-blue-600 mx-auto" />
+              <h3 className="text-xl font-black text-slate-900">Area Dedicada ao Motorista</h3>
+              <p className="text-slate-500 text-xs sm:text-sm leading-relaxed text-center">
+                Estamos a estruturar um portal de apoio onde poderá submeter faturas semanais de combustível, gerir despesas operacionais de portagens, acompanhar quitações e depósitos de caução parametrizados como crédito, e aceder a relatórios automatizados.
+              </p>
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-50 border border-slate-200 text-[11px] font-semibold text-slate-500">
+                <span className="w-1.5 h-1.5 bg-blue-500 rounded-full animate-ping shrink-0"></span>
+                Fase de modelagem técnica e regulatória
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Conteúdo Aba B: Proprietários */}
+        {abaServicos === 'proprietarios' && (
+          <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-10 text-center space-y-6 max-w-3xl mx-auto relative overflow-hidden animate-in fade-in duration-300">
+            <div className="absolute top-4 right-4 bg-amber-100 text-amber-800 text-[10px] font-black px-3 py-1 rounded-full uppercase tracking-wider shrink-0">
+              Em Breve
+            </div>
+            <div className="max-w-md mx-auto space-y-4">
+              <Car size={40} className="text-indigo-600 mx-auto" />
+              <h3 className="text-xl font-black text-slate-900">Portal de Gestão de Frotas (Operadores)</h3>
+              <p className="text-slate-500 text-xs sm:text-sm leading-relaxed text-center">
+                Um painel administrativo para proprietários de frotas parceiras acompanharem a rentabilidade operacional, controlo técnico de manutenção, processamentos financeiros semanais e atribuição automática de cartões de abastecimento e Via Verde.
+              </p>
+              <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-slate-50 border border-slate-200 text-[11px] font-semibold text-slate-500">
+                <span className="w-1.5 h-1.5 bg-indigo-500 rounded-full animate-ping shrink-0"></span>
+                Fase de modelagem técnica e regulatória
+              </div>
+            </div>
+          </div>
+        )}
+      </section>
+
+      {/* ─── 4. SECÇÃO PLANOS DE ASSESSORIA (RESPONSIVA) ────────────────────── */}
+      <section id="planos" className="py-16 md:py-20 px-4 sm:px-6 max-w-6xl mx-auto space-y-10 md:space-y-12 border-t border-slate-200">
         <div className="text-center space-y-2 max-w-xl mx-auto">
           <h2 className="text-2xl md:text-3xl font-black text-slate-900">Pacotes de Apoio à sua medida</h2>
           <p className="text-slate-500 text-xs sm:text-sm leading-relaxed">
@@ -9478,7 +10466,7 @@ export default function LandingPage() {
               <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Plano Essencial</span>
               <h3 className="text-xl font-black text-slate-900">Apoio Documental</h3>
               <p className="text-slate-500 text-xs leading-relaxed">
-                Orientação para providenciar toda a documentação obrigatória inicial (exames, psicos e registo criminal) e apoio prévio na escolha da entidade formadora.
+                Orientação para providenciar toda a documentação obrigatória inicial (exames, psicos e registo criminal) e apoio prévia na escolha da entidade formadora.
               </p>
               <ul className="space-y-2 pt-2 text-xs text-slate-600 font-medium">
                 <li className="flex items-center gap-2"><Check className="text-blue-500 shrink-0" size={14} /> Apoio na escolha de Escolas TVDE</li>
@@ -9541,11 +10529,11 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ─── 4. CATÁLOGO INTERATIVO DE VIATURAS (RESPONSIVO) ───────────────── */}
+      {/* ─── 5. CATÁLOGO INTERATIVO DE VIATURAS (RESPONSIVO) ───────────────── */}
       <VehicleCatalog />
 
-      {/* ─── 5. SECÇÃO DE PROCURA DE VIATURAS (MATCHING DE ALUGUER) ───────────── */}
-      <section id="aluguer" className="bg-slate-900 text-white py-16 md:py-20 px-4 sm:px-6">
+      {/* ─── 6. SECÇÃO DE PROCURA DE VIATURAS (MATCHING DE ALUGUER) ───────────── */}
+      <section id="aluguer" className="bg-slate-900 text-white py-16 md:py-20 px-4 sm:px-6 border-t border-slate-800">
         <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
           
           <div className="lg:col-span-6 space-y-6 text-left">
@@ -9652,8 +10640,99 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ─── 6. SECÇÃO DE PERGUNTAS E RESPOSTAS COMUNS (FAQ ACCORDION) ───────── */}
-      <section id="faq" className="py-16 md:py-20 px-4 sm:px-6 max-w-4xl mx-auto space-y-12">
+      {/* ─── 7. SECÇÃO DE DESTAQUES DO BLOG (SEO & CAPTAÇÃO DE LEADS) ──── */}
+      <section id="blog-destaques" className="py-16 md:py-20 px-4 sm:px-6 max-w-6xl mx-auto space-y-10 border-t border-slate-200">
+        <div className="text-center space-y-2 max-w-xl mx-auto">
+          <div className="inline-flex items-center gap-1.5 justify-center text-xs font-black uppercase tracking-wider text-blue-600 bg-blue-50 px-3 py-1 rounded-full border border-blue-100">
+            <BookOpen size={14} />
+            Dicas & Legislação TVDE
+          </div>
+          <h2 className="text-2xl md:text-3xl font-black text-slate-900">
+            Mantenha-se informado sobre as regras do setor
+          </h2>
+          <p className="text-slate-500 text-xs sm:text-sm leading-relaxed">
+            Esclareça as dúvidas mais comuns sobre CAE, contabilidade, dísticos obrigatórios e processos de regularização junto do IMT [2, 3].
+          </p>
+        </div>
+
+        {/* Artigos em Destaque (Grelha Horizontal) */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 text-left">
+          
+          <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden hover:shadow-md transition-shadow flex flex-col justify-between">
+            <div className="p-5 space-y-3">
+              <span className="text-[9px] font-black uppercase tracking-wider bg-blue-50 text-blue-600 border border-blue-100 px-2 py-0.5 rounded-md">
+                Fiscalidade
+              </span>
+              <h3 className="text-sm font-black text-slate-900 leading-snug">
+                Qual o CAE correto para TVDE e como funciona a Isenção de IVA (Artigo 53.º)?
+              </h3>
+              <p className="text-slate-500 text-xs leading-relaxed line-clamp-2">
+                Descubra qual o CAE correto e como funciona a isenção de IVA para motoristas em nome próprio [1, 2].
+              </p>
+            </div>
+            <div className="p-5 border-t border-slate-50 flex justify-between items-center text-xs">
+              <span className="flex items-center gap-1 font-bold text-slate-400"><Clock size={12} /> 5 min</span>
+              <Link to="/blog/cae-correto-tvde-isencao-iva-artigo-53" className="font-black text-blue-600 hover:text-blue-700 transition-colors flex items-center gap-1">
+                Ler Artigo <ChevronRight size={14} />
+              </Link>
+            </div>
+          </div>
+
+          <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden hover:shadow-md transition-shadow flex flex-col justify-between">
+            <div className="p-5 space-y-3">
+              <span className="text-[9px] font-black uppercase tracking-wider bg-blue-50 text-blue-600 border border-blue-100 px-2 py-0.5 rounded-md">
+                Requisitos IMT
+              </span>
+              <h3 className="text-sm font-black text-slate-900 leading-snug">
+                Como obter o Certificado de Motorista TVDE e averbar o Código 997?
+              </h3>
+              <p className="text-slate-500 text-xs leading-relaxed line-clamp-2">
+                O passo a passo com exames Grupo 2, curso homologado de 125h e submissão burocrática no IMT [2].
+              </p>
+            </div>
+            <div className="p-5 border-t border-slate-50 flex justify-between items-center text-xs">
+              <span className="flex items-center gap-1 font-bold text-slate-400"><Clock size={12} /> 6 min</span>
+              <Link to="/blog/requisitos-licenca-imt-codigo-997" className="font-black text-blue-600 hover:text-blue-700 transition-colors flex items-center gap-1">
+                Ler Artigo <ChevronRight size={14} />
+              </Link>
+            </div>
+          </div>
+
+          <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden hover:shadow-md transition-shadow flex flex-col justify-between md:col-span-2 lg:col-span-1">
+            <div className="p-5 space-y-3">
+              <span className="text-[9px] font-black uppercase tracking-wider bg-blue-50 text-blue-600 border border-blue-100 px-2 py-0.5 rounded-md">
+                Migrações & AIMA
+              </span>
+              <h3 className="text-sm font-black text-slate-900 leading-snug">
+                AIMA e TVDE: Como gerir os atrasos documentais de residência para o IMT?
+              </h3>
+              <p className="text-slate-500 text-xs leading-relaxed line-clamp-2">
+                Saiba quais os documentos de residência e manifestação de interesse aceites na emissão do certificado [2].
+              </p>
+            </div>
+            <div className="p-5 border-t border-slate-50 flex justify-between items-center text-xs">
+              <span className="flex items-center gap-1 font-bold text-slate-400"><Clock size={12} /> 5 min</span>
+              <Link to="/blog/aima-atrasos-documentais-motoristas-tvde" className="font-black text-blue-600 hover:text-blue-700 transition-colors flex items-center gap-1">
+                Ler Artigo <ChevronRight size={14} />
+              </Link>
+            </div>
+          </div>
+
+        </div>
+
+        {/* Botão para ir para o índice do Blog */}
+        <div className="pt-4">
+          <Link 
+            to="/blog"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs rounded-xl transition-all shadow-md cursor-pointer"
+          >
+            Aceder ao Blog Completo <ArrowRight size={14} />
+          </Link>
+        </div>
+      </section>
+
+      {/* ─── 8. SECÇÃO DE PERGUNTAS E RESPOSTAS COMUNS (FAQ ACCORDION) ───────── */}
+      <section id="faq" className="py-16 md:py-20 px-4 sm:px-6 max-w-4xl mx-auto space-y-12 border-t border-slate-200">
         <div className="text-center space-y-2">
           <HelpCircle size={32} className="text-blue-600 mx-auto" />
           <h2 className="text-2xl md:text-3xl font-black text-slate-900">Perguntas Frequentes (FAQ)</h2>
@@ -9693,7 +10772,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ─── 7. RODAPÉ INSTITUCIONAL (RESPONSIVO) ───────────────────────────── */}
+      {/* ─── 9. RODAPÉ INSTITUCIONAL (RESPONSIVO) ───────────────────────────── */}
       <footer className="bg-slate-950 text-slate-400 py-12 px-4 sm:px-6 border-t border-slate-900">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6 text-xs text-center md:text-left">
           <div>
@@ -9702,12 +10781,17 @@ export default function LandingPage() {
             <p className="text-slate-600">geral@gestaotvde.pt - NIF: 500123456</p>
           </div>
           <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 text-slate-500 font-medium items-center">
-            <a href="/login" className="hover:text-white transition-colors">Área Restrita (ERP)</a>
+            <Link to="/blog" className="hover:text-white transition-colors">Blog & Artigos</Link>
+            <span className="text-slate-800 hidden sm:inline">|</span>
+            <a href="/login" className="hover:text-white transition-colors">Area Restrita (ERP)</a>
             <span className="text-slate-800 hidden sm:inline">|</span>
             <span>&copy; {new Date().getFullYear()} Gestão TVDE. Todos os direitos reservados.</span>
           </div>
         </div>
       </footer>
+
+      {/* 🟢 Microagente de Inteligência Artificial para Apoio Legislativo, Fiscal e Operacional (Disponível 24/7) */}
+      <PublicChatWidget />
 
     </div>
   );
@@ -12015,6 +13099,50 @@ export const executorFuncoes = async (db, name, args) => {
       return { sucesso: true, msg: `${totalApagados} registo(s) financeiro(s) eliminado(s).` };
     }
 
+    // ==========================================
+    // ── SUPORTE PÚBLICO (ANÁLISE DE CONVERSAS) [NOVO]
+    // ==========================================
+    if (name === "analisarDuvidasFrequentes") {
+      const limite = Math.min(args.limite || 10, 50);
+      try {
+        const snap = await getDocs(collection(db, "conversas_suporte_publicas"));
+        if (snap.empty) {
+          return { sucesso: true, msg: "Não existem conversas registadas no suporte público de momento.", conversas: [] };
+        }
+
+        const conversas = snap.docs.map(docu => ({
+          id: docu.id,
+          ...docu.data()
+        }));
+
+        // Ordenação em memória para estabilidade do Firestore (sem índices compostos exigidos)
+        conversas.sort((a, b) => {
+          const dataA = new Date(a.atualizadoEm || a.criadoEm || 0);
+          const dataB = new Date(b.atualizadoEm || b.criadoEm || 0);
+          return dataB - dataA;
+        });
+
+        // Limita a quantidade de conversas selecionadas
+        const conversasSelecionadas = conversas.slice(0, limite);
+
+        return { 
+          sucesso: true, 
+          msg: `Foram carregadas com sucesso as ${conversasSelecionadas.length} conversas públicas mais recentes para análise.`, 
+          conversas: conversasSelecionadas.map(c => ({
+            id: c.id,
+            criadoEm: c.criadoEm,
+            atualizadoEm: c.atualizadoEm,
+            totalInteracoes: c.mensagens?.length || 0,
+            primeiraPergunta: c.mensagens?.[0]?.content || "Sem conteúdo",
+            historicoCompleto: c.mensagens || []
+          }))
+        };
+      } catch (err) {
+        console.error("[centroComandoHandlers] Erro ao obter histórico público:", err);
+        return { sucesso: false, msg: `Erro ao aceder à base de dados do suporte: ${err.message}` };
+      }
+    }
+
     return { sucesso: false, msg: `Ação não parametrizada no sistema: ${name}` };
   } catch (error) {
     console.error(`[Executor Error]`, error);
@@ -12773,6 +13901,48 @@ export const obterDadosExtratoEntidade = async (db, entidadeId, tipoEntidade, da
 import { genAI, AI_SETTINGS, calcularCustoReal } from "../config/aiConfig";
 
 // ─────────────────────────────────────────────────────────────────────────────
+// INSTRUÇÃO DO ASSISTENTE PÚBLICO (VISITANTES - LEGISLAÇÃO, TRANSITO E FISCAL)
+// ─────────────────────────────────────────────────────────────────────────────
+const SYSTEM_INSTRUCTION_PUBLICO = `
+Tu és o Assistente Virtual da Gestão TVDE, um microagente altamente especializado em legislação, fiscalidade, contabilidade e operação do mercado TVDE (Transporte Individual e de Passageiros em Veículos Descaracterizados a partir de Plataforma Eletrónica) em Portugal.
+O teu objetivo é esclarecer de forma rigorosa, didática, profissional e objetiva as dúvidas dos visitantes do nosso portal público.
+
+⚠️ ORIENTAÇÕES DE POSTURA E TONE:
+- Responde SEMPRE em Português de Portugal (PT-PT) coloquial mas técnico-comercial profissional (utiliza termos como "telemóvel", "carta de condução", "registo criminal", "recibos verdes", "via verde", etc.).
+- Sê humilde, claro, objetivo e direto nas respostas. Evita floreados ou textos desnecessariamente longos.
+- Adiciona SEMPRE o seguinte aviso de isenção de responsabilidade (disclaimer) de forma discreta no final de respostas que envolvam contabilidade, finanças ou taxas:
+  "Nota: Esta informação é meramente informativa e de apoio, não dispensando a consulta da legislação oficial em Diário da República ou o aconselhamento de um Contabilista Certificado (CC)."
+
+📚 BASE DE CONHECIMENTO REGULATÓRIO PORTUGUÊS:
+
+1. REQUISITOS PARA SER MOTORISTA TVDE (IMT / Código 997):
+   - Carta de Condução (Categoria B) há mais de 3 anos.
+   - Idade mínima de 21 anos (alinhada com os 3 anos de experiência de condução).
+   - Curso de Formação Rodoviária para Motoristas TVDE (CFRTVDE) com carga horária de 125 horas, ministrado exclusivamente por escolas ou entidades formadoras devidamente homologadas pelo IMT (Instituto da Mobilidade e dos Transportes). Atuamos como assessores de apoio documental para o encaminhar para as melhores escolas.
+   - Certificado Médico do Grupo 2 (físico e visual) e Exame Psicotécnico de aptidão física e mental.
+   - Averbamento do "Código 997" na Carta de Condução junto do IMT após a conclusão da formação e exames médicos.
+   - Registo Criminal impecável e específico para o exercício da atividade de motorista TVDE (Nota: se emitido para outro fim, o IMT rejeitará o dossiê).
+
+2. ENQUADRAMENTO FISCAL E CONTABILIDADE (Portugal):
+   - Código de Atividade Económica (CAE): O CAE obrigatório para motoristas independentes ou sociedades operadoras de TVDE é o 49320 (Transporte ocasional de passageiros em veículos ligeiros).
+   - Isenção de IVA (Artigo 53.º do CIVA): Motoristas independentes (ENI - Empresário em Nome Individual) estão isentos de cobrança de IVA se o seu faturamento anual previsto ou real for inferior a 15.000 € (limite atual em vigor para 2026).
+   - Regime Normal de IVA: Se ultrapassar o volume de negócios anual de 15.000 € (ou se optar livremente pelo regime geral), passa a faturar com IVA à taxa normal de 23% sobre a atividade.
+   - Estrutura Empresarial: O motorista independente pode abrir atividade como ENI (regime simplificado, sem necessidade de Contabilista Certificado até 200.000 € de faturação, desde que não tenha contabilidade organizada por opção), ou constituir uma sociedade por quotas (Unipessoal Lda ou Lda) para proteger o património pessoal e ter contabilidade organizada (obrigatória para sociedades).
+   - Autofaturação: As plataformas eletrónicas (Uber e Bolt) emitem faturas em nome dos operadores ou parceiros de frota através de acordos de autofaturação com base no registo das viagens semanais.
+
+3. LEGISLAÇÃO TVDE OPERACIONAL (Lei n.º 45/2018):
+   - Tempo de Condução: O limite máximo estabelecido por lei é de 10 horas de condução acumuladas num período de 24 horas, garantindo a segurança rodoviária de motoristas e passageiros.
+   - Vinculação de Operador: Um motorista não pode operar diretamente com a Uber ou Bolt sem estar associado a uma empresa licenciada com frota (um Operador TVDE). Como assessoria, ajudamos a selecionar e a vinculá-lo de forma segura a frotas parceiras em conformidade legal.
+   - Veículos TVDE: Devem possuir seguro de responsabilidade civil e de passageiros/ocupantes alargado específico para TVDE, ter dísticos TVDE visíveis no vidro dianteiro e traseiro, ter matrícula portuguesa (PT) e cumprir os limites máximos de idade da viatura determinados por lei.
+
+4. CÓDIGO DA ESTRADA (Regras Críticas):
+   - Taxa de Álcool: Sendo uma atividade de transporte de passageiros (profissional), o limite máximo de álcool no sangue permitido por lei para motoristas TVDE em Portugal é de 0,20 g/l. Um valor igual ou superior é infração grave, muito grave ou crime rodoviário.
+   - Paragem e Estacionamento: Os veículos TVDE não são táxis. Não podem utilizar as praças de táxis nem circular nos corredores BUS (salvo raras exceções municipais locais reguladas especificamente). Devem efetuar cargas e descargas em locais onde a paragem de veículos ligeiros seja permitida.
+
+Responde sempre com base nestas diretrizes de forma cordial, didática e focada nestes factos portugueses.
+`.trim();
+
+// ─────────────────────────────────────────────────────────────────────────────
 // AGENTE DE VISÃO — Leitura de documentos via inlineData (sem CORS)
 // Intacto — não sofreu alterações
 // ─────────────────────────────────────────────────────────────────────────────
@@ -13064,6 +14234,18 @@ const TODAS_AS_FERRAMENTAS = [
           },
           required: ["atribuidoA", "nota", "prioridade"]
         }
+      },
+
+      // ── SUPORTE PÚBLICO (ANÁLISE DE CONVERSAS) ──────────────────────────────
+      {
+        name: "analisarDuvidasFrequentes",
+        description: "Obtém as conversas mais recentes mantidas pelos visitantes da Landing Page com o Assistente de Suporte Público para que possas analisar as dúvidas comuns, sugestões e dores de cabeça mais reportadas.",
+        parameters: {
+          type: "object",
+          properties: {
+            limite: { type: "number", description: "Número de conversas recentes a obter para análise (padrão: 10, máximo: 50)." }
+          }
+        }
       }
 
     ]
@@ -13071,7 +14253,7 @@ const TODAS_AS_FERRAMENTAS = [
 ];
 
 // ─────────────────────────────────────────────────────────────────────────────
-// INSTRUÇÃO DO ASSISTENTE UNIFICADO
+// INSTRUÇÃO DO ASSISTENTE UNIFICADO (BACKOFFICE / ERP INTERNO)
 // ─────────────────────────────────────────────────────────────────────────────
 const SYSTEM_INSTRUCTION = `
 Tu és o Assistente TVDE, o gestor operacional completo do software TVDE Gestão Portugal.
@@ -13084,6 +14266,7 @@ Tens acesso total ao sistema e podes executar qualquer operação solicitada pel
 - Cartões: gerir cartões de combustível ("combustivel") e eléctricos ("eletrico")
 - Financeiro: lançar, editar e eliminar débitos e créditos na conta corrente
 - Tarefas: criar e atribuir tickets a funcionários
+- Suporte Público: ler e analisar as dúvidas e conversas mais frequentes obtidas na Landing Page
 
 ⚠️ REGRAS DE SEGURANÇA (OBRIGATÓRIAS):
 1. Para ELIMINAR ou EXCLUIR qualquer registo (motorista, veículo, cartão, lançamento), NUNCA chames a ferramenta de imediato. Pede sempre confirmação explícita ao utilizador citando o nome/descrição do item antes de avançar.
@@ -13099,11 +14282,7 @@ Tens acesso total ao sistema e podes executar qualquer operação solicitada pel
 `.trim();
 
 // ─────────────────────────────────────────────────────────────────────────────
-// AGENTE DE CHAT — LOOP AGÊNTICO COM ASSISTENTE UNIFICADO
-//
-// NOTA: A assinatura mudou em relação à versão anterior.
-// Removido o parâmetro 'agenteKey' — já não existe selecção de agente.
-// CentroComando.jsx será actualizado no Passo 3 para corresponder.
+// AGENTE DE CHAT (ERP) — LOOP AGÊNTICO COM ASSISTENTE UNIFICADO
 // ─────────────────────────────────────────────────────────────────────────────
 export const perguntarAoAgente = async (
   prompt,
@@ -13146,7 +14325,7 @@ ${contextoSistema.adjustesAtuais && contextoSistema.adjustesAtuais.length > 0
   : '  (nenhum lançamento pendente)'
 }
 
-RESUMO: ${contextoSistema.totalMotoristas} motoristas | ${contextoSistema.totalVeiculos} veículos | ${contextoSistema.ticketsPendentes || 0} tickets pendentes
+RESUMO: ${contextoSistema.totalMotoristas} motoristas | ${contextoSistema.totalVeiculos} vehicles | ${contextoSistema.ticketsPendentes || 0} tickets pendentes
     `.trim();
 
     const historyParts = mensagensAnteriores
@@ -13235,6 +14414,48 @@ RESUMO: ${contextoSistema.totalMotoristas} motoristas | ${contextoSistema.totalV
 
   } catch (error) {
     console.error("[Assistente TVDE] Erro crítico:", error);
+    throw error;
+  }
+};
+
+// ─────────────────────────────────────────────────────────────────────────────
+// NOVO: AGENTE DE ATENDIMENTO PÚBLICO (VISITANTES - LEGISLAÇÃO E FISCALIDADE)
+// ─────────────────────────────────────────────────────────────────────────────
+export const perguntarAoAssistentePublico = async (
+  mensagem,
+  mensagensAnteriores = []
+) => {
+  try {
+    const historyParts = mensagensAnteriores
+      .filter(msg => msg.content)
+      .map(msg => ({
+        role: msg.role === 'user' ? 'user' : 'model',
+        parts: [{ text: msg.content }]
+      }));
+
+    let contents = [
+      ...historyParts,
+      {
+        role: "user",
+        parts: [{ text: mensagem }]
+      }
+    ];
+
+    const response = await genAI.models.generateContent({
+      model: AI_SETTINGS.MODEL_NAME,
+      contents: contents,
+      config: {
+        systemInstruction: SYSTEM_INSTRUCTION_PUBLICO
+      }
+    });
+
+    return {
+      text: response.text || "De momento não consegui processar a resposta. Por favor tente novamente.",
+      custo: calcularCustoReal(response.usageMetadata)
+    };
+
+  } catch (error) {
+    console.error("[Assistente Público TVDE] Erro crítico:", error);
     throw error;
   }
 };

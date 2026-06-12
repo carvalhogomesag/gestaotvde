@@ -16,44 +16,28 @@ import FechoSemanal from './pages/FechoSemanal';
 import Login from './pages/Login';
 import LandingPage from './pages/LandingPage'; 
 import GestaoLeads from './pages/GestaoLeads'; 
-import EGuiaPage from './pages/EGuiaPage'; // Importação da nova página do Guia de Onboarding
-import Blog from './pages/Blog'; // Importação do novo módulo de Blog e SEO
-import GeradorDistico from './pages/GeradorDistico'; // Importação do gerador gratuito de dísticos TVDE
-
-// Importação do Google Analytics
+import EGuiaPage from './pages/EGuiaPage';
+import Blog from './pages/Blog';
+import GeradorDistico from './pages/GeradorDistico';
 import ReactGA from 'react-ga4';
-
-// PÁGINAS DE IA E ONBOARDING
 import CentroComando from './pages/CentroComando';
 import OnboardingMotorista from './pages/OnboardingMotorista';
-
-// ⚠️ TEMPORÁRIO — Remover após executar a migração de cartões
-import MigracaoCartoes from './pages/MigracaoCartoes';
 
 const GA_MEASUREMENT_ID = import.meta.env.VITE_GA_MEASUREMENT_ID;
 if (GA_MEASUREMENT_ID) {
   ReactGA.initialize(GA_MEASUREMENT_ID);
-  console.log("[App] Google Analytics 4 inicializado com sucesso.");
 }
 
-/**
- * PrivateRoute: Se o utilizador não estiver logado,
- * redireciona de volta para a Landing Page pública (/)
- */
 const PrivateRoute = ({ children }) => {
   const { user } = useAuth();
-  return user ? children : <Navigate to="/" />; 
+  return user ? children : <Navigate to="/" />;
 };
 
-/**
- * AdminRoute: Proteção EXCLUSIVA para o Diretor (admin).
- * Se deslogado, redireciona para a Landing Page pública (/)
- */
 const AdminRoute = ({ children }) => {
   const { user, userData, loading } = useAuth();
   if (loading) return null;
-  if (!user) return <Navigate to="/" />; 
-  if (userData?.role !== 'admin') return <Navigate to="/dashboard" />; 
+  if (!user) return <Navigate to="/" />;
+  if (userData?.role !== 'admin') return <Navigate to="/dashboard" />;
   return children;
 };
 
@@ -64,11 +48,9 @@ function AppContent() {
   useEffect(() => {
     if (GA_MEASUREMENT_ID) {
       ReactGA.send({ hitType: "pageview", page: location.pathname });
-      console.log(`[GA4] Pageview registado para: ${location.pathname}`);
     }
   }, [location]);
 
-  // Mapeamento de rotas públicas para isolamento do layout administrativo do ERP
   const isPublicPath = 
     location.pathname === '/' || 
     location.pathname === '/login' || 
@@ -77,7 +59,6 @@ function AppContent() {
     location.pathname.startsWith('/blog') ||
     location.pathname.startsWith('/onboarding');
 
-  // O ERP com Sidebar e Header só é exibido se o utilizador estiver autenticado e fora de rotas públicas
   const mostrarLayoutERP = user && !isPublicPath;
 
   return (
@@ -98,10 +79,7 @@ function AppContent() {
             <Route path="/blog/:slug" element={<Blog />} />
             <Route path="/gerador-distico" element={<GeradorDistico />} />
 
-            {/* ⚠️ TEMPORÁRIO — Remover após executar a migração de cartões */}
-            <Route path="/migracao-cartoes" element={<MigracaoCartoes />} />
-
-            {/* ROTAS PROTEGIDAS DA ÁREA DE CLIENTES/ERP */}
+            {/* ROTAS PROTEGIDAS — ERP */}
             <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
             <Route path="/motoristas" element={<PrivateRoute><Motoristas /></PrivateRoute>} />
             <Route path="/leads" element={<PrivateRoute><GestaoLeads /></PrivateRoute>} />
@@ -112,13 +90,12 @@ function AppContent() {
             <Route path="/cartoes/carregamento" element={<PrivateRoute><CartoesGestao tipo="eletrico" /></PrivateRoute>} />
             <Route path="/config" element={<PrivateRoute><Configuracoes /></PrivateRoute>} />
 
-            {/* ROTAS RESTRITAS AO DIRETOR (ADMIN) */}
+            {/* ROTAS RESTRITAS AO DIRETOR */}
             <Route path="/centro-comando" element={<AdminRoute><CentroComando /></AdminRoute>} />
             <Route path="/fecho-semanal" element={<AdminRoute><FechoSemanal /></AdminRoute>} />
             <Route path="/utilizadores" element={<AdminRoute><GestaoUtilizadores /></AdminRoute>} />
             <Route path="/logs" element={<AdminRoute><LogsSistema /></AdminRoute>} />
 
-            {/* Redirecionamento inteligente de segurança */}
             <Route path="*" element={<Navigate to={user ? "/dashboard" : "/"} />} />
           </Routes>
         </main>
