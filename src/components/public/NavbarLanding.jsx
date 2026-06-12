@@ -12,7 +12,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import {
   ChevronDown, Menu, X, Printer, UserCheck,
-  Car, LayoutGrid, BookOpen, HelpCircle, Sparkles
+  Car, LayoutGrid
 } from 'lucide-react';
 
 const SERVICOS = [
@@ -156,7 +156,6 @@ export default function NavbarLanding() {
             )}
           </div>
 
-          <a href="#servicos"  className="px-3 py-2 rounded-xl hover:bg-slate-50 hover:text-blue-600 transition-colors">Nossos Serviços</a>
           <Link to="/blog"    className="px-3 py-2 rounded-xl hover:bg-slate-50 hover:text-blue-600 transition-colors">Artigos & Legislação</Link>
           <a href="#faq"      className="px-3 py-2 rounded-xl hover:bg-slate-50 hover:text-blue-600 transition-colors">Dúvidas Comuns</a>
         </div>
@@ -212,7 +211,6 @@ export default function NavbarLanding() {
           </div>
 
           <div className="border-t border-slate-100 pt-3 space-y-1">
-            <a href="#servicos" onClick={fecharTudo} className="flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-slate-50 text-sm font-semibold text-slate-600">Nossos Serviços</a>
             <Link to="/blog" onClick={fecharTudo} className="flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-slate-50 text-sm font-semibold text-slate-600">Artigos & Legislação</Link>
             <a href="#faq" onClick={fecharTudo} className="flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-slate-50 text-sm font-semibold text-slate-600">Dúvidas Comuns</a>
           </div>

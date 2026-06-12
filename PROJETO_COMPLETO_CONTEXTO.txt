@@ -386,44 +386,28 @@ import FechoSemanal from './pages/FechoSemanal';
 import Login from './pages/Login';
 import LandingPage from './pages/LandingPage'; 
 import GestaoLeads from './pages/GestaoLeads'; 
-import EGuiaPage from './pages/EGuiaPage'; // Importação da nova página do Guia de Onboarding
-import Blog from './pages/Blog'; // Importação do novo módulo de Blog e SEO
-import GeradorDistico from './pages/GeradorDistico'; // Importação do gerador gratuito de dísticos TVDE
-
-// Importação do Google Analytics
+import EGuiaPage from './pages/EGuiaPage';
+import Blog from './pages/Blog';
+import GeradorDistico from './pages/GeradorDistico';
 import ReactGA from 'react-ga4';
-
-// PÁGINAS DE IA E ONBOARDING
 import CentroComando from './pages/CentroComando';
 import OnboardingMotorista from './pages/OnboardingMotorista';
-
-// ⚠️ TEMPORÁRIO — Remover após executar a migração de cartões
-import MigracaoCartoes from './pages/MigracaoCartoes';
 
 const GA_MEASUREMENT_ID = import.meta.env.VITE_GA_MEASUREMENT_ID;
 if (GA_MEASUREMENT_ID) {
   ReactGA.initialize(GA_MEASUREMENT_ID);
-  console.log("[App] Google Analytics 4 inicializado com sucesso.");
 }
 
-/**
- * PrivateRoute: Se o utilizador não estiver logado,
- * redireciona de volta para a Landing Page pública (/)
- */
 const PrivateRoute = ({ children }) => {
   const { user } = useAuth();
-  return user ? children : <Navigate to="/" />; 
+  return user ? children : <Navigate to="/" />;
 };
 
-/**
- * AdminRoute: Proteção EXCLUSIVA para o Diretor (admin).
- * Se deslogado, redireciona para a Landing Page pública (/)
- */
 const AdminRoute = ({ children }) => {
   const { user, userData, loading } = useAuth();
   if (loading) return null;
-  if (!user) return <Navigate to="/" />; 
-  if (userData?.role !== 'admin') return <Navigate to="/dashboard" />; 
+  if (!user) return <Navigate to="/" />;
+  if (userData?.role !== 'admin') return <Navigate to="/dashboard" />;
   return children;
 };
 
@@ -434,11 +418,9 @@ function AppContent() {
   useEffect(() => {
     if (GA_MEASUREMENT_ID) {
       ReactGA.send({ hitType: "pageview", page: location.pathname });
-      console.log(`[GA4] Pageview registado para: ${location.pathname}`);
     }
   }, [location]);
 
-  // Mapeamento de rotas públicas para isolamento do layout administrativo do ERP
   const isPublicPath = 
     location.pathname === '/' || 
     location.pathname === '/login' || 
@@ -447,7 +429,6 @@ function AppContent() {
     location.pathname.startsWith('/blog') ||
     location.pathname.startsWith('/onboarding');
 
-  // O ERP com Sidebar e Header só é exibido se o utilizador estiver autenticado e fora de rotas públicas
   const mostrarLayoutERP = user && !isPublicPath;
 
   return (
@@ -468,10 +449,7 @@ function AppContent() {
             <Route path="/blog/:slug" element={<Blog />} />
             <Route path="/gerador-distico" element={<GeradorDistico />} />
 
-            {/* ⚠️ TEMPORÁRIO — Remover após executar a migração de cartões */}
-            <Route path="/migracao-cartoes" element={<MigracaoCartoes />} />
-
-            {/* ROTAS PROTEGIDAS DA ÁREA DE CLIENTES/ERP */}
+            {/* ROTAS PROTEGIDAS — ERP */}
             <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
             <Route path="/motoristas" element={<PrivateRoute><Motoristas /></PrivateRoute>} />
             <Route path="/leads" element={<PrivateRoute><GestaoLeads /></PrivateRoute>} />
@@ -482,13 +460,12 @@ function AppContent() {
             <Route path="/cartoes/carregamento" element={<PrivateRoute><CartoesGestao tipo="eletrico" /></PrivateRoute>} />
             <Route path="/config" element={<PrivateRoute><Configuracoes /></PrivateRoute>} />
 
-            {/* ROTAS RESTRITAS AO DIRETOR (ADMIN) */}
+            {/* ROTAS RESTRITAS AO DIRETOR */}
             <Route path="/centro-comando" element={<AdminRoute><CentroComando /></AdminRoute>} />
             <Route path="/fecho-semanal" element={<AdminRoute><FechoSemanal /></AdminRoute>} />
             <Route path="/utilizadores" element={<AdminRoute><GestaoUtilizadores /></AdminRoute>} />
             <Route path="/logs" element={<AdminRoute><LogsSistema /></AdminRoute>} />
 
-            {/* Redirecionamento inteligente de segurança */}
             <Route path="*" element={<Navigate to={user ? "/dashboard" : "/"} />} />
           </Routes>
         </main>
@@ -508,251 +485,6 @@ function App() {
 }
 
 export default App;
---------------------------------------------------
-
-
-### ARQUIVO: src\components\CentroComando.jsx ###
---------------------------------------------------
-import React, { useState, useEffect, useRef } from 'react';
-import { createPortal } from 'react-dom';
-import { 
-  Send, Sparkles, Wallet, Trash2, User, Loader2, Bot, CheckCircle2, AlertCircle
-} from 'lucide-react';
-import { useAuth } from '../context/AuthContext';
-import { db } from '../firebase';
-import { doc, setDoc, onSnapshot, deleteDoc } from 'firebase/firestore';
-import { perguntarAoAgente } from '../services/geminiService';
-import { MICRO_AGENTES } from '../services/microAgentes';
-
-// 🌟 Importação dos Handlers Componentizados e do Painel Lateral
-import { capturarDadosSistema, executorFuncoes } from '../services/centroComandoHandlers';
-import SidebarAgentes from './SidebarAgentes';
-
-export default function CentroComando() {
-  const { userData, user } = useAuth();
-  const [input, setInput]                 = useState('');
-  const [messages, setMessages]           = useState([]);
-  const [loading, setLoading]             = useState(false);
-  const [custoAcumulado, setCustoAcumulado] = useState(0);
-  const scrollRef = useRef(null);
-  const [portalTarget, setPortalTarget] = useState(null);
-
-  useEffect(() => {
-    setPortalTarget(document.getElementById('navbar-slot-ia'));
-  }, []);
-
-  // Carrega e persiste o histórico de conversas no Firestore (Mantido Intacto)
-  useEffect(() => {
-    if (!user?.uid) return;
-    const chatRef = doc(db, "conversas_ia", user.uid);
-    const unsubscribe = onSnapshot(chatRef, (docSnap) => {
-      if (docSnap.exists()) {
-        setMessages(docSnap.data().messages || []);
-      } else {
-        const msg = {
-          role: 'ai', 
-          agent: 'orquestrador',
-          content: `Olá ${userData?.nome || 'Diretor'}! Bem-vindo à Sala de Reuniões Digital do TVDE Gestão.\n\nTodos os nossos agentes especializados estão online e a acompanhar este canal em tempo real. Podes pedir análises financeiras, gestão de frotas ou validações de RH num único lugar.`,
-          resultadosFuncoes: []
-        };
-        setMessages([msg]);
-        setDoc(chatRef, { messages: [msg], lastUpdate: new Date().toISOString() });
-      }
-    });
-    return () => unsubscribe();
-  }, [user?.uid, userData?.nome]);
-
-  useEffect(() => {
-    if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
-  }, [messages]);
-
-  // ENVIO DE MENSAGENS COM ROTEAMENTO INTELIGENTE
-  const handleSendMessage = async (e) => {
-    e.preventDefault();
-    if (!input.trim() || loading) return;
-
-    const userContent = input.trim();
-    setInput('');
-    setLoading(true);
-
-    const userMsg = { role: 'user', content: userContent };
-    const currentMessages = [...messages, userMsg];
-
-    try {
-      // Executa a captura externa importada injetando a instância conectada do db
-      const contextoReal = await capturarDadosSistema(db);
-
-      let agenteKey = 'orquestrador';
-      const inputLower = userContent.toLowerCase();
-      if (/(débito|credito|lançamento|pagar|custo|euro|€|financ|excluir|apagar|deletar|eliminar|contabil)/i.test(inputLower)) agenteKey = 'financeiro';
-      else if (/(carro|veículo|matrícula|frota|manutenção|viatura|quilometragem)/i.test(inputLower)) agenteKey = 'frota';
-      else if (/(rh|recursos humanos|motorista|contrato|documento|admissão|onboarding|nif|carta|cmtvde|criminal|validade|expira)/i.test(inputLower)) agenteKey = 'rh';
-
-      // Dispara a pergunta encapsulando o executorFuncoes importado para aceitar o db nativo
-      const respostaIA = await perguntarAoAgente(
-        userContent,
-        agenteKey, 
-        contextoReal,
-        currentMessages, 
-        (name, args) => executorFuncoes(db, name, args)
-      );
-
-      const aiMsg = { 
-        role: 'ai', 
-        agent: agenteKey, 
-        content: respostaIA.text || "",
-        resultadosFuncoes: respostaIA.resultadosFuncoes || []
-      };
-      
-      const finalMessages = [...currentMessages, aiMsg];
-
-      await setDoc(
-        doc(db, "conversas_ia", user.uid),
-        { messages: finalMessages, lastUpdate: new Date().toISOString() },
-        { merge: true }
-      );
-
-      setCustoAcumulado(prev => prev + respostaIA.custo);
-    } catch (error) {
-      console.error("[Pipeline Error]", error);
-      const errMsg = {
-        role: 'ai', agent: 'orquestrador',
-        content: `❌ Ocorreu uma interrupção na comunicação interna. Detalhes: ${error.message}`,
-        resultadosFuncoes: []
-      };
-      await setDoc(doc(db, "conversas_ia", user.uid), { messages: [...currentMessages, errMsg], lastUpdate: new Date().toISOString() }, { merge: true });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleClearChat = async () => {
-    if (window.confirm("Pretende limpar o histórico desta reunião?")) {
-      await deleteDoc(doc(db, "conversas_ia", user.uid));
-    }
-  };
-
-  return (
-    <div className="h-[calc(100vh-80px)] flex flex-col gap-3">
-      
-      {portalTarget && createPortal(
-        <div className="flex items-center gap-6 animate-in fade-in duration-300">
-          <div className="flex items-center gap-1.5">
-            <Sparkles size={13} className="text-slate-500 shrink-0" />
-            <h1 className="text-[11px] font-black tracking-wider text-slate-700 uppercase whitespace-nowrap">
-              Sala de Comando
-            </h1>
-          </div>
-          <div className="flex gap-2 items-center">
-            <div className="bg-slate-50 px-2 py-0.5 rounded-lg border border-slate-100 flex items-center gap-1">
-              <Wallet size={11} className="text-slate-400" />
-              <p className="text-[10px] font-bold text-slate-600 whitespace-nowrap">
-                {custoAcumulado.toFixed(4)} €
-              </p>
-            </div>
-            <button 
-              onClick={handleClearChat} 
-              className="p-1 text-slate-300 hover:text-red-500 transition-colors" 
-              title="Limpar Sala"
-            >
-              <Trash2 size={13} />
-            </button>
-          </div>
-        </div>,
-        portalTarget
-      )}
-
-      <div className="flex-1 flex gap-3 min-h-0 items-stretch">
-        
-        {/* Chat Principal */}
-        <div className="flex-1 bg-white rounded-[2rem] border border-slate-100 shadow-sm flex flex-col overflow-hidden">
-          <div ref={scrollRef} className="flex-1 overflow-y-auto p-6 space-y-4 bg-slate-50/30">
-            {messages.map((msg, idx) => {
-              const configAgente = MICRO_AGENTES[msg.agent] || MICRO_AGENTES.orquestrador;
-              const IconeAgente = configAgente?.icon || Bot;
-              const isUser = msg.role === 'user';
-
-              return (
-                <div key={idx} className={`flex ${isUser ? 'justify-end' : 'justify-start'}`}>
-                  <div className={`max-w-[75%] flex gap-3 ${isUser ? 'flex-row-reverse' : 'items-start'}`}>
-                    <div className={`w-8 h-8 rounded-xl flex items-center justify-center shrink-0 shadow-sm border text-white ${
-                      isUser ? 'bg-slate-950 border-slate-950' : `${configAgente?.cor || 'bg-slate-700'} border-transparent`
-                    }`}>
-                      {isUser ? <User size={16} /> : <IconeAgente size={16} />}
-                    </div>
-
-                    <div className="space-y-1.5">
-                      <div className={`px-5 py-3.5 rounded-[1.75rem] ${
-                        isUser 
-                          ? 'bg-slate-950 text-white rounded-tr-none text-right' 
-                          : 'bg-white text-slate-700 border border-slate-100 rounded-tl-none shadow-sm'
-                      }`}>
-                        {!isUser && (
-                          <p className="text-[9px] font-black uppercase tracking-wider mb-1 text-slate-400">
-                            {configAgente?.nome}
-                          </p>
-                        )}
-                        <p className="text-sm leading-relaxed whitespace-pre-wrap font-medium">{msg.content}</p>
-                      </div>
-
-                      {!isUser && msg.resultadosFuncoes && msg.resultadosFuncoes.length > 0 && (
-                        <div className="flex flex-col gap-1 px-2">
-                          {msg.resultadosFuncoes.map((f, fIdx) => (
-                            <div key={fIdx} className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400">
-                              {f.resultado?.sucesso ? (
-                                <CheckCircle2 size={11} className="text-emerald-500 shrink-0" />
-                              ) : (
-                                <AlertCircle size={11} className="text-amber-500 shrink-0" />
-                              )}
-                              <span className="truncate max-w-xs">{f.resultado?.msg}</span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-
-            {loading && (
-              <div className="flex justify-start">
-                <div className="bg-white px-4 py-2.5 rounded-full text-[11px] text-slate-400 flex items-center gap-2 border border-slate-100 shadow-sm">
-                  <Loader2 className="animate-spin text-slate-500" size={13} />
-                  Algum agente está a processar a ação na base de dados...
-                </div>
-              </div>
-            )}
-          </div>
-
-          <div className="p-4 bg-white border-t border-slate-100 shrink-0">
-            <form onSubmit={handleSendMessage} className="relative max-w-4xl mx-auto">
-              <input
-                type="text"
-                value={input}
-                onChange={(e) => setInput(e.target.value)}
-                placeholder="Escreve uma instrução geral, alteração financeira ou auditoria documental..."
-                className="w-full pl-6 pr-16 py-4 bg-slate-50 focus:bg-white border border-slate-100 focus:border-slate-200 rounded-xl shadow-inner outline-none focus:ring-4 focus:ring-slate-900/5 text-sm transition-all text-slate-800 font-medium placeholder:text-slate-400"
-                disabled={loading}
-              />
-              <button
-                type="submit"
-                disabled={!input.trim() || loading}
-                className="absolute right-2 top-2 bottom-2 px-5 bg-slate-950 hover:bg-slate-800 text-white rounded-lg transition-all disabled:opacity-20 flex items-center justify-center shadow-md"
-              >
-                {loading ? <Loader2 size={16} className="animate-spin" /> : <Send size={16} />}
-              </button>
-            </form>
-          </div>
-        </div>
-
-        {/* Painel Lateral Direito Isolado */}
-        <SidebarAgentes />
-
-      </div>
-    </div>
-  );
-}
 --------------------------------------------------
 
 
@@ -9986,6 +9718,7 @@ import { formatCurrency } from '../utils/formatters';
 // Importações do catálogo público de frotas e do assistente virtual de IA 24/7
 import VehicleCatalog from '../components/public/VehicleCatalog';
 import PublicChatWidget from '../components/public/PublicChatWidget';
+import NavbarLanding from '../components/public/NavbarLanding';
 
 export default function LandingPage() {
   const navigate = useNavigate();
@@ -10136,35 +9869,7 @@ export default function LandingPage() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans scroll-smooth">
       
-      {/* ─── 1. BARRA DE NAVEGAÇÃO SUPERIOR RESPONSIVA ────────────────────────── */}
-      <nav className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-200 px-4 sm:px-6 py-4 shadow-xs">
-        <div className="max-w-6xl mx-auto flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <span className="text-xl font-black text-slate-900">Gestão</span>
-            <span className="text-xl font-black text-blue-600">TVDE</span>
-          </div>
-          
-          {/* Oculto em ecrãs pequenos (Mobile) */}
-          <div className="hidden md:flex items-center gap-4 lg:gap-6 text-sm font-semibold text-slate-600">
-            <a href="#servicos" className="hover:text-blue-600 transition-colors">Nossos Serviços</a>
-            <a href="#planos" className="hover:text-blue-600 transition-colors">Planos de Assessoria</a>
-            <a href="#catalogo" className="hover:text-blue-600 transition-colors">Catálogo de Viaturas</a>
-            <a href="#aluguer" className="hover:text-blue-600 transition-colors">Aluguer de Viaturas</a>
-            <Link to="/gerador-distico" className="hover:text-blue-600 transition-colors text-emerald-600">Dístico Grátis</Link>
-            <Link to="/blog" className="hover:text-blue-600 transition-colors">Artigos & Legislação</Link>
-            <a href="#faq" className="hover:text-blue-600 transition-colors">Dúvidas Comuns</a>
-          </div>
-
-          <div>
-            <a 
-              href="/login" 
-              className="px-3.5 sm:px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition-all shadow-xs"
-            >
-              Área de Clientes
-            </a>
-          </div>
-        </div>
-      </nav>
+      <NavbarLanding />
 
       {/* 🚀 FAIXA GLOBAL DE "NOVIDADE" RESPONSIVA */}
       <div className="bg-blue-600 text-white text-center py-2.5 px-4 text-[11px] sm:text-xs font-bold flex items-center justify-center gap-2 shadow-xs shrink-0 select-none">
@@ -11019,142 +10724,6 @@ export default function LogsSistema() {
         {!loading && logs.length === 0 && (
           <div className="p-20 text-center text-slate-400 italic">Nenhum registo de atividade encontrado.</div>
         )}
-      </div>
-    </div>
-  );
-}
---------------------------------------------------
-
-
-### ARQUIVO: src\pages\MigracaoCartoes.jsx ###
---------------------------------------------------
-import React, { useState } from 'react';
-import { db } from '../firebase';
-import { collection, getDocs, updateDoc, doc } from 'firebase/firestore';
-
-/**
- * UTILITÁRIO DE MIGRAÇÃO — Executar UMA única vez.
- *
- * Normaliza o campo `tipo` de todos os cartões para lowercase sem acentos:
- *   "Combustivel" → "combustivel"
- *   "Combustível" → "combustivel"
- *   "Eletrico"    → "eletrico"
- *   "Elétrico"    → "eletrico"
- *
- * COMO USAR:
- * 1. Adiciona ao App.jsx: <Route path="/migracao-cartoes" element={<MigracaoCartoes />} />
- * 2. Acede a localhost:5173/migracao-cartoes
- * 3. Clica "Executar Migração" e aguarda conclusão
- * 4. Remove a rota e este ficheiro
- */
-export default function MigracaoCartoes() {
-  const [log, setLog]         = useState([]);
-  const [status, setStatus]   = useState('idle'); // idle | running | done | error
-  const [total, setTotal]     = useState(0);
-
-  const addLog = (msg) => setLog(prev => [...prev, `${new Date().toLocaleTimeString('pt-PT')} — ${msg}`]);
-
-  const normalizarTipo = (tipo) =>
-    (tipo || '')
-      .toLowerCase()
-      .normalize('NFD')
-      .replace(/[\u0300-\u036f]/g, '');
-
-  const executar = async () => {
-    if (!window.confirm(
-      'Esta operação vai normalizar o campo "tipo" de todos os cartões para lowercase sem acentos. Confirmas?'
-    )) return;
-
-    setStatus('running');
-    setLog([]);
-    setTotal(0);
-    let count = 0;
-
-    try {
-      addLog('A carregar todos os cartões...');
-      const snap = await getDocs(collection(db, 'cartoes'));
-      addLog(`${snap.size} cartões encontrados. A verificar...`);
-
-      for (const d of snap.docs) {
-        const tipoAtual = d.data().tipo || '';
-        const tipoNovo  = normalizarTipo(tipoAtual);
-
-        if (tipoAtual !== tipoNovo) {
-          await updateDoc(doc(db, 'cartoes', d.id), { tipo: tipoNovo });
-          addLog(`✅ ${d.data().fornecedor || d.id}: "${tipoAtual}" → "${tipoNovo}"`);
-          count++;
-        }
-      }
-
-      if (count === 0) {
-        addLog('Nenhum cartão precisou de migração — já estavam no formato correcto.');
-      } else {
-        addLog(`✅ Migração concluída! ${count} cartão(ões) actualizado(s).`);
-        addLog('Podes remover esta página e a rota do App.jsx agora.');
-      }
-
-      setTotal(count);
-      setStatus('done');
-
-    } catch (error) {
-      addLog(`❌ Erro: ${error.message}`);
-      setStatus('error');
-    }
-  };
-
-  return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-8">
-      <div className="bg-white rounded-3xl shadow-xl border border-slate-100 p-8 max-w-xl w-full space-y-6">
-
-        <div>
-          <h1 className="text-2xl font-black text-slate-800">Migração de Cartões</h1>
-          <p className="text-slate-500 text-sm mt-1">
-            Normaliza o campo <code className="bg-slate-100 px-1 rounded">tipo</code> de todos os cartões para lowercase sem acentos.
-          </p>
-        </div>
-
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-sm text-amber-800 space-y-1">
-          <p><strong>O que isto faz:</strong></p>
-          <p><code className="bg-amber-100 px-1 rounded">"Combustivel"</code> → <code className="bg-amber-100 px-1 rounded">"combustivel"</code></p>
-          <p><code className="bg-amber-100 px-1 rounded">"Combustível"</code> → <code className="bg-amber-100 px-1 rounded">"combustivel"</code></p>
-          <p><code className="bg-amber-100 px-1 rounded">"Elétrico"</code> → <code className="bg-amber-100 px-1 rounded">"eletrico"</code></p>
-        </div>
-
-        {status === 'idle' && (
-          <button
-            onClick={executar}
-            className="w-full py-4 bg-tvde-primary text-white font-black rounded-2xl hover:bg-blue-600 transition-colors text-lg"
-          >
-            Executar Migração
-          </button>
-        )}
-
-        {status === 'running' && (
-          <div className="flex items-center gap-3 text-tvde-primary font-bold">
-            <div className="w-5 h-5 border-2 border-tvde-primary border-t-transparent rounded-full animate-spin" />
-            A migrar cartões...
-          </div>
-        )}
-
-        {status === 'done' && (
-          <div className="bg-green-50 border border-green-200 rounded-2xl p-4 text-green-800 font-bold text-center">
-            ✅ {total === 0 ? 'Nada a migrar — tudo já estava correcto!' : `${total} cartão(ões) migrado(s) com sucesso!`}
-            <p className="text-sm font-normal mt-1">Podes remover esta página agora.</p>
-          </div>
-        )}
-
-        {status === 'error' && (
-          <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-red-800 font-bold text-center">
-            ❌ Erro durante a migração. Vê o log abaixo.
-          </div>
-        )}
-
-        {log.length > 0 && (
-          <div className="bg-slate-900 rounded-2xl p-4 font-mono text-xs text-green-400 space-y-1 max-h-64 overflow-y-auto">
-            {log.map((line, i) => <div key={i}>{line}</div>)}
-          </div>
-        )}
-
       </div>
     </div>
   );
