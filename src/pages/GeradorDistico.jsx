@@ -3,7 +3,7 @@
  * Localização: src/pages/GeradorDistico.jsx
  *
  * Serviço público gratuito para geração de dísticos TVDE regulamentares em Portugal.
- * Valida a licença, gera uma pré-visualização reativa e exporta um PDF A4 100% à escala legal com marcas de corte [2].
+ * Gera dois dísticos por página A4 (dianteiro e traseiro) à escala real legal de 145x68mm [2].
  */
 
 import React, { useState } from 'react';
@@ -11,7 +11,7 @@ import { Link } from 'react-router-dom';
 import { jsPDF } from 'jspdf';
 import { 
   ArrowLeft, Download, ShieldCheck, Printer, AlertTriangle, 
-  HelpCircle, Info, Sparkles, CheckCircle2 
+  Loader2, Info, Sparkles, CheckCircle2 
 } from 'lucide-react';
 import ReactGA from 'react-ga4';
 
@@ -34,7 +34,61 @@ export default function GeradorDistico() {
     setLicenca(val);
   };
 
-  // Função para desenhar e descarregar o PDF regulamentar no formato A4 a 100% de escala
+  // Função interna para desenhar um dístico perfeito numa coordenada específica (x, y) do PDF
+  const desenharDisticoIndividual = (doc, x, y, licencaTexto) => {
+    const larguraDistico = 145; // mm
+    const alturaDistico = 68;   // mm
+    const espessuraBorda = 5;   // mm
+
+    // 1. DESENHO DAS MARCAS DE CORTE TRACEJADAS (HAIRLINES)
+    doc.setDrawColor(200, 200, 200); // cinzento suave
+    doc.setLineWidth(0.2);
+
+    // Marcas Canto Superior Esquerdo
+    doc.line(x - 8, y, x, y);
+    doc.line(x, y - 8, x, y);
+
+    // Marcas Canto Superior Direito
+    doc.line(x + larguraDistico, y, x + larguraDistico + 8, y);
+    doc.line(x + larguraDistico, y - 8, x + larguraDistico, y);
+
+    // Marcas Canto Inferior Esquerdo
+    doc.line(x - 8, y + alturaDistico, x, y + alturaDistico);
+    doc.line(x, y + alturaDistico, x, y + alturaDistico + 8);
+
+    // Marcas Canto Inferior Direito
+    doc.line(x + larguraDistico, y + alturaDistico, x + larguraDistico + 8, y + alturaDistico);
+    doc.line(x + larguraDistico, y + alturaDistico, x + larguraDistico, y + alturaDistico + 8);
+
+    // 2. DESENHO DO RETÂNGULO DO DÍSTICO (COMPENSAÇÃO DO STROKE DO JSPDF)
+    doc.setDrawColor(0, 0, 0); // preto sólido
+    doc.setFillColor(255, 255, 255); // fundo branco
+    doc.setLineWidth(espessuraBorda);
+    
+    doc.rect(
+      x + (espessuraBorda / 2), 
+      y + (espessuraBorda / 2), 
+      larguraDistico - espessuraBorda, 
+      alturaDistico - espessuraBorda, 
+      "FD"
+    );
+
+    // 3. TEXTO "TVDE" RIGOROSAMENTE CENTRADO NO RETÂNGULO
+    doc.setFont("helvetica", "bold");
+    doc.setFontSize(95); // Escala perfeita para o interior
+    doc.setTextColor(0, 0, 0);
+    // x + 72.5mm é o centro horizontal exato (145/2)
+    // y + 46.5mm é o cálculo da linha de base de cap-height para centralizar verticalmente em 68mm [1]
+    doc.text("TVDE", x + 72.5, y + 46.5, { align: "center" });
+
+    // 4. SUBTEXTO DA LICENÇA DE OPERADOR (ALINHADO À DIREITA EM CONFORMIDADE)
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(10.5);
+    // Alinhado a 10mm do canto inferior direito para mimetizar o padrão do IMT
+    doc.text(`Licença de Operador nº ${licencaTexto}`, x + 135, y + 60, { align: "right" });
+  };
+
+  // Handler de exportação para PDF de tamanho A4 contendo dois dísticos
   const handleGerarPDF = () => {
     if (!regexLicenca.test(licenca)) {
       setErro("Por favor, introduza a licença no formato correto: 6 dígitos, barra e ano (ex: 123456/2018).");
@@ -44,88 +98,40 @@ export default function GeradorDistico() {
     setGerando(true);
 
     try {
-      // Inicializar o PDF em formato A4 vertical (portrait) em milímetros
+      // Criar documento PDF A4 Vertical
       const doc = new jsPDF({
         orientation: 'portrait',
         unit: 'mm',
         format: 'a4'
       });
 
-      // ─── DIMENSÕES REAIS DO DÍSTICO TVDE PT ───────────────────────────────
-      const larguraDistico = 145; // mm
-      const alturaDistico = 68;   // mm
-      const espessuraBorda = 5;   // mm
+      const xCentrado = (210 - 145) / 2; // 32.5 mm
 
-      // Posicionamento centralizado na folha A4 (210mm x 297mm)
-      const x = (210 - larguraDistico) / 2; // 32.5 mm
-      const y = (297 - alturaDistico) / 2;  // 114.5 mm
+      // ─── DESENHAR DÍSTICO 1 (TOPO DA PÁGINA) ────────────────────────────────
+      desenharDisticoIndividual(doc, xCentrado, 25, licenca);
 
-      // ─── 1. DESENHO DAS MARCAS DE CORTE TRACEJADAS (HAIRLINES) ─────────────
-      doc.setDrawColor(180, 180, 180); // cinzento suave
-      doc.setLineWidth(0.2); // espessura fina para não carregar o corte
+      // ─── DESENHAR DÍSTICO 2 (CENTRO DA PÁGINA) ──────────────────────────────
+      desenharDisticoIndividual(doc, xCentrado, 115, licenca);
 
-      // Marcas Canto Superior Esquerdo
-      doc.line(x - 8, y, x, y);
-      doc.line(x, y - 8, x, y);
-
-      // Marcas Canto Superior Direito
-      doc.line(x + larguraDistico, y, x + larguraDistico + 8, y);
-      doc.line(x + larguraDistico, y - 8, x + larguraDistico, y);
-
-      // Marcas Canto Inferior Esquerdo
-      doc.line(x - 8, y + alturaDistico, x, y + alturaDistico);
-      doc.line(x, y + alturaDistico, x, y + alturaDistico + 8);
-
-      // Marcas Canto Inferior Direito
-      doc.line(x + larguraDistico, y + alturaDistico, x + larguraDistico + 8, y + alturaDistico);
-      doc.line(x + larguraDistico, y + alturaDistico, x + larguraDistico, y + alturaDistico + 8);
-
-      // ─── 2. DESENHO DO DÍSTICO REGULAMENTAR ────────────────────────────────
-      // jsPDF desenha a borda a partir do centro da linha. Para obtermos
-      // exatamente 145x68mm de tamanho externo com borda de 5mm, compensamos as coordenadas:
-      doc.setDrawColor(0, 0, 0); // preto sólido
-      doc.setFillColor(255, 255, 255); // fundo branco
-      doc.setLineWidth(espessuraBorda);
-      
-      doc.rect(
-        x + (espessuraBorda / 2), 
-        y + (espessuraBorda / 2), 
-        larguraDistico - espessuraBorda, 
-        alturaDistico - espessuraBorda, 
-        "FD"
-      );
-
-      // ─── 3. TEXTO "TVDE" CENTRADO ──────────────────────────────────────────
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(100); // Fonte grande para ocupar a largura interior de 135mm
-      doc.setTextColor(0, 0, 0);
-      doc.text("TVDE", 105, 149.5, { align: "center" }); // 105 é o centro da página A4
-
-      // ─── 4. SUBTEXTO DA LICENÇA DE OPERADOR (ALINHADO À DIREITA) ───────────
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(11); // Tamanho regulamentar para subtexto legível
-      // Alinhado ligeiramente recuado em relação à borda preta direita
-      doc.text(`Licença de Operador nº ${licenca}`, 168, 172.5, { align: "right" });
-
-      // ─── 5. INSTRUÇÕES DE IMPRESSÃO (FORA DO DÍSTICO - BASE DA FOLHA) ──────
+      // ─── INSTRUÇÕES DE IMPRESSÃO (BASE DA PÁGINA A4) ────────────────────────
       doc.setFont("helvetica", "bold");
       doc.setFontSize(10);
       doc.setTextColor(15, 23, 42); // slate-900
-      doc.text("⚠️ INSTRUÇÕES DE IMPRESSÃO IMPORTANTES (LEIA ANTES DE IMPRIMIR):", 20, 240);
+      doc.text("⚠️ INSTRUÇÕES DE IMPRESSÃO IMPORTANTES (LEIA ANTES DE IMPRIMIR):", 20, 225);
 
       doc.setFont("helvetica", "normal");
       doc.setFontSize(9);
       doc.setTextColor(71, 85, 105); // slate-600
-      doc.text("1. Configurações da Impressora: Imprima este ficheiro em tamanho real (Escala a 100%). NUNCA selecione 'ajustar à página'.", 20, 246);
-      doc.text("2. Tipo de Papel: Recomenda-se a utilização de uma folha de papel branca ou cartolina com gramagem superior (ex: 120g a 200g).", 20, 251);
-      doc.text("3. Aplicação do Dístico: Recorte cuidadosamente ao longo das marcas tracejadas cinzentas exteriores do dístico.", 20, 256);
-      doc.text("4. Afixação Legal: Fixe as duas cópias (uma no vidro dianteiro direito e outra no vidro traseiro esquerdo) pelo interior do carro.", 20, 261);
+      doc.text("1. Configurações da Impressora: Imprima este ficheiro em tamanho real (Escala a 100%). NUNCA selecione 'ajustar à página'.", 20, 231);
+      doc.text("2. Tipo de Papel: Recomenda-se a utilização de uma folha de papel branca ou cartolina com gramagem superior (ex: 120g a 200g).", 20, 236);
+      doc.text("3. Aplicação do Dístico: Recorte cuidadosamente ao longo das marcas tracejadas cinzentas exteriores do dístico.", 20, 241);
+      doc.text("4. Afixação Legal: Fixe as duas cópias (uma no vidro dianteiro direito e outra no vidro traseiro esquerdo) pelo interior do carro.", 20, 246);
 
-      // Rodapé institucional na folha de impressão
+      // Rodapé institucional
       doc.setFont("helvetica", "bold");
       doc.setFontSize(8);
       doc.setTextColor(148, 163, 184); // slate-400
-      doc.text("Serviço Gratuito de Utilidade Pública — Gestão TVDE Portugal", 105, 275, { align: "center" });
+      doc.text("Serviço Gratuito de Utilidade Pública — Gestão TVDE Portugal", 105, 265, { align: "center" });
 
       // Rastreamento Analítico do Google Analytics 4
       ReactGA.event({
@@ -134,8 +140,8 @@ export default function GeradorDistico() {
         label: licenca
       });
 
-      // Gravação e download do ficheiro
-      doc.save(`Distico_TVDE_Licenca_${licenca.replace('/', '_')}.pdf`);
+      // Gravação e download
+      doc.save(`Disticos_TVDE_Licenca_${licenca.replace('/', '_')}.pdf`);
 
     } catch (err) {
       console.error("[GeradorDistico] Erro técnico de exportação:", err);
@@ -175,13 +181,13 @@ export default function GeradorDistico() {
         <div className="text-center space-y-3 max-w-xl mx-auto">
           <div className="inline-flex items-center gap-1.5 justify-center text-xs font-black uppercase tracking-wider text-blue-600 bg-blue-50 px-3 py-1 rounded-full border border-blue-100">
             <Printer size={14} />
-            Impressão Regulamentar TVDE
+            Duplo Dístico TVDE (Dianteiro & Traseiro)
           </div>
           <h1 className="text-2xl sm:text-3xl font-black text-slate-900 leading-tight">
             Gerador de Dístico TVDE Gratuito
           </h1>
           <p className="text-slate-500 text-xs sm:text-sm leading-relaxed">
-            Gere o dístico regulamentar em formato PDF pronto a imprimir à escala real exata (145x68mm) com as marcas de corte legais [2].
+            Gere num único PDF os dois dísticos regulamentares exigidos por lei (um para o vidro dianteiro e outro para o traseiro) prontos a imprimir à escala real exata (145x68mm) [2].
           </p>
         </div>
 
@@ -204,7 +210,7 @@ export default function GeradorDistico() {
                 </label>
                 <input
                   type="text"
-                  placeholder="Ex: 123456/2018"
+                  placeholder="Ex: 343654/2021"
                   value={licenca}
                   onChange={handleInputChange}
                   maxLength="11"
@@ -230,7 +236,7 @@ export default function GeradorDistico() {
                 ) : (
                   <Download size={14} />
                 )}
-                Descarregar PDF Pronto a Imprimir
+                Descarregar PDF com os 2 Dísticos
               </button>
             </div>
 
@@ -251,7 +257,7 @@ export default function GeradorDistico() {
           <div className="lg:col-span-7 space-y-6">
             <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-8 shadow-2xs space-y-4">
               <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 flex items-center gap-1 text-left">
-                <Sparkles size={12} className="text-blue-500" /> Pré-visualização do dístico no ecrã
+                <Sparkles size={12} className="text-blue-500" /> Pré-visualização reativa e centrada
               </span>
 
               {/* Caixa da placa TVDE com proporções 145x68mm real */}
@@ -259,16 +265,15 @@ export default function GeradorDistico() {
                 
                 <div className="w-full max-w-sm aspect-[145/68] bg-white border-[10px] sm:border-[14px] border-black flex flex-col justify-between p-3 relative shadow-md">
                   
-                  {/* Espaço Vazio para compensar alinhamento vertical */}
-                  <div></div>
-
-                  {/* Letras Centradas "TVDE" */}
-                  <div className="text-slate-900 font-black text-4xl sm:text-5xl md:text-6xl tracking-widest text-center">
-                    TVDE
+                  {/* Letras Centradas "TVDE" via posicionamento absoluto robusto */}
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <span className="text-slate-950 font-black text-5xl sm:text-6xl md:text-7xl tracking-widest leading-none mt-[-4px]">
+                      TVDE
+                    </span>
                   </div>
 
                   {/* Número de licença ao canto inferior direito */}
-                  <div className="text-[8px] sm:text-[10px] font-normal text-slate-900 text-right pr-2">
+                  <div className="absolute bottom-3 right-4 text-[8px] sm:text-[10px] font-bold text-slate-900">
                     {licenca ? (
                       <span>Licença de Operador nº {licenca}</span>
                     ) : (
@@ -282,7 +287,7 @@ export default function GeradorDistico() {
 
               {/* Nota sobre marcas de corte */}
               <p className="text-[10px] text-slate-400 italic text-center leading-relaxed">
-                * O PDF gerado incluirá marcas de corte para que possa recortar perfeitamente a placa a 145mm de largura por 68mm de altura [2].
+                * O PDF conterá marcas de corte e as instruções para que possa cortar perfeitamente os seus dois dísticos a 145x68mm [2].
               </p>
 
             </div>
