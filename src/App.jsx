@@ -17,6 +17,7 @@ import Login from './pages/Login';
 import LandingPage from './pages/LandingPage'; 
 import GestaoLeads from './pages/GestaoLeads'; 
 import EGuiaPage from './pages/EGuiaPage'; // Importação da nova página do Guia de Onboarding
+import Blog from './pages/Blog'; // Importação do novo módulo de Blog e SEO
 
 // Importação do Google Analytics
 import ReactGA from 'react-ga4';
@@ -71,6 +72,7 @@ function AppContent() {
     location.pathname === '/' || 
     location.pathname === '/login' || 
     location.pathname === '/guia-onboarding' ||
+    location.pathname.startsWith('/blog') ||
     location.pathname.startsWith('/onboarding');
 
   // O ERP com Sidebar e Header só é exibido se o utilizador estiver autenticado e fora de rotas públicas
@@ -90,6 +92,8 @@ function AppContent() {
             <Route path="/login" element={!user ? <Login /> : <Navigate to="/dashboard" />} />
             <Route path="/onboarding/:driverId" element={<OnboardingMotorista />} />
             <Route path="/guia-onboarding" element={<EGuiaPage />} />
+            <Route path="/blog" element={<Blog />} />
+            <Route path="/blog/:slug" element={<Blog />} />
 
             {/* ⚠️ TEMPORÁRIO — Remover após executar a migração de cartões */}
             <Route path="/migracao-cartoes" element={<MigracaoCartoes />} />
