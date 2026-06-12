@@ -23,6 +23,7 @@ import { formatCurrency } from '../utils/formatters';
 // Importações do catálogo público de frotas e do assistente virtual de IA 24/7
 import VehicleCatalog from '../components/public/VehicleCatalog';
 import PublicChatWidget from '../components/public/PublicChatWidget';
+import NavbarLanding from '../components/public/NavbarLanding';
 
 export default function LandingPage() {
   const navigate = useNavigate();
@@ -173,35 +174,7 @@ export default function LandingPage() {
   return (
     <div className="min-h-screen bg-slate-50 text-slate-800 font-sans scroll-smooth">
       
-      {/* ─── 1. BARRA DE NAVEGAÇÃO SUPERIOR RESPONSIVA ────────────────────────── */}
-      <nav className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-200 px-4 sm:px-6 py-4 shadow-xs">
-        <div className="max-w-6xl mx-auto flex justify-between items-center">
-          <div className="flex items-center gap-2">
-            <span className="text-xl font-black text-slate-900">Gestão</span>
-            <span className="text-xl font-black text-blue-600">TVDE</span>
-          </div>
-          
-          {/* Oculto em ecrãs pequenos (Mobile) */}
-          <div className="hidden md:flex items-center gap-4 lg:gap-6 text-sm font-semibold text-slate-600">
-            <a href="#servicos" className="hover:text-blue-600 transition-colors">Nossos Serviços</a>
-            <a href="#planos" className="hover:text-blue-600 transition-colors">Planos de Assessoria</a>
-            <a href="#catalogo" className="hover:text-blue-600 transition-colors">Catálogo de Viaturas</a>
-            <a href="#aluguer" className="hover:text-blue-600 transition-colors">Aluguer de Viaturas</a>
-            <Link to="/gerador-distico" className="hover:text-blue-600 transition-colors text-emerald-600">Dístico Grátis</Link>
-            <Link to="/blog" className="hover:text-blue-600 transition-colors">Artigos & Legislação</Link>
-            <a href="#faq" className="hover:text-blue-600 transition-colors">Dúvidas Comuns</a>
-          </div>
-
-          <div>
-            <a 
-              href="/login" 
-              className="px-3.5 sm:px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-slate-800 transition-all shadow-xs"
-            >
-              Área de Clientes
-            </a>
-          </div>
-        </div>
-      </nav>
+      <NavbarLanding />
 
       {/* 🚀 FAIXA GLOBAL DE "NOVIDADE" RESPONSIVA */}
       <div className="bg-blue-600 text-white text-center py-2.5 px-4 text-[11px] sm:text-xs font-bold flex items-center justify-center gap-2 shadow-xs shrink-0 select-none">
