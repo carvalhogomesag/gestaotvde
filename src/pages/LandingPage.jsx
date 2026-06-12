@@ -3,7 +3,7 @@
  * Localização: src/pages/LandingPage.jsx
  *
  * Página inicial pública consolidada (Ficheiro Único Monolítico).
- * Otimizada com tipografia fluida, espaçamentos responsivos e suporte mobile completo.
+ * Otimizada com carrossel dinâmico no Hero, catálogo de viaturas, destaques de blog e IA.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -13,7 +13,7 @@ import {
   Shield, Check, ArrowRight, Loader2, BookOpen, 
   Car, HelpCircle, FileText, Smartphone, Mail, User,
   CheckCircle2, ChevronDown, ChevronUp, AlertCircle, Sparkles, Clock,
-  ChevronRight // Corrigido: Importação em falta que causava a tela branca
+  ChevronRight, ChevronLeft, Printer, LayoutGrid // Importados os ícones adicionais necessários
 } from 'lucide-react';
 import ReactGA from 'react-ga4';
 import { registarLeadPública } from '../services/leadService';
@@ -26,8 +26,12 @@ import PublicChatWidget from '../components/public/PublicChatWidget';
 export default function LandingPage() {
   const navigate = useNavigate();
 
-  // ─── ESTADOS DOS FORMULÁRIOS E ABAS ───────────────────────────────────────
+  // ─── ESTADOS DOS FORMULÁRIOS E CARROSSEL ──────────────────────────────────
   
+  // Controlo do Carrossel do Hero
+  const [slideAtivo, setSlideAtivo] = useState(0);
+  const totalSlides = 3;
+
   // Controlo das abas de Nossos Serviços
   const [abaServicos, setAbaServicos] = useState('motoristas'); // 'motoristas' | 'proprietarios'
 
@@ -43,6 +47,17 @@ export default function LandingPage() {
 
   // Acordeão de FAQs
   const [faqAtiva, setFaqAtiva] = useState(null);
+
+  // ─── LÓGICA DE ROTAÇÃO AUTÓNOMA DO CARROSSEL (HERO) ────────────────────────
+  useEffect(() => {
+    const temporizador = setInterval(() => {
+      setSlideAtivo((prev) => (prev + 1) % totalSlides);
+    }, 5000); // Altera o slide a cada 5 segundos
+    return () => clearInterval(temporizador);
+  }, []);
+
+  const handleProximoSlide = () => setSlideAtivo((prev) => (prev + 1) % totalSlides);
+  const handleSlideAnterior = () => setSlideAtivo((prev) => (prev - 1 + totalSlides) % totalSlides);
 
   // ─── ESCUTADOR DE SELEÇÃO DE VIATURAS DO CATÁLOGO ────────────────────────
   useEffect(() => {
@@ -143,7 +158,7 @@ export default function LandingPage() {
         email: leadCarro.email,
         telemovel: leadCarro.telemovel,
         origem: 'procura_viatura',
-        mensagemAdicional: `Procura carro em: ${leadCarro.regiao}. Mensagem: ${leadCarro.mensagem}`
+        mensagemAdicional: `Procura carro em: ${leadCarro.regiao}. Em: ${leadCarro.mensagem}`
       });
 
       setFeedbackCarro(res);
@@ -170,11 +185,12 @@ export default function LandingPage() {
           </div>
           
           {/* Oculto em ecrãs pequenos (Mobile) */}
-          <div className="hidden md:flex items-center gap-6 lg:gap-8 text-sm font-semibold text-slate-600">
+          <div className="hidden md:flex items-center gap-4 lg:gap-6 text-sm font-semibold text-slate-600">
             <a href="#servicos" className="hover:text-blue-600 transition-colors">Nossos Serviços</a>
             <a href="#planos" className="hover:text-blue-600 transition-colors">Planos de Assessoria</a>
             <a href="#catalogo" className="hover:text-blue-600 transition-colors">Catálogo de Viaturas</a>
             <a href="#aluguer" className="hover:text-blue-600 transition-colors">Aluguer de Viaturas</a>
+            <Link to="/gerador-distico" className="hover:text-blue-600 transition-colors text-emerald-600">Dístico Grátis</Link>
             <Link to="/blog" className="hover:text-blue-600 transition-colors">Artigos & Legislação</Link>
             <a href="#faq" className="hover:text-blue-600 transition-colors">Dúvidas Comuns</a>
           </div>
@@ -228,69 +244,192 @@ export default function LandingPage() {
             </div>
           </div>
 
-          {/* Lado Direito: Formulário Exclusivo de Captura do eGuia */}
-          <div className="lg:col-span-5 bg-white text-slate-800 rounded-3xl p-5 sm:p-6 shadow-2xl border border-slate-100 max-w-md mx-auto w-full">
+          {/* Lado Direito: Carrossel Dinâmico de Captação e Ferramentas Gratuitas [NOVO] */}
+          <div className="lg:col-span-5 bg-white text-slate-800 rounded-3xl p-5 sm:p-6 shadow-2xl border border-slate-100 max-w-md mx-auto w-full relative min-h-[460px] flex flex-col justify-between overflow-hidden">
             
-            <div className="space-y-4">
-              <div className="flex items-center justify-between text-blue-600">
-                <div className="flex items-center gap-2">
-                  <BookOpen size={16} />
-                  <span className="text-[10px] font-black uppercase tracking-wider">Acesso Imediato Gratuito</span>
-                </div>
-                <span className="bg-emerald-100 text-emerald-700 text-[8px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider">
-                  Disponível
-                </span>
-              </div>
-              <h3 className="text-lg font-black text-slate-900 leading-tight">📖 eGuia Novo Motorista TVDE</h3>
-              <p className="text-slate-500 text-xs leading-relaxed">
-                Descubra o caminho estratégico da decisão à sua primeira viagem. Introduza os dados abaixo para aceder imediatamente ao guia completo online e realizar o download em PDF.
-              </p>
+            {/* Wrapper de Renderização dos Slides */}
+            <div className="flex-1 flex flex-col justify-between text-left">
+              
+              {/* SLIDE 0: eGuia Novo Motorista TVDE */}
+              {slideAtivo === 0 && (
+                <div className="space-y-4 animate-in fade-in duration-300 flex-1 flex flex-col justify-between">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between text-blue-600">
+                      <div className="flex items-center gap-2">
+                        <BookOpen size={16} />
+                        <span className="text-[10px] font-black uppercase tracking-wider">Acesso Imediato Gratuito</span>
+                      </div>
+                      <span className="bg-emerald-100 text-emerald-700 text-[8px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider">
+                        Disponível
+                      </span>
+                    </div>
+                    <h3 className="text-lg font-black text-slate-900 leading-tight">📖 eGuia Novo Motorista TVDE</h3>
+                    <p className="text-slate-500 text-xs leading-relaxed">
+                      Descubra o caminho estratégico da decisão à sua primeira viagem. Introduza os dados abaixo para aceder ao guia online e fazer o download em PDF.
+                    </p>
+                  </div>
 
-              <form onSubmit={handleSubmeterGuia} className="space-y-3.5 text-left">
-                <div className="relative">
-                  <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                  <input 
-                    type="text" 
-                    required 
-                    placeholder="O seu nome completo"
-                    value={leadGuia.nome}
-                    onChange={e => setLeadGuia({ ...leadGuia, nome: e.target.value })}
-                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                  />
-                </div>
+                  <form onSubmit={handleSubmeterGuia} className="space-y-3 text-left">
+                    <div className="relative">
+                      <User className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                      <input 
+                        type="text" 
+                        required 
+                        placeholder="O seu nome completo"
+                        value={leadGuia.nome}
+                        onChange={e => setLeadGuia({ ...leadGuia, nome: e.target.value })}
+                        className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                      />
+                    </div>
 
-                <div className="relative">
-                  <Smartphone className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
-                  <input 
-                    type="tel" 
-                    required 
-                    placeholder="Telemóvel (ex: +351 912 345 678)"
-                    value={leadGuia.telemovel}
-                    onChange={e => setLeadGuia({ ...leadGuia, telemovel: e.target.value })}
-                    className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
-                  />
-                </div>
+                    <div className="relative">
+                      <Smartphone className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={16} />
+                      <input 
+                        type="tel" 
+                        required 
+                        placeholder="Telemóvel (ex: +351 912 345 678)"
+                        value={leadGuia.telemovel}
+                        onChange={e => setLeadGuia({ ...leadGuia, telemovel: e.target.value })}
+                        className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
+                      />
+                    </div>
 
-                <button 
-                  type="submit"
-                  disabled={loadingGuia}
-                  className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition-all shadow-md disabled:opacity-40 cursor-pointer animate-pulse"
-                >
-                  {loadingGuia ? (
-                    <Loader2 size={14} className="animate-spin" />
-                  ) : (
-                    <ArrowRight size={14} />
+                    <button 
+                      type="submit"
+                      disabled={loadingGuia}
+                      className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition-all shadow-md disabled:opacity-40 cursor-pointer"
+                    >
+                      {loadingGuia ? (
+                        <Loader2 size={14} className="animate-spin" />
+                      ) : (
+                        <ArrowRight size={14} />
+                      )}
+                      Desbloquear Acesso ao eGuia
+                    </button>
+                  </form>
+
+                  {feedbackGuia && (
+                    <div className="flex items-center gap-2 text-xs font-semibold rounded-xl px-3 py-2 border bg-red-50 text-red-700 border-red-100">
+                      <AlertCircle size={14} />
+                      <span className="leading-relaxed text-[11px]">{feedbackGuia.msg}</span>
+                    </div>
                   )}
-                  Desbloquear Acesso ao eGuia
-                </button>
-              </form>
-
-              {feedbackGuia && (
-                <div className="flex items-center gap-2 text-xs font-semibold rounded-xl px-3 py-2.5 border bg-red-50 text-red-700 border-red-100">
-                  <AlertCircle size={14} />
-                  <span className="leading-relaxed">{feedbackGuia.msg}</span>
                 </div>
               )}
+
+              {/* SLIDE 1: Gerador de Dístico TVDE Gratuito */}
+              {slideAtivo === 1 && (
+                <div className="space-y-4 animate-in fade-in duration-300 flex-1 flex flex-col justify-between">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between text-emerald-600">
+                      <div className="flex items-center gap-2">
+                        <Printer size={16} />
+                        <span className="text-[10px] font-black uppercase tracking-wider">Serviço Gratuito ao Motorista</span>
+                      </div>
+                      <span className="bg-emerald-100 text-emerald-700 text-[8px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider">
+                        100% Legal
+                      </span>
+                    </div>
+                    <h3 className="text-lg font-black text-slate-900 leading-tight">🖨️ Gerador de Dístico Grátis</h3>
+                    <p className="text-slate-500 text-xs leading-relaxed">
+                      Precisa de imprimir as placas TVDE para colocar nos vidros da sua viatura? Gere em segundos o PDF regulamentar em tamanho real exato (145x68mm) com as marcas de corte do IMT [2].
+                    </p>
+                  </div>
+
+                  {/* Ilustração ou Elemento Visual do Dístico */}
+                  <div className="border border-slate-100 bg-slate-50 rounded-2xl p-4 flex items-center justify-center">
+                    <div className="border-[5px] border-black bg-white px-8 py-2.5 font-black text-xl tracking-widest text-slate-950 flex flex-col items-center">
+                      <span>TVDE</span>
+                      <span className="text-[6px] font-normal text-slate-500 tracking-normal mt-0.5">Licença: xxxxxx/YYYY</span>
+                    </div>
+                  </div>
+
+                  <Link 
+                    to="/gerador-distico"
+                    className="w-full py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition-all shadow-md text-center cursor-pointer mt-auto"
+                  >
+                    <Printer size={14} />
+                    Gerar Meu Dístico Grátis
+                  </Link>
+                </div>
+              )}
+
+              {/* SLIDE 2: Procura de Viatura de Aluguer */}
+              {slideAtivo === 2 && (
+                <div className="space-y-4 animate-in fade-in duration-300 flex-1 flex flex-col justify-between">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between text-indigo-600">
+                      <div className="flex items-center gap-2">
+                        <Car size={16} />
+                        <span className="text-[10px] font-black uppercase tracking-wider">Aluguer de Viaturas</span>
+                      </div>
+                      <span className="bg-indigo-100 text-indigo-700 text-[8px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider">
+                        Com Seguros
+                      </span>
+                    </div>
+                    <h3 className="text-lg font-black text-slate-900 leading-tight">🚗 Procura Carro para Trabalhar?</h3>
+                    <p className="text-slate-500 text-xs leading-relaxed">
+                      Aceda ao nosso catálogo de frotas ativas com seguros para transporte de passageiros incluídos, manutenção a cargo do operador, Via Verde e cartões de desconto de combustível.
+                    </p>
+                  </div>
+
+                  <div className="flex items-center gap-3 bg-indigo-50/50 border border-indigo-100 p-3.5 rounded-2xl">
+                    <CheckCircle2 size={16} className="text-indigo-600 shrink-0" />
+                    <span className="text-[11px] text-indigo-900 font-semibold leading-relaxed">
+                      Modelos Diesel, GPL, Híbridos e Elétricos disponíveis.
+                    </span>
+                  </div>
+
+                  <button 
+                    type="button"
+                    onClick={() => {
+                      const seccaoAluguer = document.getElementById('aluguer');
+                      if (seccaoAluguer) seccaoAluguer.scrollIntoView({ behavior: 'smooth' });
+                    }}
+                    className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl text-xs flex items-center justify-center gap-2 transition-all shadow-md cursor-pointer mt-auto"
+                  >
+                    <Car size={14} />
+                    Procurar Viatura Disponível
+                  </button>
+                </div>
+              )}
+
+            </div>
+
+            {/* CONTROLOS DO CARROSSEL (DOTS E SETAS) */}
+            <div className="flex justify-between items-center pt-4 mt-4 border-t border-slate-100 select-none shrink-0 text-xs font-semibold">
+              
+              {/* Setas de Controle */}
+              <button 
+                type="button"
+                onClick={handleSlideAnterior}
+                className="p-1 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-900 transition-colors cursor-pointer"
+              >
+                <ChevronLeft size={16} />
+              </button>
+
+              {/* Indicadores Visuais (Pequenos Círculos) */}
+              <div className="flex gap-1.5">
+                {[...Array(totalSlides)].map((_, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onClick={() => setSlideAtivo(idx)}
+                    className={`h-2 rounded-full transition-all cursor-pointer ${
+                      slideAtivo === idx ? 'w-5 bg-slate-950' : 'w-2 bg-slate-200'
+                    }`}
+                  />
+                ))}
+              </div>
+
+              <button 
+                type="button"
+                onClick={handleProximoSlide}
+                className="p-1 rounded-lg hover:bg-slate-100 text-slate-400 hover:text-slate-900 transition-colors cursor-pointer"
+              >
+                <ChevronRight size={16} />
+              </button>
+
             </div>
 
           </div>

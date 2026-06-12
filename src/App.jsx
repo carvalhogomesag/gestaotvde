@@ -18,6 +18,7 @@ import LandingPage from './pages/LandingPage';
 import GestaoLeads from './pages/GestaoLeads'; 
 import EGuiaPage from './pages/EGuiaPage'; // Importação da nova página do Guia de Onboarding
 import Blog from './pages/Blog'; // Importação do novo módulo de Blog e SEO
+import GeradorDistico from './pages/GeradorDistico'; // Importação do gerador gratuito de dísticos TVDE
 
 // Importação do Google Analytics
 import ReactGA from 'react-ga4';
@@ -72,6 +73,7 @@ function AppContent() {
     location.pathname === '/' || 
     location.pathname === '/login' || 
     location.pathname === '/guia-onboarding' ||
+    location.pathname === '/gerador-distico' ||
     location.pathname.startsWith('/blog') ||
     location.pathname.startsWith('/onboarding');
 
@@ -94,6 +96,7 @@ function AppContent() {
             <Route path="/guia-onboarding" element={<EGuiaPage />} />
             <Route path="/blog" element={<Blog />} />
             <Route path="/blog/:slug" element={<Blog />} />
+            <Route path="/gerador-distico" element={<GeradorDistico />} />
 
             {/* ⚠️ TEMPORÁRIO — Remover após executar a migração de cartões */}
             <Route path="/migracao-cartoes" element={<MigracaoCartoes />} />
