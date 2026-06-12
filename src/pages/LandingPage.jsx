@@ -7,12 +7,12 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom'; // Atualizado: Importação do Link para rotas internas
 import { useAuth } from '../context/AuthContext';
 import { 
   Shield, Check, ArrowRight, Loader2, BookOpen, 
   Car, HelpCircle, FileText, Smartphone, Mail, User,
-  CheckCircle2, ChevronDown, ChevronUp, AlertCircle, Sparkles 
+  CheckCircle2, ChevronDown, ChevronUp, AlertCircle, Sparkles, Clock
 } from 'lucide-react';
 import ReactGA from 'react-ga4';
 import { registarLeadPública } from '../services/leadService';
@@ -174,6 +174,7 @@ export default function LandingPage() {
             <a href="#planos" className="hover:text-blue-600 transition-colors">Planos de Assessoria</a>
             <a href="#catalogo" className="hover:text-blue-600 transition-colors">Catálogo de Viaturas</a>
             <a href="#aluguer" className="hover:text-blue-600 transition-colors">Aluguer de Viaturas</a>
+            <Link to="/blog" className="hover:text-blue-600 transition-colors">Artigos & Legislação</Link>
             <a href="#faq" className="hover:text-blue-600 transition-colors">Dúvidas Comuns</a>
           </div>
 
@@ -456,7 +457,7 @@ export default function LandingPage() {
       <VehicleCatalog />
 
       {/* ─── 6. SECÇÃO DE PROCURA DE VIATURAS (MATCHING DE ALUGUER) ───────────── */}
-      <section id="aluguer" className="bg-slate-900 text-white py-16 md:py-20 px-4 sm:px-6">
+      <section id="aluguer" className="bg-slate-900 text-white py-16 md:py-20 px-4 sm:px-6 border-t border-slate-800">
         <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
           
           <div className="lg:col-span-6 space-y-6 text-left">
@@ -563,8 +564,99 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ─── 7. SECÇÃO DE PERGUNTAS E RESPOSTAS COMUNS (FAQ ACCORDION) ───────── */}
-      <section id="faq" className="py-16 md:py-20 px-4 sm:px-6 max-w-4xl mx-auto space-y-12">
+      {/* ─── 7. SECÇÃO DE DESTAQUES DO BLOG (SEO & CAPTAÇÃO DE LEADS) [NOVO] ──── */}
+      <section id="blog-destaques" className="py-16 md:py-20 px-4 sm:px-6 max-w-6xl mx-auto space-y-10 border-t border-slate-200">
+        <div className="text-center space-y-2 max-w-xl mx-auto">
+          <div className="inline-flex items-center gap-1.5 justify-center text-xs font-black uppercase tracking-wider text-blue-600 bg-blue-50 px-3 py-1 rounded-full border border-blue-100">
+            <BookOpen size={14} />
+            Dicas & Legislação TVDE
+          </div>
+          <h2 className="text-2xl md:text-3xl font-black text-slate-900">
+            Mantenha-se informado sobre as regras do setor
+          </h2>
+          <p className="text-slate-500 text-xs sm:text-sm leading-relaxed">
+            Esclareça as dúvidas mais comuns sobre CAE, contabilidade, dísticos obrigatórios e processos de regularização junto do IMT [2, 3].
+          </p>
+        </div>
+
+        {/* Artigos em Destaque (Grelha Horizontal) */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 text-left">
+          
+          <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden hover:shadow-md transition-shadow flex flex-col justify-between">
+            <div className="p-5 space-y-3">
+              <span className="text-[9px] font-black uppercase tracking-wider bg-blue-50 text-blue-600 border border-blue-100 px-2 py-0.5 rounded-md">
+                Fiscalidade
+              </span>
+              <h3 className="text-sm font-black text-slate-900 leading-snug">
+                Qual o CAE correto para TVDE e como funciona a Isenção de IVA (Artigo 53.º)?
+              </h3>
+              <p className="text-slate-500 text-xs leading-relaxed line-clamp-2">
+                Descubra qual o CAE correto e como funciona a isenção de IVA para motoristas em nome próprio [1, 2].
+              </p>
+            </div>
+            <div className="p-5 border-t border-slate-50 flex justify-between items-center text-xs">
+              <span className="flex items-center gap-1 font-bold text-slate-400"><Clock size={12} /> 5 min</span>
+              <Link to="/blog/cae-correto-tvde-isencao-iva-artigo-53" className="font-black text-blue-600 hover:text-blue-700 transition-colors flex items-center gap-1">
+                Ler Artigo <ChevronRight size={14} />
+              </Link>
+            </div>
+          </div>
+
+          <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden hover:shadow-md transition-shadow flex flex-col justify-between">
+            <div className="p-5 space-y-3">
+              <span className="text-[9px] font-black uppercase tracking-wider bg-blue-50 text-blue-600 border border-blue-100 px-2 py-0.5 rounded-md">
+                Requisitos IMT
+              </span>
+              <h3 className="text-sm font-black text-slate-900 leading-snug">
+                Como obter o Certificado de Motorista TVDE e averbar o Código 997?
+              </h3>
+              <p className="text-slate-500 text-xs leading-relaxed line-clamp-2">
+                O passo a passo com exames Grupo 2, curso homologado de 125h e submissão burocrática no IMT [2].
+              </p>
+            </div>
+            <div className="p-5 border-t border-slate-50 flex justify-between items-center text-xs">
+              <span className="flex items-center gap-1 font-bold text-slate-400"><Clock size={12} /> 6 min</span>
+              <Link to="/blog/requisitos-licenca-imt-codigo-997" className="font-black text-blue-600 hover:text-blue-700 transition-colors flex items-center gap-1">
+                Ler Artigo <ChevronRight size={14} />
+              </Link>
+            </div>
+          </div>
+
+          <div className="bg-white border border-slate-200 rounded-3xl overflow-hidden hover:shadow-md transition-shadow flex flex-col justify-between md:col-span-2 lg:col-span-1">
+            <div className="p-5 space-y-3">
+              <span className="text-[9px] font-black uppercase tracking-wider bg-blue-50 text-blue-600 border border-blue-100 px-2 py-0.5 rounded-md">
+                Migrações & AIMA
+              </span>
+              <h3 className="text-sm font-black text-slate-900 leading-snug">
+                AIMA e TVDE: Como gerir os atrasos documentais de residência para o IMT?
+              </h3>
+              <p className="text-slate-500 text-xs leading-relaxed line-clamp-2">
+                Saiba quais os documentos de residência e manifestação de interesse aceites na emissão do certificado [2].
+              </p>
+            </div>
+            <div className="p-5 border-t border-slate-50 flex justify-between items-center text-xs">
+              <span className="flex items-center gap-1 font-bold text-slate-400"><Clock size={12} /> 5 min</span>
+              <Link to="/blog/aima-atrasos-documentais-motoristas-tvde" className="font-black text-blue-600 hover:text-blue-700 transition-colors flex items-center gap-1">
+                Ler Artigo <ChevronRight size={14} />
+              </Link>
+            </div>
+          </div>
+
+        </div>
+
+        {/* Botão para ir para o índice do Blog */}
+        <div className="pt-4">
+          <Link 
+            to="/blog"
+            className="inline-flex items-center gap-2 px-6 py-3 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs rounded-xl transition-all shadow-md cursor-pointer"
+          >
+            Aceder ao Blog Completo <ArrowRight size={14} />
+          </Link>
+        </div>
+      </section>
+
+      {/* ─── 8. SECÇÃO DE PERGUNTAS E RESPOSTAS COMUNS (FAQ ACCORDION) ───────── */}
+      <section id="faq" className="py-16 md:py-20 px-4 sm:px-6 max-w-4xl mx-auto space-y-12 border-t border-slate-200">
         <div className="text-center space-y-2">
           <HelpCircle size={32} className="text-blue-600 mx-auto" />
           <h2 className="text-2xl md:text-3xl font-black text-slate-900">Perguntas Frequentes (FAQ)</h2>
@@ -604,7 +696,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ─── 8. RODAPÉ INSTITUCIONAL (RESPONSIVO) ───────────────────────────── */}
+      {/* ─── 9. RODAPÉ INSTITUCIONAL (RESPONSIVO) ───────────────────────────── */}
       <footer className="bg-slate-950 text-slate-400 py-12 px-4 sm:px-6 border-t border-slate-900">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row justify-between items-center gap-6 text-xs text-center md:text-left">
           <div>
@@ -613,6 +705,8 @@ export default function LandingPage() {
             <p className="text-slate-600">geral@gestaotvde.pt - NIF: 500123456</p>
           </div>
           <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 text-slate-500 font-medium items-center">
+            <Link to="/blog" className="hover:text-white transition-colors">Blog & Artigos</Link>
+            <span className="text-slate-800 hidden sm:inline">|</span>
             <a href="/login" className="hover:text-white transition-colors">Area Restrita (ERP)</a>
             <span className="text-slate-800 hidden sm:inline">|</span>
             <span>&copy; {new Date().getFullYear()} Gestão TVDE. Todos os direitos reservados.</span>
