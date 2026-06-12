@@ -7,12 +7,13 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import { useNavigate, Link } from 'react-router-dom'; // Atualizado: Importação do Link para rotas internas
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { 
   Shield, Check, ArrowRight, Loader2, BookOpen, 
   Car, HelpCircle, FileText, Smartphone, Mail, User,
-  CheckCircle2, ChevronDown, ChevronUp, AlertCircle, Sparkles, Clock
+  CheckCircle2, ChevronDown, ChevronUp, AlertCircle, Sparkles, Clock,
+  ChevronRight // Corrigido: Importação em falta que causava a tela branca
 } from 'lucide-react';
 import ReactGA from 'react-ga4';
 import { registarLeadPública } from '../services/leadService';
@@ -340,7 +341,7 @@ export default function LandingPage() {
             </div>
             <div className="max-w-md mx-auto space-y-4">
               <BookOpen size={40} className="text-blue-600 mx-auto" />
-              <h3 className="text-xl font-black text-slate-900">Área Dedicada ao Motorista</h3>
+              <h3 className="text-xl font-black text-slate-900">Area Dedicada ao Motorista</h3>
               <p className="text-slate-500 text-xs sm:text-sm leading-relaxed text-center">
                 Estamos a estruturar um portal de apoio onde poderá submeter faturas semanais de combustível, gerir despesas operacionais de portagens, acompanhar quitações e depósitos de caução parametrizados como crédito, e aceder a relatórios automatizados.
               </p>
@@ -390,7 +391,7 @@ export default function LandingPage() {
               <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">Plano Essencial</span>
               <h3 className="text-xl font-black text-slate-900">Apoio Documental</h3>
               <p className="text-slate-500 text-xs leading-relaxed">
-                Orientação para providenciar toda a documentação obrigatória inicial (exames, psicos e registo criminal) e apoio prévio na escolha da entidade formadora.
+                Orientação para providenciar toda a documentação obrigatória inicial (exames, psicos e registo criminal) e apoio prévia na escolha da entidade formadora.
               </p>
               <ul className="space-y-2 pt-2 text-xs text-slate-600 font-medium">
                 <li className="flex items-center gap-2"><Check className="text-blue-500 shrink-0" size={14} /> Apoio na escolha de Escolas TVDE</li>
@@ -564,7 +565,7 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ─── 7. SECÇÃO DE DESTAQUES DO BLOG (SEO & CAPTAÇÃO DE LEADS) [NOVO] ──── */}
+      {/* ─── 7. SECÇÃO DE DESTAQUES DO BLOG (SEO & CAPTAÇÃO DE LEADS) ──── */}
       <section id="blog-destaques" className="py-16 md:py-20 px-4 sm:px-6 max-w-6xl mx-auto space-y-10 border-t border-slate-200">
         <div className="text-center space-y-2 max-w-xl mx-auto">
           <div className="inline-flex items-center gap-1.5 justify-center text-xs font-black uppercase tracking-wider text-blue-600 bg-blue-50 px-3 py-1 rounded-full border border-blue-100">
