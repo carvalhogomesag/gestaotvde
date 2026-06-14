@@ -1,6 +1,11 @@
 /**
  * CatalogoViaturas.jsx
  * Localização: src/components/public/CatalogoViaturas.jsx
+ *
+ * Catálogo interativo de viaturas com:
+ * - Filtros rápidos por categoria (Standard, Green, Comfort, XL, Black)
+ * - Carrossel de rolagem suave (Smooth Scroll) controlado por Refs
+ * - Exibição total da frota: anúncios ativos/disponíveis e anúncios pausados/indisponíveis
  */
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -26,16 +31,15 @@ export default function CatalogoViaturas() {
   const [loading, setLoading] = useState(true);
   const carrosselRef = useRef(null);
 
-  // 1. Carrega as viaturas dinamicamente da base de dados (Firestore)
+  // 1. Carrega todas as viaturas dinamicamente da base de dados (Firestore)
   useEffect(() => {
     const carregarDadosDoFirestore = async () => {
       try {
         setLoading(true);
         const dados = await obterViaturasParaCatalogo(db);
         
-        // Filtramos para exibir no site apenas as viaturas que têm o anúncio ativo no ERP
-        const ativas = dados.filter(v => v.anuncioAtivo === true);
-        setTodasViaturas(ativas);
+        // Exibimos sempre todos os carros da base de dados, sem filtrar por anúncio ativo
+        setTodasViaturas(dados);
       } catch (err) {
         console.error("[CatalogoViaturas] Erro ao ligar ao Firestore:", err);
       } finally {
@@ -142,110 +146,115 @@ export default function CatalogoViaturas() {
               style={{ WebkitOverflowScrolling: 'touch' }}
             >
               {viaturasFiltradas.length > 0 ? (
-                viaturasFiltradas.map((viatura) => (
-                  <div
-                    key={viatura.id}
-                    className="snap-start shrink-0 w-[290px] sm:w-[325px] bg-white rounded-2xl border border-slate-150 shadow-sm overflow-hidden transition-all duration-300 hover:shadow-md hover:border-slate-200/80 flex flex-col justify-between"
-                  >
-                    
-                    {/* Imagem do Firestore */}
-                    <div className="relative h-44 w-full bg-slate-100 overflow-hidden">
-                      {viatura.fotoUrl ? (
-                        <img
-                          src={viatura.fotoUrl}
-                          alt={`${viatura.marca} ${viatura.modelo}`}
-                          className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
-                          loading="lazy"
-                        />
-                      ) : (
-                        <div className="w-full h-full flex flex-col items-center justify-center text-slate-300 bg-slate-100 text-xs font-semibold">
-                          Sem Foto Disponível
-                        </div>
-                      )}
-                      
-                      <div className="absolute top-3 left-3 flex flex-wrap gap-1.5">
-                        <span className="text-[10px] font-black tracking-wider uppercase bg-slate-900/80 backdrop-blur-md text-white px-2.5 py-1 rounded-lg">
-                          {viatura.categoria.split(' / ')[0]}
-                        </span>
-                      </div>
+                viaturasFiltradas.map((viatura) => {
+                  // Determina se a viatura está verdadeiramente disponível para ser alugada
+                  const isDisponivel = viatura.anuncioAtivo && viatura.estado === 'Disponível';
 
-                      <div className="absolute top-3 right-3">
-                        <span className={`text-[10px] font-bold px-2.5 py-1 rounded-lg shadow-sm ${
-                          viatura.estado === 'Disponível'
-                            ? 'bg-emerald-500 text-white'
-                            : viatura.estado === 'Alugado'
-                            ? 'bg-amber-500 text-white'
-                            : 'bg-slate-400 text-white'
-                        }`}>
-                          {viatura.estado}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Informações */}
-                    <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
+                  return (
+                    <div
+                      key={viatura.id}
+                      className="snap-start shrink-0 w-[290px] sm:w-[325px] bg-white rounded-2xl border border-slate-150 shadow-sm overflow-hidden transition-all duration-300 hover:shadow-md hover:border-slate-200/80 flex flex-col justify-between"
+                    >
                       
-                      <div>
-                        <div className="flex justify-between items-start gap-1">
-                          <h3 className="font-extrabold text-slate-800 text-base sm:text-lg leading-tight truncate">
-                            {viatura.marca} {viatura.modelo}
-                          </h3>
-                          <span className="text-xs font-semibold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded shrink-0">
-                            {viatura.ano}
+                      {/* Imagem do Firestore */}
+                      <div className="relative h-44 w-full bg-slate-100 overflow-hidden">
+                        {viatura.fotoUrl ? (
+                          <img
+                            src={viatura.fotoUrl}
+                            alt={`${viatura.marca} ${viatura.modelo}`}
+                            className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
+                            loading="lazy"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex flex-col items-center justify-center text-slate-300 bg-slate-100 text-xs font-semibold">
+                            Sem Foto Disponível
+                          </div>
+                        )}
+                        
+                        <div className="absolute top-3 left-3 flex flex-wrap gap-1.5">
+                          <span className="text-[10px] font-black tracking-wider uppercase bg-slate-900/80 backdrop-blur-md text-white px-2.5 py-1 rounded-lg">
+                            {viatura.categoria.split(' / ')[0]}
                           </span>
                         </div>
-                        <p className="text-xs text-slate-400 mt-1">Matrícula: {viatura.matricula}</p>
-                      </div>
 
-                      {/* Ficha Técnica */}
-                      <div className="grid grid-cols-3 gap-2 py-3 border-y border-slate-100 text-slate-600 text-xs font-semibold">
-                        <div className="flex flex-col items-center justify-center p-1.5 bg-slate-50 rounded-xl">
-                          <Settings size={14} className="text-slate-400 mb-1" />
-                          <span className="text-[10px] text-slate-400 font-normal">Caixa</span>
-                          <span className="truncate max-w-full text-[11px] mt-0.5">{viatura.transmissao}</span>
-                        </div>
-
-                        <div className="flex flex-col items-center justify-center p-1.5 bg-slate-50 rounded-xl">
-                          <Gauge size={14} className="text-slate-400 mb-1" />
-                          <span className="text-[10px] text-slate-400 font-normal">Autonomia</span>
-                          <span className="truncate max-w-full text-[11px] mt-0.5">{viatura.autonomia}km</span>
-                        </div>
-
-                        <div className="flex flex-col items-center justify-center p-1.5 bg-slate-50 rounded-xl">
-                          <Users size={14} className="text-slate-400 mb-1" />
-                          <span className="text-[10px] text-slate-400 font-normal">Lotação</span>
-                          <span className="truncate max-w-full text-[11px] mt-0.5">{viatura.lugares} Lug.</span>
+                        {/* Distintivo de Disponibilidade Automático */}
+                        <div className="absolute top-3 right-3">
+                          <span className={`text-[10px] font-bold px-2.5 py-1 rounded-lg shadow-sm ${
+                            isDisponivel
+                              ? 'bg-emerald-500 text-white'
+                              : 'bg-slate-400 text-white'
+                          }`}>
+                            {isDisponivel ? 'Disponível' : 'Indisponível'}
+                          </span>
                         </div>
                       </div>
 
-                      {/* Preço de Aluguer */}
-                      <div className="flex items-center justify-between pt-1">
+                      {/* Informações */}
+                      <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
+                        
                         <div>
-                          <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Preço Semanal</p>
-                          <div className="flex items-baseline gap-1">
-                            <span className="text-xl font-black text-blue-600">{viatura.precoSemanal}€</span>
-                            <span className="text-xs font-semibold text-slate-400">/semana</span>
+                          <div className="flex justify-between items-start gap-1">
+                            <h3 className="font-extrabold text-slate-800 text-base sm:text-lg leading-tight truncate">
+                              {viatura.marca} {viatura.modelo}
+                            </h3>
+                            <span className="text-xs font-semibold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded shrink-0">
+                              {viatura.ano}
+                            </span>
+                          </div>
+                          <p className="text-xs text-slate-400 mt-1">Matrícula: {viatura.matricula}</p>
+                        </div>
+
+                        {/* Ficha Técnica */}
+                        <div className="grid grid-cols-3 gap-2 py-3 border-y border-slate-100 text-slate-600 text-xs font-semibold">
+                          <div className="flex flex-col items-center justify-center p-1.5 bg-slate-50 rounded-xl">
+                            <Settings size={14} className="text-slate-400 mb-1" />
+                            <span className="text-[10px] text-slate-400 font-normal">Caixa</span>
+                            <span className="truncate max-w-full text-[11px] mt-0.5">{viatura.transmissao}</span>
+                          </div>
+
+                          <div className="flex flex-col items-center justify-center p-1.5 bg-slate-50 rounded-xl">
+                            <Gauge size={14} className="text-slate-400 mb-1" />
+                            <span className="text-[10px] text-slate-400 font-normal">Autonomia</span>
+                            <span className="truncate max-w-full text-[11px] mt-0.5">{viatura.autonomia}km</span>
+                          </div>
+
+                          <div className="flex flex-col items-center justify-center p-1.5 bg-slate-50 rounded-xl">
+                            <Users size={14} className="text-slate-400 mb-1" />
+                            <span className="text-[10px] text-slate-400 font-normal">Lotação</span>
+                            <span className="truncate max-w-full text-[11px] mt-0.5">{viatura.lugares} Lug.</span>
                           </div>
                         </div>
-                        
-                        <a
-                          href={`https://wa.me/351900000000?text=Olá! Gostaria de obter mais informações sobre a viatura ${viatura.marca} ${viatura.modelo} (${viatura.matricula}) vista no catálogo público.`}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className={`px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1 ${
-                            viatura.estado === 'Disponível'
-                              ? 'bg-slate-900 text-white hover:bg-blue-600'
-                              : 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                          }`}
-                          onClick={(e) => viatura.estado !== 'Disponível' && e.preventDefault()}
-                        >
-                          {viatura.estado === 'Disponível' ? 'Alugar' : 'Indisponível'}
-                        </a>
-                      </div>
 
+                        {/* Preço de Aluguer */}
+                        <div className="flex items-center justify-between pt-1">
+                          <div>
+                            <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Preço Semanal</p>
+                            <div className="flex items-baseline gap-1">
+                              <span className="text-xl font-black text-blue-600">{viatura.precoSemanal}€</span>
+                              <span className="text-xs font-semibold text-slate-400">/semana</span>
+                            </div>
+                          </div>
+                          
+                          {/* Botão de WhatsApp Adaptável */}
+                          <a
+                            href={`https://wa.me/351900000000?text=Olá! Gostaria de obter mais informações sobre a viatura ${viatura.marca} ${viatura.modelo} (${viatura.matricula}) vista no catálogo público.`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className={`px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1 ${
+                              isDisponivel
+                                ? 'bg-slate-900 text-white hover:bg-blue-600'
+                                : 'bg-slate-100 text-slate-400 cursor-not-allowed'
+                            }`}
+                            onClick={(e) => !isDisponivel && e.preventDefault()}
+                          >
+                            {isDisponivel ? 'Alugar' : 'Indisponível'}
+                          </a>
+                        </div>
+
+                      </div>
                     </div>
-                  </div>
-                ))
+                  );
+                })
               ) : (
                 <div className="w-full text-center py-12 text-slate-400 text-sm">
                   Nenhuma viatura disponível nesta categoria de momento.
