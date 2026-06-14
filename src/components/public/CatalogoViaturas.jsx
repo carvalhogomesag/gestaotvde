@@ -5,7 +5,7 @@
  * Catálogo interativo de viaturas com:
  * - Filtros rápidos por categoria (Standard, Green, Comfort, XL, Black)
  * - Carrossel de rolagem suave (Smooth Scroll) controlado por Refs
- * - Suporte a badges múltiplos de categorias e etiqueta de foto ilustrativa
+ * - CTA duplo otimizado para conversão no WhatsApp (Disponível vs Indisponível)
  */
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -168,7 +168,7 @@ export default function CatalogoViaturas() {
                           </div>
                         )}
                         
-                        {/* ◄ ALTERADO: Suporte a Badges Múltiplos por Viatura */}
+                        {/* Badges Múltiplos por Viatura */}
                         <div className="absolute top-3 left-3 flex flex-wrap gap-1">
                           {viatura.categoria.split(' / ').map((cat, idx) => (
                             <span key={idx} className="text-[9px] font-black tracking-wider uppercase bg-slate-900/80 backdrop-blur-md text-white px-2.5 py-1 rounded-lg">
@@ -177,6 +177,7 @@ export default function CatalogoViaturas() {
                           ))}
                         </div>
 
+                        {/* Estado */}
                         <div className="absolute top-3 right-3">
                           <span className={`text-[10px] font-bold px-2.5 py-1 rounded-lg shadow-sm ${
                             isDisponivel
@@ -187,7 +188,7 @@ export default function CatalogoViaturas() {
                           </span>
                         </div>
 
-                        {/* ◄ ADICIONADO: Legenda "Foto ilustrativa" no canto inferior direito */}
+                        {/* Legenda "Foto ilustrativa" */}
                         <div className="absolute bottom-2 right-2 text-[8px] font-bold text-white/80 bg-slate-950/40 backdrop-blur-xs px-1.5 py-0.5 rounded select-none pointer-events-none uppercase tracking-wider">
                           * Foto ilustrativa
                         </div>
@@ -229,8 +230,8 @@ export default function CatalogoViaturas() {
                           </div>
                         </div>
 
-                        {/* Preço de Aluguer */}
-                        <div className="flex items-center justify-between pt-1">
+                        {/* Preço de Aluguer e CTA Inteligente */}
+                        <div className="flex items-center justify-between pt-1 gap-2">
                           <div>
                             <p className="text-[10px] text-slate-400 font-semibold uppercase tracking-wider">Preço Semanal</p>
                             <div className="flex items-baseline gap-1">
@@ -239,20 +240,26 @@ export default function CatalogoViaturas() {
                             </div>
                           </div>
                           
-                          {/* Botão de WhatsApp Adaptável */}
-                          <a
-                            href={`https://wa.me/351900000000?text=Olá! Gostaria de obter mais informações sobre a viatura ${viatura.marca} ${viatura.modelo} (${viatura.matricula}) vista no catálogo público.`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className={`px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all shadow-sm flex items-center gap-1 ${
-                              isDisponivel
-                                ? 'bg-slate-900 text-white hover:bg-blue-600'
-                                : 'bg-slate-100 text-slate-400 cursor-not-allowed'
-                            }`}
-                            onClick={(e) => !isDisponivel && e.preventDefault()}
-                          >
-                            {isDisponivel ? 'Alugar' : 'Indisponível'}
-                          </a>
+                          {/* ◄ ALTERADO: Bloco condicional para CTAs de Conversão Ativos */}
+                          {isDisponivel ? (
+                            <a
+                              href={`https://wa.me/351900000000?text=Olá! Vi no vosso catálogo que a viatura ${viatura.marca} ${viatura.modelo} (${viatura.matricula}) está disponível para aluguer. Gostaria de demonstrar o meu interesse e obter mais informações.`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-3.5 py-2.5 rounded-xl text-xs font-bold bg-slate-900 text-white hover:bg-blue-600 transition-all shadow-sm flex items-center justify-center text-center shrink-0"
+                            >
+                              Tenho Interesse
+                            </a>
+                          ) : (
+                            <a
+                              href={`https://wa.me/351900000000?text=Olá! Vi no vosso catálogo que a viatura ${viatura.marca} ${viatura.modelo} (${viatura.matricula}) está atualmente indisponível. Gostaria de demonstrar o meu interesse em alugar uma viatura igual ou semelhante assim que houver disponibilidade.`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-2.5 py-2.5 rounded-xl text-[9.5px] font-black bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-blue-600 transition-all shadow-xs flex items-center justify-center text-center shrink-0 uppercase tracking-tight"
+                            >
+                              Tenho interesse em um igual
+                            </a>
+                          )}
                         </div>
 
                       </div>
