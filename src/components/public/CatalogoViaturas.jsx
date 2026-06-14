@@ -5,7 +5,7 @@
  * Catálogo interativo de viaturas com:
  * - Filtros rápidos por categoria (Standard, Green, Comfort, XL, Black)
  * - Carrossel de rolagem suave (Smooth Scroll) controlado por Refs
- * - CTA duplo otimizado para conversão no WhatsApp (Disponível vs Indisponível)
+ * - Cores vibrantes forçadas (Verde para Disponível, Vermelho para Indisponível)
  */
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -177,13 +177,15 @@ export default function CatalogoViaturas() {
                           ))}
                         </div>
 
-                        {/* Estado */}
+                        {/* Estado com Cor Forçada via Estilo Inline */}
                         <div className="absolute top-3 right-3">
-                          <span className={`text-[10px] font-bold px-2.5 py-1 rounded-lg shadow-sm ${
-                            isDisponivel
-                              ? 'bg-emerald-500 text-white'
-                              : 'bg-slate-400 text-white'
-                          }`}>
+                          <span 
+                            className="text-[10px] font-bold px-2.5 py-1 rounded-lg shadow-sm"
+                            style={{ 
+                              backgroundColor: isDisponivel ? '#10b981' : '#94a3b8', 
+                              color: '#ffffff' 
+                            }}
+                          >
                             {isDisponivel ? 'Disponível' : 'Indisponível'}
                           </span>
                         </div>
@@ -240,13 +242,17 @@ export default function CatalogoViaturas() {
                             </div>
                           </div>
                           
-                          {/* ◄ ALTERADO: Bloco condicional para CTAs de Conversão Ativos */}
+                          {/* Botões de WhatsApp Ativos e Vibrantes com Estilo Inline Forçado */}
                           {isDisponivel ? (
                             <a
                               href={`https://wa.me/351900000000?text=Olá! Vi no vosso catálogo que a viatura ${viatura.marca} ${viatura.modelo} (${viatura.matricula}) está disponível para aluguer. Gostaria de demonstrar o meu interesse e obter mais informações.`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="px-3.5 py-2.5 rounded-xl text-xs font-bold bg-slate-900 text-white hover:bg-blue-600 transition-all shadow-sm flex items-center justify-center text-center shrink-0"
+                              className="px-3.5 py-2.5 rounded-xl text-xs font-black transition-all shadow-md flex items-center justify-center text-center shrink-0 min-w-[120px] hover:opacity-90 uppercase"
+                              style={{ 
+                                backgroundColor: '#10b981', // Verde TVDE Ativo
+                                color: '#ffffff' 
+                              }}
                             >
                               Tenho Interesse
                             </a>
@@ -255,7 +261,11 @@ export default function CatalogoViaturas() {
                               href={`https://wa.me/351900000000?text=Olá! Vi no vosso catálogo que a viatura ${viatura.marca} ${viatura.modelo} (${viatura.matricula}) está atualmente indisponível. Gostaria de demonstrar o meu interesse em alugar uma viatura igual ou semelhante assim que houver disponibilidade.`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="px-2.5 py-2.5 rounded-xl text-[9.5px] font-black bg-white border border-slate-200 text-slate-600 hover:bg-slate-50 hover:text-blue-600 transition-all shadow-xs flex items-center justify-center text-center shrink-0 uppercase tracking-tight"
+                              className="px-2.5 py-2.5 rounded-xl text-[9.5px] font-black transition-all shadow-md flex items-center justify-center text-center shrink-0 min-w-[160px] hover:opacity-90 uppercase tracking-tight"
+                              style={{ 
+                                backgroundColor: '#ef4444', // Vermelho TVDE Conversão
+                                color: '#ffffff' 
+                              }}
                             >
                               Tenho interesse em um igual
                             </a>
