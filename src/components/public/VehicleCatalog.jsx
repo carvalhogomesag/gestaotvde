@@ -9,8 +9,8 @@
 
 import React, { useState, useEffect } from 'react';
 import { 
-  Search, Car, Zap, Fuel, Calendar, Gauge, 
-  CheckCircle2, XCircle, Loader2, ArrowRight, MapPin 
+  Search, Car, Zap, Fuel, Calendar, Gauge, Users, Settings,
+  Loader2, ArrowRight, MapPin 
 } from 'lucide-react';
 import { db } from '../../firebase';
 import { obterViaturasParaCatalogo } from '../../services/veiculoService';
@@ -90,29 +90,32 @@ export default function VehicleCatalog() {
       ? true 
       : v.combustivel.toLowerCase() === filtroCombustivel.toLowerCase();
 
+    // A viatura é considerada disponível apenas se tiver o anúncio ativo e o estado igual a 'Disponível'
+    const isDisponivel = v.anuncioAtivo === true && v.estado === 'Disponível';
+
     const matchesEstado = filtroEstado === "todos"
       ? true
       : filtroEstado === "disponivel" 
-        ? v.anuncioAtivo === true 
-        : v.anuncioAtivo === false;
+        ? isDisponivel === true 
+        : isDisponivel === false;
 
     return matchesPesquisa && matchesCombustivel && matchesEstado;
   });
 
   return (
-    <section id="catalogo" className="py-20 px-6 max-w-6xl mx-auto space-y-10 border-t border-slate-200">
+    <section id="catalogo-completo" className="py-20 px-6 max-w-6xl mx-auto space-y-10 border-t border-slate-200">
       
       {/* Cabeçalho do Catálogo */}
       <div className="text-center space-y-3 max-w-xl mx-auto">
         <div className="inline-flex items-center gap-1.5 justify-center text-xs font-black uppercase tracking-wider text-blue-600 bg-blue-50 px-3 py-1 rounded-full border border-blue-100">
           <Car size={14} />
-          Catálogo de Frota Disponível
+          Catálogo Detalhado de Frota
         </div>
         <h2 className="text-2xl md:text-3xl font-black text-slate-900">
-          Encontre a viatura ideal para o seu turno
+          Pesquise e compare a viatura ideal
         </h2>
         <p className="text-slate-500 text-sm leading-relaxed">
-          Explore as viaturas da nossa frota parceira em Portugal. 
+          Explore as viaturas reais registadas no nosso sistema por região, combustível e disponibilidade de turnos.
         </p>
       </div>
 
@@ -139,11 +142,11 @@ export default function VehicleCatalog() {
             className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-2xl text-xs font-bold text-slate-600 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500"
           >
             <option value="todos">Todos os Combustíveis</option>
-            <option value="gasoleo">⛽ Diesel (Gasóleo)</option>
+            <option value="gasóleo">⛽ Diesel (Gasóleo)</option>
             <option value="gasolina">⛽ Gasolina</option>
             <option value="gpl">GPL</option>
-            <option value="eletrico">⚡ Elétrico</option>
-            <option value="hibrido">🔋 Híbrido</option>
+            <option value="elétrico">⚡ Elétrico</option>
+            <option value="híbrido">🔋 Híbrido</option>
           </select>
         </div>
 
@@ -177,12 +180,12 @@ export default function VehicleCatalog() {
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
           {viaturasFiltradas.map((viatura) => {
-            const disponivel = viatura.anuncioAtivo;
+            const disponivel = viatura.anuncioAtivo && viatura.estado === 'Disponível';
 
             return (
               <div 
                 key={viatura.id}
-                className="bg-white border border-slate-200 rounded-3xl flex flex-col justify-between overflow-hidden hover:shadow-md transition-all duration-300 relative group"
+                className="bg-white border border-slate-200 rounded-3xl flex flex-col justify-between overflow-hidden hover:shadow-md transition-all duration-300 relative group text-left"
               >
                 
                 {/* 1. Imagem no topo do cartão com Badge Flutuante */}
@@ -192,6 +195,7 @@ export default function VehicleCatalog() {
                       src={viatura.fotoUrl} 
                       alt={`${viatura.marca} ${viatura.modelo}`} 
                       className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500"
+                      loading="lazy"
                     />
                   ) : (
                     <div className="w-full h-full bg-gradient-to-br from-slate-50 to-slate-100 flex flex-col items-center justify-center text-slate-300 gap-1.5">
@@ -199,6 +203,15 @@ export default function VehicleCatalog() {
                       <span className="text-[9px] font-black uppercase tracking-wider text-slate-400">Imagem Brevemente</span>
                     </div>
                   )}
+
+                  {/* Badge de Categorias da Viatura */}
+                  <div className="absolute top-3 left-3 flex flex-wrap gap-1">
+                    {viatura.categoria.split(' / ').map((cat, idx) => (
+                      <span key={idx} className="text-[8px] font-black uppercase tracking-wider bg-slate-900/80 backdrop-blur-xs text-white px-2 py-0.5 rounded">
+                        {cat}
+                      </span>
+                    ))}
+                  </div>
 
                   {/* Badge de Estado Flutuante por cima da foto */}
                   <span className={`absolute top-3 right-3 text-[8.5px] font-black uppercase tracking-wider px-2.5 py-0.5 rounded-md border shadow-sm ${
@@ -213,7 +226,7 @@ export default function VehicleCatalog() {
                 {/* 2. Corpo do Cartão com Especificações e Região */}
                 <div className="p-5 flex-1 flex flex-col justify-between space-y-4">
                   
-                  <div className="space-y-4 text-left">
+                  <div className="space-y-4">
                     <div className="flex items-center gap-1.5 text-[10px] text-slate-400 font-bold">
                       <MapPin size={11} className="text-slate-400" />
                       <span>{viatura.cidade}</span>
@@ -226,7 +239,7 @@ export default function VehicleCatalog() {
                       <p className="text-[10px] text-slate-400 font-bold uppercase mt-0.5">Matrícula protegida por RGPD</p>
                     </div>
 
-                    {/* Ficha Técnica Compacta */}
+                    {/* Ficha Técnica Compacta unificada com o ERP */}
                     <div className="grid grid-cols-2 gap-x-2 gap-y-3 pt-2 text-xs font-semibold text-slate-600 border-t border-slate-50">
                       <div className="flex items-center gap-1.5">
                         <Calendar size={13} className="text-slate-400" />
@@ -240,10 +253,20 @@ export default function VehicleCatalog() {
                         )}
                         <span className="capitalize">{viatura.combustivel}</span>
                       </div>
-                      <div className="flex items-center gap-1.5 col-span-2">
-                        <Gauge size={13} className="text-slate-400" />
-                        <span>Km: {viatura.km.toLocaleString('pt-PT')} km</span>
+                      <div className="flex items-center gap-1.5">
+                        <Settings size={13} className="text-slate-400" />
+                        <span>Caixa: {viatura.transmissao}</span>
                       </div>
+                      <div className="flex items-center gap-1.5">
+                        <Users size={13} className="text-slate-400" />
+                        <span>Lotação: {viatura.lugares} Lug.</span>
+                      </div>
+                      {viatura.combustivel.toLowerCase() === 'elétrico' && (
+                        <div className="flex items-center gap-1.5 col-span-2 text-emerald-600 font-bold">
+                          <Gauge size={13} className="text-emerald-500" />
+                          <span>Autonomia: {viatura.autonomia} km</span>
+                        </div>
+                      )}
                     </div>
                   </div>
 

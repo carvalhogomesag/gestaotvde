@@ -3,7 +3,7 @@
  * Localização: src/features/veiculos/VeiculoForm.jsx
  *
  * Formulário de edição e criação de viaturas.
- * Atualizado com suporte a carregamento de fotografia do veículo, tarifa semanal, região e combustível.
+ * Atualizado com suporte a carregamento de fotografia do veículo, tarifa semanal, região, combustível e categoria múltipla.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -61,8 +61,16 @@ export default function VeiculoForm({
     fotoUrl: initialData.fotoUrl || '', 
     precoSemanal: initialData.precoSemanal || '', 
     cidade: initialData.cidade || 'Lisboa',
-    combustivel: initialData.combustivel || 'Gasóleo' // Correção efetuada: Inicialização de combustível
+    combustivel: initialData.combustivel || 'Gasóleo',
+    categoria: initialData.categoria || 'Standard' // ◄ Mapeamento da string de categoria
   });
+
+  // Estado local para gerir os botões de categorias ativas (Checkbox múltipla)
+  const [categoriasSelecionadas, setCategoriasSelecionadas] = useState(
+    initialData.categoria 
+      ? initialData.categoria.split(' / ').map(c => c.trim()) 
+      : ['Standard']
+  );
 
   const [movimentos, setMovimentos] = useState([]);
   const [novoMovimento, setNovoMovimento] = useState({ tipo: 'debito', valor: '', descricao: '', data: new Date().toISOString().split('T')[0] });
@@ -71,6 +79,14 @@ export default function VeiculoForm({
   const [novoProprietario, setNovoProprietario] = useState({ nome: '', nif: '', telemovel: '' });
   const [novoMotorista, setNovoMotorista] = useState({ nome: '', nif: '', telemovel: '' });
   const [modalFinanceiroAberto, setModalFinanceiroAberto] = useState(false);
+
+  // Sincroniza a seleção múltipla com a string do formData sempre que houver alteração
+  useEffect(() => {
+    setFormData(prev => ({
+      ...prev,
+      categoria: categoriasSelecionadas.join(' / ')
+    }));
+  }, [categoriasSelecionadas]);
 
   // Sincronização em tempo real da conta corrente pendente
   useEffect(() => {
@@ -86,6 +102,18 @@ export default function VeiculoForm({
       return () => unsubscribe();
     }
   }, [initialData.id]);
+
+  const handleCategoriaToggle = (cat) => {
+    setCategoriasSelecionadas(prev => {
+      if (prev.includes(cat)) {
+        // Impede que fique vazio — por defeito seleciona 'Standard'
+        const filtrado = prev.filter(c => c !== cat);
+        return filtrado.length === 0 ? ['Standard'] : filtrado;
+      } else {
+        return [...prev, cat];
+      }
+    });
+  };
 
   const handleAddMovimento = async () => {
     if (!novoMovimento.valor || !novoMovimento.descricao) {
@@ -195,7 +223,7 @@ export default function VeiculoForm({
           <div><label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Ano</label><input type="number" readOnly={isReadOnly} className={inputClass} value={formData.ano} onChange={(e) => setFormData({...formData, ano: e.target.value})} /></div>
         </div>
 
-        {/* Campos do Anúncio do Catálogo público (Combustível, Preço e Região de Operação) [ATUALIZADO] */}
+        {/* Campos do Anúncio do Catálogo público (Combustível, Preço e Região de Operação) */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border-t border-slate-200/50 pt-4">
           <div>
             <label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Tipo de Combustível</label>
@@ -239,6 +267,34 @@ export default function VeiculoForm({
               <option value="Braga">Minho / Braga</option>
               <option value="Algarve">Algarve</option>
             </select>
+          </div>
+        </div>
+
+        {/* ◄ ADICIONADO: Seleção Múltipla de Categorias TVDE */}
+        <div className="border-t border-slate-200/50 pt-4 space-y-2 text-left">
+          <label className="block text-[9px] font-black text-slate-400 uppercase ml-1">
+            Categorias Ativas nas Aplicações (Uber / Bolt)
+          </label>
+          <div className="flex flex-wrap gap-2 select-none">
+            {['Standard', 'Green', 'Comfort', 'XL', 'Black'].map((cat) => {
+              const ativo = categoriasSelecionadas.includes(cat);
+              return (
+                <button
+                  key={cat}
+                  type="button"
+                  disabled={isReadOnly}
+                  onClick={() => handleCategoriaToggle(cat)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all flex items-center gap-1.5 cursor-pointer ${
+                    ativo 
+                      ? 'bg-blue-600 border-blue-600 text-white shadow-sm hover:bg-blue-700' 
+                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${ativo ? 'bg-white' : 'bg-slate-300'}`} />
+                  {cat}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
