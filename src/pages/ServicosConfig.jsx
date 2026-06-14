@@ -30,7 +30,8 @@ export default function ServicosConfig() {
     tipo: 'pacote', // pacote | avulso
     preco: '',
     descricao: '',
-    ativo: true
+    ativo: true,
+    itens: [] // IDs dos serviços avulsos incluídos (caso seja pacote)
   });
 
   const carregarDados = async () => {
@@ -76,7 +77,8 @@ export default function ServicosConfig() {
       tipo: plano.tipo || 'pacote',
       preco: plano.preco || '',
       descricao: plano.descricao || '',
-      ativo: plano.ativo ?? true
+      ativo: plano.ativo ?? true,
+      itens: plano.itens || [] // Carrega os IDs já associados
     });
     setIsModalOpen(true);
   };
@@ -88,7 +90,8 @@ export default function ServicosConfig() {
       tipo: 'avulso',
       preco: '',
       descricao: '',
-      ativo: true
+      ativo: true,
+      itens: []
     });
     setIsModalOpen(true);
   };
@@ -107,6 +110,8 @@ export default function ServicosConfig() {
         ...formData,
         preco: Number(formData.preco || 0),
         id: idDoc,
+        // Só salva itens associados se for efetivamente um pacote composto
+        itens: formData.tipo === 'pacote' ? (formData.itens || []) : [],
         atualizadoEm: new Date().toISOString()
       };
 
@@ -151,7 +156,7 @@ export default function ServicosConfig() {
         </Button>
       </header>
 
-      {/* Tabela de Gestão de Preços (Com scroll lateral de segurança contra quebras no mobile) */}
+      {/* Tabela de Gestão de Preços */}
       {loading && planos.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-slate-400">
           <Loader2 className="animate-spin mb-2 text-tvde-primary" size={36} />
@@ -242,7 +247,7 @@ export default function ServicosConfig() {
             
             <div>
               <label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Tipo de Serviço</label>
-              <select className={inputClass} value={formData.tipo} onChange={(e) => setFormData({...formData, tipo: e.target.value})}>
+              <select className={inputClass} value={formData.tipo} onChange={(e) => setFormData({...formData, tipo: e.target.value, itens: []})}>
                 <option value="pacote">📦 Pacote de Assessoria Completo</option>
                 <option value="avulso">⚙️ Serviço Avulso / Individual</option>
               </select>
@@ -260,6 +265,53 @@ export default function ServicosConfig() {
               <label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Descrição Explicativa</label>
               <textarea className={`${inputClass} h-20 resize-none`} value={formData.descricao} onChange={(e) => setFormData({...formData, descricao: e.target.value})} placeholder="Escreva aqui os detalhes de cobertura e suporte incluídos neste serviço..." />
             </div>
+
+            {/* ◄ ADICIONADO: Seleção dinâmica de Serviços Avulsos incluídos no pacote */}
+            {formData.tipo === 'pacote' && (
+              <div className="col-span-1 md:col-span-2 border-t border-slate-100 pt-4 mt-2">
+                <label className="block text-[10px] font-black text-slate-500 uppercase mb-2 ml-1">
+                  Selecionar Serviços Avulsos Incluídos no Pacote:
+                </label>
+                {planos.filter(p => p.tipo === 'avulso').length === 0 ? (
+                  <p className="text-xs text-slate-400 italic ml-1">Nenhum serviço avulso ativo cadastrado.</p>
+                ) : (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[140px] overflow-y-auto p-1.5 border border-slate-100 rounded-xl bg-slate-50/50 custom-scrollbar">
+                    {planos
+                      .filter(p => p.tipo === 'avulso')
+                      .map((avulso) => {
+                        const isChecked = formData.itens?.includes(avulso.id) || false;
+                        return (
+                          <label 
+                            key={avulso.id} 
+                            className={`flex items-center gap-2.5 p-2 rounded-lg border cursor-pointer transition-colors text-xs font-semibold select-none ${
+                              isChecked 
+                                ? 'border-blue-200 bg-blue-50/50 text-blue-700 font-bold' 
+                                : 'border-slate-200 bg-white hover:border-slate-300 text-slate-600'
+                            }`}
+                          >
+                            <input 
+                              type="checkbox" 
+                              checked={isChecked}
+                              className="accent-blue-600 shrink-0 w-3.5 h-3.5"
+                              onChange={(e) => {
+                                const currentItens = formData.itens || [];
+                                const nextItens = e.target.checked
+                                  ? [...currentItens, avulso.id]
+                                  : currentItens.filter(id => id !== avulso.id);
+                                setFormData({ ...formData, itens: nextItens });
+                              }}
+                            />
+                            <span className="truncate flex-1 text-left">{avulso.nome}</span>
+                            <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-md shrink-0">
+                              {formatCurrency(avulso.preco)}
+                            </span>
+                          </label>
+                        );
+                      })}
+                  </div>
+                )}
+              </div>
+            )}
 
             <div>
               <label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Estado de Venda</label>
