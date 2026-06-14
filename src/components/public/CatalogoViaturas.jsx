@@ -7,10 +7,12 @@
  * - Carrossel de rolagem suave (Smooth Scroll) controlado por Refs
  * - Cores vibrantes forçadas (Verde para Disponível, Vermelho para Indisponível)
  * - Matrículas protegidas/ocultas por motivos de privacidade (RGPD)
+ * - Integração com Google Analytics 4 para rastreio de cliques (CRO)
  */
 
 import React, { useState, useRef, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Gauge, Users, Settings, Loader2 } from 'lucide-react';
+import ReactGA from 'react-ga4'; // ◄ Importação do Google Analytics adicionada [App.jsx]
 
 // Importações do Firebase e do Service do ERP
 import { db } from '../../firebase';
@@ -209,7 +211,7 @@ export default function CatalogoViaturas() {
                               {viatura.ano}
                             </span>
                           </div>
-                          {/* ◄ ALTERADO: Linha da matrícula removida inteiramente para conformidade de privacidade */}
+                          {/* Linha da matrícula removida inteiramente para conformidade de privacidade */}
                         </div>
 
                         {/* Ficha Técnica */}
@@ -249,6 +251,14 @@ export default function CatalogoViaturas() {
                               href={`https://wa.me/351900000000?text=Olá! Vi no vosso catálogo que a viatura ${viatura.marca} ${viatura.modelo} (Ref: ${viatura.id}) está disponível para aluguer. Gostaria de demonstrar o meu interesse e obter mais informações.`}
                               target="_blank"
                               rel="noopener noreferrer"
+                              onClick={() => {
+                                // ◄ ADICIONADO: Envia evento ao GA4 quando clicam para alugar
+                                ReactGA.event({
+                                  category: 'Conversão Catálogo',
+                                  action: 'Click_WhatsApp_Disponivel',
+                                  label: `${viatura.marca} ${viatura.modelo} (Ref: ${viatura.id})`
+                                });
+                              }}
                               className="px-3.5 py-2.5 rounded-xl text-xs font-black transition-all shadow-md flex items-center justify-center text-center shrink-0 min-w-[120px] hover:opacity-90 uppercase"
                               style={{ 
                                 backgroundColor: '#10b981', 
@@ -262,6 +272,14 @@ export default function CatalogoViaturas() {
                               href={`https://wa.me/351900000000?text=Olá! Vi no vosso catálogo que a viatura ${viatura.marca} ${viatura.modelo} (Ref: ${viatura.id}) está atualmente indisponível. Gostaria de demonstrar o meu interesse em alugar uma viatura igual ou semelhante assim que houver disponibilidade.`}
                               target="_blank"
                               rel="noopener noreferrer"
+                              onClick={() => {
+                                // ◄ ADICIONADO: Envia evento ao GA4 quando demonstram interesse numa indisponível
+                                ReactGA.event({
+                                  category: 'Conversão Catálogo',
+                                  action: 'Click_WhatsApp_Indisponivel',
+                                  label: `${viatura.marca} ${viatura.modelo} (Ref: ${viatura.id})`
+                                });
+                              }}
                               className="px-2.5 py-2.5 rounded-xl text-[9.5px] font-black transition-all shadow-md flex items-center justify-center text-center shrink-0 min-w-[160px] hover:opacity-90 uppercase tracking-tight"
                               style={{ 
                                 backgroundColor: '#ef4444', 

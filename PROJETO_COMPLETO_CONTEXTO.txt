@@ -368,7 +368,7 @@ export default {
 
 ### ARQUIVO: src\App.jsx ###
 --------------------------------------------------
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react'; // ◄ Alterado: useState incluído para controlo responsivo
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Sidebar from './components/layout/Sidebar';
@@ -392,6 +392,7 @@ import GeradorDistico from './pages/GeradorDistico';
 import ReactGA from 'react-ga4';
 import CentroComando from './pages/CentroComando';
 import OnboardingMotorista from './pages/OnboardingMotorista';
+import MigracaoFirestore from './pages/MigracaoFirestore';
 
 const GA_MEASUREMENT_ID = import.meta.env.VITE_GA_MEASUREMENT_ID;
 if (GA_MEASUREMENT_ID) {
@@ -415,10 +416,15 @@ function AppContent() {
   const { user } = useAuth();
   const location = useLocation();
 
+  // ◄ ADICIONADO: Controlo de estado para gaveta de navegação mobile
+  const [sidebarAberta, setSidebarAberta] = useState(false);
+
   useEffect(() => {
     if (GA_MEASUREMENT_ID) {
       ReactGA.send({ hitType: "pageview", page: location.pathname });
     }
+    // Fecha o menu lateral automaticamente ao navegar entre páginas no telemóvel
+    setSidebarAberta(false);
   }, [location]);
 
   const isPublicPath = 
@@ -426,19 +432,29 @@ function AppContent() {
     location.pathname === '/login' || 
     location.pathname === '/guia-onboarding' ||
     location.pathname === '/gerador-distico' ||
+    location.pathname === '/migracao' || 
     location.pathname.startsWith('/blog') ||
     location.pathname.startsWith('/onboarding');
 
   const mostrarLayoutERP = user && !isPublicPath;
 
   return (
-    <div className="flex min-h-screen bg-tvde-bg">
-      {mostrarLayoutERP && <Sidebar />}
+    <div className="flex min-h-screen bg-tvde-bg overflow-x-hidden">
+      {/* ◄ ALTERADO: Sidebar recebe os controlos de visualização mobile */}
+      {mostrarLayoutERP && (
+        <Sidebar aberta={sidebarAberta} setAberta={setSidebarAberta} />
+      )}
       
-      <div className={`flex-1 flex flex-col ${mostrarLayoutERP ? 'ml-64' : ''}`}>
-        {mostrarLayoutERP && <Header />}
+      {/* ◄ ALTERADO: ml-64 passa a lg:ml-64 (afasta apenas no computador) */}
+      <div className={`flex-1 flex flex-col min-w-0 ${mostrarLayoutERP ? 'lg:ml-64 ml-0' : ''}`}>
         
-        <main className={mostrarLayoutERP ? "p-8 pt-4" : ""}>
+        {/* ◄ ALTERADO: Header recebe o gatilho para abrir a Sidebar no telemóvel */}
+        {mostrarLayoutERP && (
+          <Header setSidebarAberta={setSidebarAberta} />
+        )}
+        
+        {/* ◄ ALTERADO: Padding fluido (p-4 no telemóvel, p-8 no computador) */}
+        <main className={mostrarLayoutERP ? "p-4 sm:p-8 pt-4" : ""}>
           <Routes>
             {/* ROTAS PÚBLICAS */}
             <Route path="/" element={<LandingPage />} />
@@ -448,6 +464,9 @@ function AppContent() {
             <Route path="/blog" element={<Blog />} />
             <Route path="/blog/:slug" element={<Blog />} />
             <Route path="/gerador-distico" element={<GeradorDistico />} />
+            
+            {/* ROTA TEMPORÁRIA DE MIGRAÇÃO */}
+            <Route path="/migracao" element={<MigracaoFirestore />} />
 
             {/* ROTAS PROTEGIDAS — ERP */}
             <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
@@ -624,15 +643,25 @@ export default function GlobalSearch() {
 
 ### ARQUIVO: src\components\layout\Header.jsx ###
 --------------------------------------------------
+/**
+ * Header.jsx
+ * Localização: src/components/layout/Header.jsx
+ *
+ * Cabeçalho administrativo do ERP.
+ * Atualizado com:
+ * - Botão de menu hambúrguer para mobile (lg:hidden)
+ * - Paddings fluidos e adaptabilidade a ecrãs reduzidos
+ */
+
 import React, { useState, useEffect, useRef } from 'react';
 import GlobalSearch from './GlobalSearch';
-import { Bell, User, Clock, ArrowRight, Inbox, AlertCircle } from 'lucide-react';
+import { Bell, User, Clock, ArrowRight, Inbox, AlertCircle, Menu } from 'lucide-react'; // ◄ Importado ícone Menu
 import { useAuth } from '../../context/AuthContext';
 import { db } from '../../firebase';
 import { collection, query, where, onSnapshot, orderBy, limit } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 
-export default function Header() {
+export default function Header({ setSidebarAberta }) { // ◄ Recebe a prop de controlo responsivo
   const { userData, user } = useAuth();
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
@@ -706,18 +735,31 @@ export default function Header() {
     };
     document.addEventListener('mousedown', handleClickOutside);
     
-    // CORREÇÃO: Método removeEventListener restaurado para o padrão JavaScript
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   return (
-    <header className="h-20 flex items-center justify-between px-8 bg-tvde-bg/80 backdrop-blur-md sticky top-0 z-30">
-      <GlobalSearch />
+    // ◄ ALTERADO: Padding fluido (px-4 no telemóvel, px-8 no computador)
+    <header className="h-20 flex items-center justify-between px-4 sm:px-8 bg-tvde-bg/80 backdrop-blur-md sticky top-0 z-30">
       
-      <div className="flex items-center gap-4">
+      {/* ◄ ALTERADO: Contentor flexível para agrupar o botão hambúrguer mobile e a barra de pesquisa */}
+      <div className="flex items-center gap-3 flex-1 min-w-0 mr-4">
+        {/* Botão Hambúrguer — Visível apenas em ecrãs Mobile/Tablet */}
+        <button
+          type="button"
+          onClick={() => setSidebarAberta(true)}
+          className="lg:hidden p-2 text-slate-500 hover:text-tvde-primary hover:bg-white rounded-xl transition-all cursor-pointer shrink-0"
+          aria-label="Abrir menu lateral"
+        >
+          <Menu size={20} />
+        </button>
         
-        {/* 🌟 SLOT DA SALA DE COMANDO IA 
-            Fica posicionado exatamente entre a barra de pesquisa geral e o sino de notificações */}
+        <GlobalSearch />
+      </div>
+      
+      <div className="flex items-center gap-4 shrink-0">
+        
+        {/* SLOT DA SALA DE COMANDO IA */}
         <div id="navbar-slot-ia" className="flex items-center mr-2"></div>
 
         {/* CENTRO DE NOTIFICAÇÕES */}
@@ -823,13 +865,23 @@ export default function Header() {
 
 ### ARQUIVO: src\components\layout\Sidebar.jsx ###
 --------------------------------------------------
+/**
+ * Sidebar.jsx
+ * Localização: src/components/layout/Sidebar.jsx
+ *
+ * Menu lateral administrativo.
+ * Atualizado com responsividade fluida:
+ * - Gaveta deslizável no mobile com backdrop semi-transparente
+ * - Barra lateral rígida de tamanho standard no desktop
+ */
+
 import React, { useState, useRef, useEffect } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, Car, UserCheck, Users, 
   Settings, LogOut, CreditCard, ChevronDown, ChevronUp,
-  Fuel, Zap, ClipboardList, User as UserIcon, Inbox, ShieldAlert, Users2,
-  Sparkles, UserPlus 
+  Fuel, Zap, ClipboardList, Inbox, ShieldAlert, Users2,
+  Sparkles, UserPlus, X // ◄ Importado ícone X de fechar para mobile
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -861,7 +913,7 @@ const SubMenuItem = ({ icon: Icon, label, to, active }) => (
   </Link>
 );
 
-export default function Sidebar() {
+export default function Sidebar({ aberta, setAberta }) { // ◄ Recebe as props para controlo responsivo
   const location = useLocation();
   const navigate = useNavigate();
   const { userData, logout } = useAuth();
@@ -912,162 +964,188 @@ export default function Sidebar() {
     }
   }, [isCartoesOpen]);
 
-  // Correção efetuada: Ao efetuar logout, o utilizador é encaminhado de volta para a Landing Page pública
   const handleLogout = async () => {
     if (window.confirm("Deseja realmente sair?")) {
       await logout();
-      navigate('/'); // Redirecionamento configurado para a rota raiz pública
+      navigate('/');
     }
   };
 
   return (
-    <aside className="w-64 h-screen bg-tvde-dark text-white p-3 flex flex-col fixed left-0 top-0 z-40 shadow-2xl">
-      {/* Header Compacto */}
-      <div className="mb-5 px-2">
-        <h1 className="text-lg font-bold tracking-tight text-white">
-          TVDE<span className="text-tvde-primary text-xl">.</span>Gestão
-        </h1>
-        <p className="text-[9px] text-slate-500 uppercase tracking-widest font-semibold italic">Operador Portugal</p>
-      </div>
-      
-      {/* Navegação Principal */}
-      <nav 
-        className="flex-1 space-y-0.5 overflow-y-auto pr-1 scroll-smooth no-scrollbar"
-        style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+    <>
+      {/* ◄ ADICIONADO: Backdrop de escurecimento de fundo (Apenas Mobile quando o menu está aberto) */}
+      {aberta && (
+        <div 
+          className="fixed inset-0 z-30 bg-slate-950/60 backdrop-blur-xs lg:hidden"
+          onClick={() => setAberta(false)}
+        />
+      )}
+
+      {/* ◄ ALTERADO: Classes CSS dinâmicas para ocultação e deslizamento responsivo */}
+      <aside 
+        className={`w-64 h-screen bg-tvde-dark text-white p-3 flex flex-col fixed left-0 top-0 z-40 shadow-2xl transition-transform duration-300 ease-in-out ${
+          aberta ? 'translate-x-0' : '-translate-x-full'
+        } lg:translate-x-0`}
       >
-        <MenuItem 
-          icon={LayoutDashboard} 
-          label="Dashboard" 
-          to="/dashboard" 
-          active={location.pathname === '/dashboard'} 
-        />
+        {/* Header Compacto */}
+        <div className="mb-5 px-2 flex items-center justify-between">
+          <div>
+            <h1 className="text-lg font-bold tracking-tight text-white">
+              TVDE<span className="text-tvde-primary text-xl">.</span>Gestão
+            </h1>
+            <p className="text-[9px] text-slate-500 uppercase tracking-widest font-semibold italic">Operador Portugal</p>
+          </div>
 
-        <MenuItem 
-          icon={Inbox} 
-          label="Minhas Tarefas" 
-          to="/tarefas" 
-          active={location.pathname === '/tarefas'} 
-        />
-
-        {/* Gestão de Leads */}
-        <MenuItem 
-          icon={UserPlus} 
-          label="Gestão de Leads" 
-          to="/leads" 
-          active={location.pathname === '/leads'} 
-        />
-
-        {/* Grupo Administração */}
-        <div className="pt-2 space-y-0.5" ref={registrosRef}>
-          <p className="text-[9px] font-black text-slate-600 uppercase px-3 tracking-widest mb-1">Administração</p>
-          
-          <button 
-            onClick={() => setIsRegistrosOpen(!isRegistrosOpen)}
-            className={`w-full flex items-center justify-between py-1.5 px-3 rounded-lg transition-all ${
-              isRegistrosActive ? 'text-white bg-slate-800/30' : 'text-slate-400 hover:bg-slate-800/40 hover:text-white'
-            }`}
+          {/* ◄ ADICIONADO: Botão para fechar o menu (Visível apenas em Mobile) */}
+          <button
+            type="button"
+            onClick={() => setAberta(false)}
+            className="lg:hidden p-1.5 text-slate-400 hover:text-white hover:bg-slate-800/60 rounded-xl transition-all cursor-pointer"
+            aria-label="Fechar menu"
           >
-            <div className="flex items-center gap-2.5">
-              <ClipboardList size={18} />
-              <span className="font-medium text-sm">Registos</span>
-            </div>
-            {isRegistrosOpen ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+            <X size={18} />
           </button>
+        </div>
+        
+        {/* Navegação Principal */}
+        <nav 
+          className="flex-1 space-y-0.5 overflow-y-auto pr-1 scroll-smooth no-scrollbar"
+          style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}
+        >
+          <MenuItem 
+            icon={LayoutDashboard} 
+            label="Dashboard" 
+            to="/dashboard" 
+            active={location.pathname === '/dashboard'} 
+          />
 
-          {isRegistrosOpen && (
-            <div className="ml-3 pl-3 border-l border-slate-800/50 space-y-0.5 mt-0.5 animate-in slide-in-from-top-1 duration-200">
-              <SubMenuItem icon={UserCheck} label="Motoristas" to="/motoristas" active={location.pathname === '/motoristas'} />
-              <SubMenuItem icon={Car} label="Veículos" to="/veiculos" active={location.pathname === '/veiculos'} />
-              <SubMenuItem icon={Users} label="Proprietários" to="/proprietarios" active={location.pathname === '/proprietarios'} />
+          <MenuItem 
+            icon={Inbox} 
+            label="Minhas Tarefas" 
+            to="/tarefas" 
+            active={location.pathname === '/tarefas'} 
+          />
 
-              {/* Sub-menu Cartões */}
-              <div className="space-y-0.5 pt-0.5" ref={cartoesRef}>
-                <button 
-                  onClick={() => setIsCartoesOpen(!isCartoesOpen)}
-                  className="w-full flex items-center justify-between py-1 px-2.5 pl-4 text-slate-500 hover:text-white rounded-lg transition-all"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <CreditCard size={14} />
-                    <span className="font-medium text-xs">Cartões</span>
-                  </div>
-                  {isCartoesOpen ? <ChevronDown size={12} /> : <ChevronUp size={12} />}
-                </button>
+          {/* Gestão de Leads */}
+          <MenuItem 
+            icon={UserPlus} 
+            label="Gestão de Leads" 
+            to="/leads" 
+            active={location.pathname === '/leads'} 
+          />
 
-                {isCartoesOpen && (
-                  <div className="ml-3 space-y-0.5 animate-in fade-in duration-150">
-                    <SubMenuItem icon={Fuel} label="Abastecimento" to="/cartoes/abastecimento" active={location.pathname === '/cartoes/abastecimento'} />
-                    <SubMenuItem icon={Zap} label="Carregamento" to="/cartoes/carregamento" active={location.pathname === '/cartoes/carregamento'} />
-                  </div>
-                )}
+          {/* Grupo Administração */}
+          <div className="pt-2 space-y-0.5" ref={registrosRef}>
+            <p className="text-[9px] font-black text-slate-600 uppercase px-3 tracking-widest mb-1">Administração</p>
+            
+            <button 
+              onClick={() => setIsRegistrosOpen(!isRegistrosOpen)}
+              className={`w-full flex items-center justify-between py-1.5 px-3 rounded-lg transition-all ${
+                isRegistrosActive ? 'text-white bg-slate-800/30' : 'text-slate-400 hover:bg-slate-800/40 hover:text-white'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <ClipboardList size={18} />
+                <span className="font-medium text-sm">Registos</span>
               </div>
+              {isRegistrosOpen ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+            </button>
+
+            {isRegistrosOpen && (
+              <div className="ml-3 pl-3 border-l border-slate-800/50 space-y-0.5 mt-0.5 animate-in slide-in-from-top-1 duration-200">
+                <SubMenuItem icon={UserCheck} label="Motoristas" to="/motoristas" active={location.pathname === '/motoristas'} />
+                <SubMenuItem icon={Car} label="Veículos" to="/veiculos" active={location.pathname === '/veiculos'} />
+                <SubMenuItem icon={Users} label="Proprietários" to="/proprietarios" active={location.pathname === '/proprietarios'} />
+
+                {/* Sub-menu Cartões */}
+                <div className="space-y-0.5 pt-0.5" ref={cartoesRef}>
+                  <button 
+                    onClick={() => setIsCartoesOpen(!isCartoesOpen)}
+                    className="w-full flex items-center justify-between py-1 px-2.5 pl-4 text-slate-500 hover:text-white rounded-lg transition-all"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <CreditCard size={14} />
+                      <span className="font-medium text-xs">Cartões</span>
+                    </div>
+                    {isCartoesOpen ? <ChevronDown size={12} /> : <ChevronUp size={12} />}
+                  </button>
+
+                  {isCartoesOpen && (
+                    <div className="ml-3 space-y-0.5 animate-in fade-in duration-150">
+                      <SubMenuItem icon={Fuel} label="Abastecimento" to="/cartoes/abastecimento" active={location.pathname === '/cartoes/abastecimento'} />
+                      <SubMenuItem icon={Zap} label="Carregamento" to="/cartoes/carregamento" active={location.pathname === '/cartoes/carregamento'} />
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Secção Segurança e Finanças - EXCLUSIVA ADMIN */}
+          {userData?.role === 'admin' && (
+            <div className="pt-3 space-y-0.5 border-t border-slate-800/50 mt-2">
+              <p className="text-[9px] font-black text-red-500/40 uppercase px-3 tracking-widest mb-1">Direção e Finanças</p>
+              
+              {/* CENTRO DE COMANDO IA */}
+              <MenuItem 
+                icon={Sparkles} 
+                label="Centro de Comando" 
+                to="/centro-comando" 
+                active={location.pathname === '/centro-comando'} 
+              />
+
+              <MenuItem 
+                icon={ClipboardList} 
+                label="Fecho Semanal" 
+                to="/fecho-semanal" 
+                active={location.pathname === '/fecho-semanal'} 
+              />
+
+              <MenuItem 
+                icon={Users2} 
+                label="Gestão de Equipa" 
+                to="/utilizadores" 
+                active={location.pathname === '/utilizadores'} 
+                />
+              <MenuItem 
+                icon={ShieldAlert} 
+                label="Auditoria Global" 
+                to="/logs" 
+                active={location.pathname === '/logs'} 
+              />
             </div>
           )}
+        </nav>
+
+        {/* Rodapé Fixo */}
+        <div className="mt-auto pt-3 border-t border-slate-800/60 space-y-0.5">
+          <MenuItem 
+            icon={Settings} 
+            label="Configurações" 
+            to="/config" 
+            active={location.pathname === '/config'} 
+          />
+
+          <div className="px-2.5 py-1.5 bg-slate-800/30 rounded-lg flex items-center gap-2.5 border border-slate-700/30">
+            <div className="w-7 h-7 bg-tvde-primary rounded-md flex items-center justify-center text-[10px] font-black text-white shadow-sm uppercase">
+              {userData?.nome ? userData.nome[0] : 'U'}
+            </div>
+            <div className="overflow-hidden">
+              <p className="text-xs font-bold truncate text-slate-100">{userData?.nome || 'Utilizador'}</p>
+              <p className="text-[10px] text-tvde-primary font-black uppercase tracking-tighter">{userData?.role || 'Acesso'}</p>
+            </div>
+          </div>
+
+          <button 
+            onClick={handleLogout}
+            className="w-full flex items-center gap-2.5 py-1.5 px-3 rounded-lg text-slate-500 hover:bg-red-900/10 hover:text-red-400 transition-all cursor-pointer"
+          >
+            <LogOut size={18} />
+            <span className="font-medium text-sm">Sair</span>
+          </button>
         </div>
-
-        {/* Secção Segurança e Finanças - EXCLUSIVA ADMIN */}
-        {userData?.role === 'admin' && (
-          <div className="pt-3 space-y-0.5 border-t border-slate-800/50 mt-2">
-            <p className="text-[9px] font-black text-red-500/40 uppercase px-3 tracking-widest mb-1">Direção e Finanças</p>
-            
-            {/* CENTRO DE COMANDO IA */}
-            <MenuItem 
-              icon={Sparkles} 
-              label="Centro de Comando" 
-              to="/centro-comando" 
-              active={location.pathname === '/centro-comando'} 
-            />
-
-            <MenuItem 
-              icon={ClipboardList} 
-              label="Fecho Semanal" 
-              to="/fecho-semanal" 
-              active={location.pathname === '/fecho-semanal'} 
-            />
-
-            <MenuItem 
-              icon={Users2} 
-              label="Gestão de Equipa" 
-              to="/utilizadores" 
-              active={location.pathname === '/utilizadores'} 
-              />
-            <MenuItem 
-              icon={ShieldAlert} 
-              label="Auditoria Global" 
-              to="/logs" 
-              active={location.pathname === '/logs'} 
-            />
-          </div>
-        )}
-      </nav>
-
-      {/* Rodapé Fixo */}
-      <div className="mt-auto pt-3 border-t border-slate-800/60 space-y-0.5">
-        <MenuItem 
-          icon={Settings} 
-          label="Configurações" 
-          to="/config" 
-          active={location.pathname === '/config'} 
-        />
-
-        <div className="px-2.5 py-1.5 bg-slate-800/30 rounded-lg flex items-center gap-2.5 border border-slate-700/30">
-          <div className="w-7 h-7 bg-tvde-primary rounded-md flex items-center justify-center text-[10px] font-black text-white shadow-sm uppercase">
-            {userData?.nome ? userData.nome[0] : 'U'}
-          </div>
-          <div className="overflow-hidden">
-            <p className="text-xs font-bold truncate text-slate-100">{userData?.nome || 'Utilizador'}</p>
-            <p className="text-[10px] text-tvde-primary font-black uppercase tracking-tighter">{userData?.role || 'Acesso'}</p>
-          </div>
-        </div>
-
-        <button 
-          onClick={handleLogout}
-          className="w-full flex items-center gap-2.5 py-1.5 px-3 rounded-lg text-slate-500 hover:bg-red-900/10 hover:text-red-400 transition-all cursor-pointer"
-        >
-          <LogOut size={18} />
-          <span className="font-medium text-sm">Sair</span>
-        </button>
-      </div>
-    </aside>
+      </aside>
+    </>
   );
 }
 --------------------------------------------------
@@ -1543,6 +1621,16 @@ export default function JustificacaoModal({ isOpen, onConfirm, onCancel }) {
 
 ### ARQUIVO: src\components\ui\Modal.jsx ###
 --------------------------------------------------
+/**
+ * Modal.jsx
+ * Localização: src/components/ui/Modal.jsx
+ *
+ * Contentor universal para janelas pop-up e formulários do ERP.
+ * Atualizado com suporte responsivo:
+ * - Centro do ecrã com largura máxima de 4xl no desktop
+ * - Bottom-sheet deslizável (gaveta de ecrã parcial de 90vh) com scroll interno no mobile
+ */
+
 import React from 'react';
 import { X } from 'lucide-react';
 
@@ -1550,21 +1638,32 @@ export default function Modal({ isOpen, onClose, title, children }) {
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
-      {/* Alterado de max-w-md para max-w-4xl (Dobro da largura) */}
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-4xl overflow-hidden animate-in fade-in zoom-in duration-200">
-        <div className="flex justify-between items-center p-6 border-b border-slate-100 bg-slate-50/50">
-          <h3 className="text-xl font-bold text-slate-800">{title}</h3>
+    // ◄ ALTERADO: Alinhamento fluido (ao fundo no mobile, ao centro no computador)
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs animate-fade-in">
+      
+      {/* ◄ ADICIONADO: Área clicável de segurança para fechar o modal ao clicar fora */}
+      <div className="absolute inset-0" onClick={onClose} />
+
+      {/* ◄ ALTERADO: Formato da gaveta responsiva, limites de altura máxima e animação */}
+      <div className="relative bg-white rounded-t-[2rem] sm:rounded-[2rem] shadow-2xl w-full max-w-4xl max-h-[90vh] sm:max-h-[92vh] flex flex-col overflow-hidden animate-in slide-in-from-bottom sm:zoom-in-95 duration-200">
+        
+        {/* Cabeçalho do Modal (Fixo no topo) */}
+        <div className="flex justify-between items-center p-5 sm:p-6 border-b border-slate-100 bg-slate-50/50 shrink-0">
+          <h3 className="text-base sm:text-lg font-black text-slate-800 truncate pr-4">{title}</h3>
           <button 
+            type="button"
             onClick={onClose} 
-            className="p-2 hover:bg-white rounded-full text-slate-400 hover:text-slate-600 transition-all shadow-sm border border-transparent hover:border-slate-200"
+            className="p-2 hover:bg-white rounded-full text-slate-400 hover:text-slate-600 transition-all shadow-sm border border-transparent hover:border-slate-200 cursor-pointer shrink-0"
           >
-            <X size={20} />
+            <X size={18} />
           </button>
         </div>
-        <div className="p-8">
+
+        {/* ◄ ALTERADO: Scroll Y dedicado e padding otimizado para ecrãs pequenos */}
+        <div className="p-4 sm:p-8 overflow-y-auto flex-1 custom-scrollbar">
           {children}
         </div>
+
       </div>
     </div>
   );
@@ -4787,6 +4886,14 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
 
 ### ARQUIVO: src\features\motoristas\MotoristasList.jsx ###
 --------------------------------------------------
+/**
+ * MotoristasList.jsx
+ * Localização: src/features/motoristas/MotoristasList.jsx
+ *
+ * Lista de motoristas em formato de tabela.
+ * Atualizado com suporte responsivo autocapsulado (Horizontal Scroll-Safe)
+ */
+
 import React from 'react';
 import { 
   Edit, Trash2, User, FileText, CreditCard, 
@@ -4815,7 +4922,7 @@ export default function MotoristasList({ motoristas, onEdit, onDelete }) {
   const isProfileIncomplete = (m) => {
     const camposObrigatorios = [
       'email', 'telemovel', 'nif', 'iban', 'numID', 'numTVDE',
-      'docIDFront', 'docCartaFront', 'docCertificadoTVDE', 'docRegistoCriminal'
+      'docIDFront', 'docIDBack', 'docCartaFront', 'docCartaBack', 'docCertificadoTVDE', 'docRegistoCriminal'
     ];
     return camposObrigatorios.some(campo => !m[campo] || m[campo] === '');
   };
@@ -4828,8 +4935,10 @@ export default function MotoristasList({ motoristas, onEdit, onDelete }) {
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-      <table className="w-full text-left border-collapse">
+    // ◄ ALTERADO: Contentor agora é auto-rolável mantendo os cantos arredondados do cartão
+    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-x-auto w-full custom-scrollbar">
+      {/* ◄ ALTERADO: min-w-[750px] adicionado para proteger colunas em telemóveis */}
+      <table className="w-full text-left border-collapse min-w-[750px]">
         <thead>
           <tr className="bg-slate-50 border-b border-slate-100">
             <th className="p-4 font-semibold text-slate-600 text-sm">Motorista</th>
@@ -4938,9 +5047,9 @@ export default function MotoristasList({ motoristas, onEdit, onDelete }) {
 
                 <td className="p-4 text-right">
                   <div className="flex justify-end gap-2">
-                    <button onClick={() => onEdit(m, true)} className="p-2 text-slate-400 hover:text-indigo-600 transition-colors bg-slate-50 rounded-lg hover:bg-indigo-50" title="Visualizar"><Eye size={18} /></button>
-                    <button onClick={() => onEdit(m, false)} className="p-2 text-slate-400 hover:text-tvde-primary transition-colors bg-slate-50 rounded-lg hover:bg-blue-50" title="Editar"><Edit size={18} /></button>
-                    <button onClick={() => onDelete(m.id)} className="p-2 text-slate-400 hover:text-tvde-danger transition-colors bg-slate-50 rounded-lg hover:bg-red-50" title="Eliminar"><Trash2 size={18} /></button>
+                    <button onClick={() => onEdit(m, true)} className="p-2 text-slate-400 hover:text-indigo-600 transition-colors bg-slate-50 rounded-lg hover:bg-indigo-50 cursor-pointer" title="Visualizar"><Eye size={18} /></button>
+                    <button onClick={() => onEdit(m, false)} className="p-2 text-slate-400 hover:text-tvde-primary transition-colors bg-slate-50 rounded-lg hover:bg-blue-50 cursor-pointer" title="Editar"><Edit size={18} /></button>
+                    <button onClick={() => onDelete(m.id)} className="p-2 text-slate-400 hover:text-tvde-danger transition-colors bg-slate-50 rounded-lg hover:bg-red-50 cursor-pointer" title="Eliminar"><Trash2 size={18} /></button>
                   </div>
                 </td>
               </tr>
@@ -5416,7 +5525,7 @@ export default function UsuarioForm({ onSubmit, onCancel, initialData = {} }) {
  * Localização: src/features/veiculos/VeiculoForm.jsx
  *
  * Formulário de edição e criação de viaturas.
- * Atualizado com suporte a carregamento de fotografia do veículo, tarifa semanal, região e combustível.
+ * Atualizado com suporte a carregamento de fotografia do veículo, tarifa semanal, região, combustível e categoria múltipla.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -5474,8 +5583,16 @@ export default function VeiculoForm({
     fotoUrl: initialData.fotoUrl || '', 
     precoSemanal: initialData.precoSemanal || '', 
     cidade: initialData.cidade || 'Lisboa',
-    combustivel: initialData.combustivel || 'Gasóleo' // Correção efetuada: Inicialização de combustível
+    combustivel: initialData.combustivel || 'Gasóleo',
+    categoria: initialData.categoria || 'Standard' // ◄ Mapeamento da string de categoria
   });
+
+  // Estado local para gerir os botões de categorias ativas (Checkbox múltipla)
+  const [categoriasSelecionadas, setCategoriasSelecionadas] = useState(
+    initialData.categoria 
+      ? initialData.categoria.split(' / ').map(c => c.trim()) 
+      : ['Standard']
+  );
 
   const [movimentos, setMovimentos] = useState([]);
   const [novoMovimento, setNovoMovimento] = useState({ tipo: 'debito', valor: '', descricao: '', data: new Date().toISOString().split('T')[0] });
@@ -5484,6 +5601,14 @@ export default function VeiculoForm({
   const [novoProprietario, setNovoProprietario] = useState({ nome: '', nif: '', telemovel: '' });
   const [novoMotorista, setNovoMotorista] = useState({ nome: '', nif: '', telemovel: '' });
   const [modalFinanceiroAberto, setModalFinanceiroAberto] = useState(false);
+
+  // Sincroniza a seleção múltipla com a string do formData sempre que houver alteração
+  useEffect(() => {
+    setFormData(prev => ({
+      ...prev,
+      categoria: categoriasSelecionadas.join(' / ')
+    }));
+  }, [categoriasSelecionadas]);
 
   // Sincronização em tempo real da conta corrente pendente
   useEffect(() => {
@@ -5499,6 +5624,18 @@ export default function VeiculoForm({
       return () => unsubscribe();
     }
   }, [initialData.id]);
+
+  const handleCategoriaToggle = (cat) => {
+    setCategoriasSelecionadas(prev => {
+      if (prev.includes(cat)) {
+        // Impede que fique vazio — por defeito seleciona 'Standard'
+        const filtrado = prev.filter(c => c !== cat);
+        return filtrado.length === 0 ? ['Standard'] : filtrado;
+      } else {
+        return [...prev, cat];
+      }
+    });
+  };
 
   const handleAddMovimento = async () => {
     if (!novoMovimento.valor || !novoMovimento.descricao) {
@@ -5608,7 +5745,7 @@ export default function VeiculoForm({
           <div><label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Ano</label><input type="number" readOnly={isReadOnly} className={inputClass} value={formData.ano} onChange={(e) => setFormData({...formData, ano: e.target.value})} /></div>
         </div>
 
-        {/* Campos do Anúncio do Catálogo público (Combustível, Preço e Região de Operação) [ATUALIZADO] */}
+        {/* Campos do Anúncio do Catálogo público (Combustível, Preço e Região de Operação) */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 border-t border-slate-200/50 pt-4">
           <div>
             <label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Tipo de Combustível</label>
@@ -5652,6 +5789,34 @@ export default function VeiculoForm({
               <option value="Braga">Minho / Braga</option>
               <option value="Algarve">Algarve</option>
             </select>
+          </div>
+        </div>
+
+        {/* ◄ ADICIONADO: Seleção Múltipla de Categorias TVDE */}
+        <div className="border-t border-slate-200/50 pt-4 space-y-2 text-left">
+          <label className="block text-[9px] font-black text-slate-400 uppercase ml-1">
+            Categorias Ativas nas Aplicações (Uber / Bolt)
+          </label>
+          <div className="flex flex-wrap gap-2 select-none">
+            {['Standard', 'Green', 'Comfort', 'XL', 'Black'].map((cat) => {
+              const ativo = categoriasSelecionadas.includes(cat);
+              return (
+                <button
+                  key={cat}
+                  type="button"
+                  disabled={isReadOnly}
+                  onClick={() => handleCategoriaToggle(cat)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-bold border transition-all flex items-center gap-1.5 cursor-pointer ${
+                    ativo 
+                      ? 'bg-blue-600 border-blue-600 text-white shadow-sm hover:bg-blue-700' 
+                      : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                  }`}
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${ativo ? 'bg-white' : 'bg-slate-300'}`} />
+                  {cat}
+                </button>
+              );
+            })}
           </div>
         </div>
       </div>
@@ -5816,6 +5981,14 @@ export default function VeiculoForm({
 
 ### ARQUIVO: src\features\veiculos\VeiculosList.jsx ###
 --------------------------------------------------
+/**
+ * VeiculosList.jsx
+ * Localização: src/features/veiculos/VeiculosList.jsx
+ *
+ * Lista de veículos da frota em formato de tabela.
+ * Atualizado com suporte responsivo autocapsulado (Horizontal Scroll-Safe)
+ */
+
 import React from 'react';
 import { Edit, Trash2, Car, User, Building2, FileText, ShieldCheck, ClipboardCheck, CreditCard, Eye, AlertCircle } from 'lucide-react';
 import { formatMatricula } from '../../utils/formatters';
@@ -5852,8 +6025,10 @@ export default function VeiculosList({
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-      <table className="w-full text-left border-collapse">
+    // ◄ ALTERADO: Contentor agora é auto-rolável mantendo os cantos arredondados do cartão
+    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-x-auto w-full custom-scrollbar">
+      {/* ◄ ALTERADO: min-w-[850px] adicionado para proteger colunas em telemóveis */}
+      <table className="w-full text-left border-collapse min-w-[850px]">
         <thead>
           <tr className="bg-slate-50 border-b border-slate-100">
             <th className="p-4 font-semibold text-slate-600 text-sm">Veículo</th>
@@ -5979,9 +6154,9 @@ export default function VeiculosList({
 
                 <td className="p-4 text-right">
                   <div className="flex justify-end gap-2">
-                    <button onClick={() => onEdit(v, true)} className="p-2 text-slate-400 hover:text-indigo-600 transition-colors bg-slate-50 rounded-lg hover:bg-indigo-50" title="Visualizar Ficha"><Eye size={18} /></button>
-                    <button onClick={() => onEdit(v, false)} className="p-2 text-slate-400 hover:text-tvde-primary transition-colors bg-slate-50 rounded-lg hover:bg-blue-50" title="Editar"><Edit size={18} /></button>
-                    <button onClick={() => onDelete(v.id)} className="p-2 text-slate-400 hover:text-tvde-danger transition-colors bg-slate-50 rounded-lg hover:bg-red-50" title="Eliminar"><Trash2 size={18} /></button>
+                    <button onClick={() => onEdit(v, true)} className="p-2 text-slate-400 hover:text-indigo-600 transition-colors bg-slate-50 rounded-lg hover:bg-indigo-50 cursor-pointer" title="Visualizar Ficha"><Eye size={18} /></button>
+                    <button onClick={() => onEdit(v, false)} className="p-2 text-slate-400 hover:text-tvde-primary transition-colors bg-slate-50 rounded-lg hover:bg-blue-50 cursor-pointer" title="Editar"><Edit size={18} /></button>
+                    <button onClick={() => onDelete(v.id)} className="p-2 text-slate-400 hover:text-tvde-danger transition-colors bg-slate-50 rounded-lg hover:bg-red-50 cursor-pointer" title="Eliminar"><Trash2 size={18} /></button>
                   </div>
                 </td>
               </tr>
@@ -7436,51 +7611,55 @@ export default function Dashboard() {
     navigate(`${rota}?id=${alerta.itemId}`);
   };
 
-  const isHoje = semanaVisivel === SEMANA_ATUAL && anoVisivel === ANO_ATUAL;
+  const isHoje = javaScriptCheck => semanaVisivel === SEMANA_ATUAL && anoVisivel === ANO_ATUAL;
 
   return (
-    <div className="space-y-8">
-      <header className="flex justify-between items-center">
+    <div className="space-y-6 sm:space-y-8">
+      {/* ◄ ALTERADO: Header empilhável para evitar sobreposição em ecrãs pequenos */}
+      <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h2 className="text-2xl font-bold text-slate-800">Painel de Controlo</h2>
-          <p className="text-slate-500 text-sm">Resumo em tempo real da sua operação TVDE.</p>
+          <h2 className="text-xl sm:text-2xl font-bold text-slate-800">Painel de Controlo</h2>
+          <p className="text-slate-500 text-xs sm:text-sm">Resumo em tempo real da sua operação TVDE.</p>
         </div>
 
-        {/* NAVEGADOR SEMANAL */}
-        <div className="flex flex-col items-end gap-1">
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 flex items-center gap-0 overflow-hidden">
+        {/* NAVEGADOR SEMANAL (Agora flui corretamente abaixo do título no telemóvel) */}
+        <div className="flex flex-col items-start sm:items-end gap-1 w-full sm:w-auto">
+          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 flex items-center gap-0 overflow-hidden w-full sm:w-auto justify-between">
             <button 
+              type="button"
               onClick={handlePrevWeek}
-              className="p-2.5 px-3 hover:bg-slate-50 transition-colors text-slate-400 hover:text-tvde-primary border-r border-slate-100 active:scale-95"
+              className="p-2.5 px-3 hover:bg-slate-50 transition-colors text-slate-400 hover:text-tvde-primary border-r border-slate-100 active:scale-95 shrink-0"
             >
               <ChevronLeft size={16} />
             </button>
             
-            <div className="px-4 text-center min-w-[120px]">
+            <div className="px-4 text-center flex-1 sm:flex-initial min-w-[120px]">
               <div className="flex items-center justify-center">
-                <span className="text-sm font-black text-slate-800">Semana {semanaVisivel}</span>
-                {isHoje && (
-                  <span className="text-[9px] font-black bg-tvde-primary text-white px-1.5 py-0.5 rounded-full ml-1 uppercase tracking-tighter">
+                <span className="text-xs sm:text-sm font-black text-slate-800">Semana {semanaVisivel}</span>
+                {isHoje() && (
+                  <span className="text-[9px] font-black bg-tvde-primary text-white px-1.5 py-0.5 rounded-full ml-1 uppercase tracking-tighter shrink-0">
                     Atual
                   </span>
                 )}
               </div>
-              <p className="text-[10px] font-medium text-slate-400 leading-none pb-1">
+              <p className="text-[9px] sm:text-[10px] font-medium text-slate-400 leading-none pb-1">
                 {getWeekDateRange(semanaVisivel, anoVisivel)}
               </p>
             </div>
 
             <button 
+              type="button"
               onClick={handleNextWeek}
-              className="p-2.5 px-3 hover:bg-slate-50 transition-colors text-slate-400 hover:text-tvde-primary border-l border-slate-100 active:scale-95"
+              className="p-2.5 px-3 hover:bg-slate-50 transition-colors text-slate-400 hover:text-tvde-primary border-l border-slate-100 active:scale-95 shrink-0"
             >
               <ChevronRight size={16} />
             </button>
           </div>
-          {!isHoje && (
+          {!isHoje() && (
             <button 
+              type="button"
               onClick={resetToToday}
-              className="text-[10px] font-black text-tvde-primary uppercase tracking-widest hover:underline mr-2"
+              className="text-[10px] font-black text-tvde-primary uppercase tracking-widest hover:underline mt-1 sm:mr-2 cursor-pointer self-start sm:self-auto"
             >
               Voltar a Hoje
             </button>
@@ -7488,9 +7667,9 @@ export default function Dashboard() {
         </div>
       </header>
 
-      {/* Grid de Estatísticas Gerais */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        <div className="space-y-2">
+      {/* Grid de Estatísticas Gerais (Gap dinâmico para poupar espaço em mobile) */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
+        <div className="space-y-1">
           <StatCard 
             label="Motoristas" 
             value={loading ? "..." : stats.motoristas} 
@@ -7499,7 +7678,7 @@ export default function Dashboard() {
           />
           <p className="text-[10px] text-slate-300 italic px-2">Referência: Semana {semanaVisivel}/{anoVisivel}</p>
         </div>
-        <div className="space-y-2">
+        <div className="space-y-1">
           <StatCard 
             label="Veículos" 
             value={loading ? "..." : stats.veiculos} 
@@ -7508,7 +7687,7 @@ export default function Dashboard() {
           />
           <p className="text-[10px] text-slate-300 italic px-2">Referência: Semana {semanaVisivel}/{anoVisivel}</p>
         </div>
-        <div className="space-y-2">
+        <div className="space-y-1">
           <StatCard 
             label="Proprietários" 
             value={loading ? "..." : stats.proprietarios} 
@@ -7519,75 +7698,81 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Seção Inferior: Três colunas responsivas para monitorização */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+      {/* Secção Inferior (3 colunas dinâmicas) */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
         
         {/* COLUNA 1: ALERTAS REAIS CLICÁVEIS */}
-        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-          <div className="flex items-center justify-between mb-6">
-            <div>
-              <h4 className="font-bold text-slate-800 flex items-center gap-2">
-                <AlertTriangle className={alertas.length > 0 ? "text-orange-500" : "text-slate-300"} size={20} />
-                Alertas de Validade
-              </h4>
+        <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between">
+          <div>
+            <div className="flex items-center justify-between mb-5">
+              <div>
+                <h4 className="font-bold text-slate-800 flex items-center gap-2 text-sm sm:text-base">
+                  <AlertTriangle className={alertas.length > 0 ? "text-orange-500 animate-pulse" : "text-slate-300"} size={20} />
+                  Alertas de Validade
+                </h4>
+                {alertas.length > 0 && (
+                  <p className="text-[10px] text-slate-400 mt-0.5 ml-7 italic">Clique para abrir o registo</p>
+                )}
+              </div>
               {alertas.length > 0 && (
-                <p className="text-[10px] text-slate-400 mt-0.5 ml-7 italic">Clique para abrir o registo</p>
+                <span className="text-[9px] font-black bg-orange-100 text-orange-600 px-2 py-0.5 rounded-md uppercase shrink-0">
+                  Atenção
+                </span>
               )}
             </div>
-            {alertas.length > 0 && (
-              <span className="text-[10px] font-black bg-orange-100 text-orange-600 px-2 py-1 rounded-md uppercase">
-                Atenção
-              </span>
-            )}
-          </div>
 
-          <div className="space-y-3">
-            {alertas.length > 0 ? (
-              alertas.map((alerta) => (
-                <button
-                  key={alerta.itemId + alerta.label}
-                  onClick={() => handleAlertaClick(alerta)}
-                  className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all group cursor-pointer ${
-                    alerta.dias < 0 
-                    ? 'bg-red-50 border-red-100 hover:bg-red-100 hover:border-red-200' 
-                    : 'bg-orange-50 border-orange-100 hover:bg-orange-100 hover:border-orange-200'
-                  }`}
-                >
-                  <div className="flex items-center gap-3">
-                    <div className={`w-2 h-2 rounded-full flex-shrink-0 ${alerta.dias < 0 ? 'bg-red-500' : 'bg-orange-500'}`}></div>
-                    <span className="text-sm font-medium text-slate-700 text-left truncate max-w-[130px]">{alerta.label}</span>
+            <div className="space-y-2.5">
+              {alertas.length > 0 ? (
+                alertas.map((alerta) => (
+                  <button
+                    key={alerta.itemId + alerta.label}
+                    type="button"
+                    onClick={() => handleAlertaClick(alerta)}
+                    className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all group cursor-pointer min-w-0 ${
+                      alerta.dias < 0 
+                      ? 'bg-red-50 border-red-100 hover:bg-red-100 hover:border-red-200' 
+                      : 'bg-orange-50 border-orange-100 hover:bg-orange-100 hover:border-orange-200'
+                    }`}
+                  >
+                    {/* ◄ ALTERADO: Truncagem flexível inteligente para qualquer tamanho de tela */}
+                    <div className="flex items-center gap-3 min-w-0 flex-1 mr-2 text-left">
+                      <div className={`w-2 h-2 rounded-full shrink-0 ${alerta.dias < 0 ? 'bg-red-500' : 'bg-orange-500'}`} />
+                      <span className="text-xs sm:text-sm font-bold text-slate-700 truncate flex-1">
+                        {alerta.label}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <span className={`text-[10px] sm:text-xs font-black ${alerta.dias < 0 ? 'text-red-600' : 'text-orange-600'}`}>
+                        {alerta.dias < 0 ? `EXPIRADO` : `em ${alerta.dias}d`}
+                      </span>
+                      <ArrowRight size={13} className={`transition-transform group-hover:translate-x-1 ${
+                        alerta.dias < 0 ? 'text-red-300' : 'text-orange-300'
+                      }`} />
+                    </div>
+                  </button>
+                ))
+              ) : (
+                <div className="flex flex-col items-center justify-center py-10 text-center">
+                  <div className="w-12 h-12 bg-green-50 text-green-500 rounded-full flex items-center justify-center mb-3">
+                    <CheckCircle2 size={24} />
                   </div>
-                  <div className="flex items-center gap-2 flex-shrink-0">
-                    <span className={`text-xs font-bold ${alerta.dias < 0 ? 'text-red-600' : 'text-orange-600'}`}>
-                      {alerta.dias < 0 ? `EXPIRADO` : `em ${alerta.dias} dias`}
-                    </span>
-                    <ArrowRight size={14} className={`transition-transform group-hover:translate-x-1 ${
-                      alerta.dias < 0 ? 'text-red-300' : 'text-orange-300'
-                    }`} />
-                  </div>
-                </button>
-              ))
-            ) : (
-              <div className="flex flex-col items-center justify-center py-10 text-center">
-                <div className="w-12 h-12 bg-green-50 text-green-500 rounded-full flex items-center justify-center mb-3">
-                  <CheckCircle2 size={24} />
+                  <p className="text-slate-500 font-medium">Tudo em dia!</p>
+                  <p className="text-slate-400 text-xs mt-1">Nenhum documento expira em 30 dias.</p>
                 </div>
-                <p className="text-slate-500 font-medium">Tudo em dia!</p>
-                <p className="text-slate-400 text-xs mt-1">Nenhum documento expira em 30 dias.</p>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
 
         {/* COLUNA 2: FUNIL DE CAPTAÇÃO DE LEADS (CRM) */}
-        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between">
+        <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between">
           <div className="space-y-4">
             <div className="flex items-center justify-between mb-2">
-              <h4 className="font-bold text-slate-800 flex items-center gap-2">
+              <h4 className="font-bold text-slate-800 flex items-center gap-2 text-sm sm:text-base">
                 <UserPlus className="text-indigo-600" size={20} />
                 Funil de Leads (CRM)
               </h4>
-              <span className="text-[10px] font-black bg-indigo-100 text-indigo-700 px-2 py-1 rounded-md uppercase">
+              <span className="text-[10px] font-black bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-md uppercase shrink-0">
                 Em Tempo Real
               </span>
             </div>
@@ -7609,6 +7794,7 @@ export default function Dashboard() {
           </div>
 
           <button 
+            type="button"
             onClick={() => navigate('/leads')}
             className="w-full mt-4 py-2.5 bg-slate-800 hover:bg-slate-900 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-2 transition-colors cursor-pointer"
           >
@@ -7617,23 +7803,25 @@ export default function Dashboard() {
         </div>
 
         {/* COLUNA 3: DICAS DE GESTÃO */}
-        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-          <h4 className="font-bold text-slate-800 mb-4 flex items-center gap-2">
-            <Info size={20} className="text-tvde-primary" />
-            Dicas de Gestão
-          </h4>
-          <div className="space-y-4">
-            <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-              <p className="text-sm font-bold text-slate-700">Mantenha os PINs seguros</p>
-              <p className="text-xs text-slate-500 mt-1">
-                Pode consultar os PINs dos cartões de combustível rapidamente na secção de Cartões em Registos.
-              </p>
-            </div>
-            <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-              <p className="text-sm font-bold text-slate-700">Documentação Digital</p>
-              <p className="text-xs text-slate-500 mt-1">
-                Ao carregar o DUA e o Seguro no sistema, evita ter de procurar pastas físicas em caso de fiscalização.
-              </p>
+        <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between">
+          <div>
+            <h4 className="font-bold text-slate-800 mb-4 flex items-center gap-2 text-sm sm:text-base">
+              <Info size={20} className="text-tvde-primary" />
+              Dicas de Gestão
+            </h4>
+            <div className="space-y-4">
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                <p className="text-sm font-bold text-slate-700 leading-tight">Mantenha os PINs seguros</p>
+                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                  Pode consultar os PINs dos cartões de combustível rapidamente na secção de Cartões em Registos.
+                </p>
+              </div>
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
+                <p className="text-sm font-bold text-slate-700 leading-tight">Documentação Digital</p>
+                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                  Ao carregar o DUA e o Seguro no sistema, evita ter de procurar pastas físicas em caso de fiscalização.
+                </p>
+              </div>
             </div>
           </div>
         </div>
@@ -8067,6 +8255,16 @@ export default function EGuiaPage() {
 
 ### ARQUIVO: src\pages\FechoSemanal.jsx ###
 --------------------------------------------------
+/**
+ * FechoSemanal.jsx
+ * Localização: src/pages/FechoSemanal.jsx
+ *
+ * Processador de fecho financeiro semanal (Uplod de CSVs e Geração de SEPA/PDF).
+ * Atualizado com suporte responsivo:
+ * - Tabela auto-rolável horizontalmente (min-w-750px)
+ * - Bloco de rodapé global empilhável e botões fluidos em mobile
+ */
+
 import React, { useState, useEffect } from 'react';
 import { 
   UploadCloud, FileSpreadsheet, Calculator, 
@@ -8138,7 +8336,7 @@ export default function FechoSemanal() {
           <Lock size={40} />
         </div>
         <h2 className="text-2xl font-bold text-slate-800">Acesso Restrito</h2>
-        <p className="text-slate-500 max-w-sm mx-auto">
+        <p className="text-slate-500 max-w-sm mx-auto text-sm">
           Apenas o Diretor tem permissão para aceder e processar o fecho financeiro semanal.
         </p>
         <Button variant="secondary" className="mt-6" onClick={() => window.location.href = '/'}>
@@ -8271,16 +8469,16 @@ export default function FechoSemanal() {
   };
 
   return (
-    <div className="space-y-8 pb-20">
+    <div className="space-y-6 sm:space-y-8 pb-20">
       <header>
-        <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-3">
+        <h1 className="text-xl sm:text-2xl font-bold text-slate-800 flex items-center gap-3">
           <Calculator className="text-tvde-primary" /> Fecho de Semana
         </h1>
-        <p className="text-slate-500 text-sm">Consolidação de rendimentos e conta corrente.</p>
+        <p className="text-slate-500 text-xs sm:text-sm">Consolidação de rendimentos e conta corrente.</p>
       </header>
 
       {step === 1 && (
-        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4">
+        <div className="space-y-6 sm:space-y-8 animate-in fade-in slide-in-from-bottom-4">
           <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
             <UploadBox title="UBER" icon={UploadCloud} color="blue" onChange={(e) => handleFileChange(e, 'uber')} ready={!!files.uber} />
             <UploadBox title="BOLT" icon={UploadCloud} color="green" onChange={(e) => handleFileChange(e, 'bolt')} ready={!!files.bolt} />
@@ -8289,7 +8487,7 @@ export default function FechoSemanal() {
             <UploadBox title="MIIO/ZAP" icon={Zap} color="yellow" onChange={(e) => handleFileChange(e, 'eletrico')} ready={!!files.eletrico} />
           </div>
           <div className="flex justify-center">
-            <Button onClick={processarSemana} disabled={loading} className="h-16 px-12 text-lg shadow-2xl">
+            <Button onClick={processarSemana} disabled={loading} className="h-14 sm:h-16 w-full sm:w-auto px-12 text-sm sm:text-lg shadow-2xl justify-center">
               {loading ? <Loader2 className="animate-spin mr-2" /> : 'Processar Fecho Completo'}
             </Button>
           </div>
@@ -8298,8 +8496,9 @@ export default function FechoSemanal() {
 
       {step === 2 && (
         <div className="space-y-6 animate-in fade-in zoom-in-95">
-          <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden">
-            <table className="w-full text-left border-collapse">
+          {/* ◄ ALTERADO: Contentor auto-rolável e largura mínima estipulada para a tabela financeira */}
+          <div className="bg-white rounded-[2rem] sm:rounded-[2.5rem] border border-slate-200 shadow-sm overflow-x-auto w-full custom-scrollbar">
+            <table className="w-full text-left border-collapse min-w-[750px]">
               <thead className="bg-slate-50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
                 <tr>
                   <th className="p-5">Motorista</th>
@@ -8341,14 +8540,16 @@ export default function FechoSemanal() {
               </tbody>
             </table>
           </div>
-          <div className="flex justify-between items-center bg-tvde-dark p-8 rounded-[2.5rem] text-white shadow-2xl">
+
+          {/* ◄ ALTERADO: Rodapé de fecho empilhável em telemóvel e botões 100% fluídos */}
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-tvde-dark p-6 sm:p-8 rounded-[2rem] sm:rounded-[2.5rem] text-white shadow-2xl gap-6">
             <div>
               <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Global a Pagar</p>
-              <p className="text-4xl font-black">{formatCurrency(dadosProcessados.reduce((acc, curr) => acc + curr.saldoFinal, 0))}</p>
+              <p className="text-2xl sm:text-4xl font-black">{formatCurrency(dadosProcessados.reduce((acc, curr) => acc + curr.saldoFinal, 0))}</p>
             </div>
-            <div className="flex gap-4">
-              <Button variant="secondary" onClick={() => setStep(1)}>Recomeçar</Button>
-              <Button onClick={finalizarSemana} disabled={loading} className="bg-tvde-accent h-14 px-8">
+            <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+              <Button variant="secondary" onClick={() => setStep(1)} className="w-full sm:w-auto justify-center">Recomeçar</Button>
+              <Button onClick={finalizarSemana} disabled={loading} className="bg-tvde-accent h-14 px-8 w-full sm:w-auto justify-center shrink-0">
                 {loading ? <Loader2 className="animate-spin mr-2" /> : 'Finalizar Semana'}
               </Button>
             </div>
@@ -8358,22 +8559,22 @@ export default function FechoSemanal() {
 
       {step === 3 && (
         <div className="max-w-3xl mx-auto text-center space-y-10 py-10 animate-in zoom-in-95">
-          <div className="w-24 h-24 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto shadow-inner"><CheckCircle2 size={48} /></div>
-          <h2 className="text-4xl font-black text-slate-800">Semana Fechada!</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <button onClick={downloadSEPA} className="flex items-center justify-between p-8 bg-white border border-slate-200 rounded-[2.5rem] hover:shadow-2xl transition-all group">
-              <div className="flex items-center gap-5">
-                <div className="p-4 rounded-2xl bg-blue-50 text-blue-500"><Banknote size={32} /></div>
-                <div className="text-left"><p className="font-black text-slate-800 text-lg">Ficheiro SEPA</p><p className="text-xs text-slate-400 font-bold uppercase">Bancos Portugal</p></div>
+          <div className="w-20 h-20 sm:w-24 sm:h-24 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto shadow-inner"><CheckCircle2 size={40} /></div>
+          <h2 className="text-3xl sm:text-4xl font-black text-slate-800">Semana Fechada!</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+            <button onClick={downloadSEPA} className="flex items-center justify-between p-6 sm:p-8 bg-white border border-slate-200 rounded-[2rem] sm:rounded-[2.5rem] hover:shadow-2xl transition-all group">
+              <div className="flex items-center gap-4 sm:gap-5">
+                <div className="p-3 sm:p-4 rounded-2xl bg-blue-50 text-blue-500"><Banknote size={28} /></div>
+                <div className="text-left"><p className="font-black text-slate-800 text-base sm:text-lg leading-tight">Ficheiro SEPA</p><p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Bancos Portugal</p></div>
               </div>
-              <Download size={24} className="text-slate-200 group-hover:text-tvde-primary" />
+              <Download size={22} className="text-slate-200 group-hover:text-tvde-primary shrink-0" />
             </button>
-            <button onClick={handleDownloadPDFs} className="flex items-center justify-between p-8 bg-white border border-slate-200 rounded-[2.5rem] hover:shadow-2xl transition-all group">
-              <div className="flex items-center gap-5">
-                <div className="p-4 rounded-2xl bg-red-50 text-red-500"><FileText size={32} /></div>
-                <div className="text-left"><p className="font-black text-slate-800 text-lg">Extratos PDF</p><p className="text-xs text-slate-400 font-bold uppercase">Recibos Motoristas</p></div>
+            <button onClick={handleDownloadPDFs} className="flex items-center justify-between p-6 sm:p-8 bg-white border border-slate-200 rounded-[2rem] sm:rounded-[2.5rem] hover:shadow-2xl transition-all group">
+              <div className="flex items-center gap-4 sm:gap-5">
+                <div className="p-3 sm:p-4 rounded-2xl bg-red-50 text-red-500"><FileText size={28} /></div>
+                <div className="text-left"><p className="font-black text-slate-800 text-base sm:text-lg leading-tight">Extratos PDF</p><p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Recibos Motoristas</p></div>
               </div>
-              <Download size={24} className="text-slate-200 group-hover:text-tvde-primary" />
+              <Download size={22} className="text-slate-200 group-hover:text-tvde-primary shrink-0" />
             </button>
           </div>
           <Button variant="secondary" onClick={() => setStep(1)} className="w-full h-14">Novo Fecho</Button>
@@ -8384,9 +8585,9 @@ export default function FechoSemanal() {
 }
 
 const UploadBox = ({ title, icon: Icon, color, onChange, ready }) => (
-  <div className={`bg-white p-6 rounded-[2rem] border-2 border-dashed transition-all flex flex-col items-center text-center group ${ready ? 'border-green-500 bg-green-50/30' : 'border-slate-200 hover:border-tvde-primary'}`}>
-    <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-3 ${ready ? 'bg-green-500 text-white' : `bg-${color}-50 text-${color}-500`}`}>
-      {ready ? <CheckCircle2 size={24} /> : <Icon size={24} />}
+  <div className={`bg-white p-5 rounded-[2rem] border-2 border-dashed transition-all flex flex-col items-center text-center group ${ready ? 'border-green-500 bg-green-50/30' : 'border-slate-200 hover:border-tvde-primary'}`}>
+    <div className={`w-11 h-11 rounded-xl flex items-center justify-center mb-3 ${ready ? 'bg-green-500 text-white' : `bg-${color}-50 text-${color}-500`}`}>
+      {ready ? <CheckCircle2 size={20} /> : <Icon size={20} />}
     </div>
     <h3 className="font-bold text-slate-800 text-xs">{title}</h3>
     <input type="file" className="hidden" id={title} onChange={onChange} />
@@ -9716,9 +9917,9 @@ import { registarLeadPública } from '../services/leadService';
 import { formatCurrency } from '../utils/formatters';
 
 // Importações do catálogo público de frotas e do assistente virtual de IA 24/7
-import VehicleCatalog from '../components/public/VehicleCatalog';
 import PublicChatWidget from '../components/public/PublicChatWidget';
 import NavbarLanding from '../components/public/NavbarLanding';
+import CatalogoViaturas from '../components/public/CatalogoViaturas';
 
 export default function LandingPage() {
   const navigate = useNavigate();
@@ -9856,7 +10057,7 @@ export default function LandingPage() {
 
       setFeedbackCarro(res);
       if (res.sucesso) {
-        setLeadCarro({ nome: '', email: '', telemovel: '', regiao: 'Lisboa', mensagem: '' });
+        setLeadCarro({ nome: '', email: '', telemovel: '', regiao: 'Lisboa', text: '' });
       }
     } catch (err) {
       console.error(err);
@@ -9881,8 +10082,8 @@ export default function LandingPage() {
       <header className="relative py-12 md:py-24 px-4 sm:px-6 bg-slate-950 text-white overflow-hidden">
         <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
           
-          {/* LADO ESQUERDO: Carrossel de Texto Rotativo (Sem card, raw text) [ATUALIZADO] */}
-          <div className="lg:col-span-7 space-y-6 text-left min-h-[360px] flex flex-col justify-between">
+          {/* LADO ESQUERDO: Carrossel de Texto Rotativo (Sem card, raw text) com Altura Mínima Responsiva [CORRIGIDO] */}
+          <div className="lg:col-span-7 space-y-6 text-left min-h-[440px] sm:min-h-[380px] lg:min-h-[360px] flex flex-col justify-between">
             
             <div className="space-y-5 flex-1 flex flex-col justify-center">
               
@@ -10000,7 +10201,7 @@ export default function LandingPage() {
               <button 
                 type="button"
                 onClick={handleProximoSlide}
-                className="p-1 rounded-lg hover:bg-slate-900 text-slate-500 hover:text-white transition-colors cursor-pointer"
+                className="p-1 rounded-lg hover:bg-slate-950 text-slate-500 hover:text-white transition-colors cursor-pointer"
               >
                 <ChevronRight size={16} />
               </button>
@@ -10008,7 +10209,7 @@ export default function LandingPage() {
 
           </div>
 
-          {/* LADO DIREITO: Form do eGuia Totalmente FIXO e Estático (Captação de leads direta) [RETORNADO] */}
+          {/* LADO DIREITO: Form do eGuia Totalmente FIXO e Estático (Captação de leads direta) */}
           <div className="lg:col-span-5 bg-white text-slate-800 rounded-3xl p-5 sm:p-6 shadow-2xl border border-slate-100 max-w-md mx-auto w-full relative min-h-[420px] flex flex-col justify-between">
             
             <div className="space-y-4 text-left">
@@ -10234,8 +10435,8 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* ─── 5. CATÁLOGO INTERATIVO DE VIATURAS (RESPONSIVO) ───────────────── */}
-      <VehicleCatalog />
+      {/* ─── 5. CATÁLOGO INTERATIVO DE VIATURAS COM CARROSSEL (RESPONSIVO) ──── */}
+      <CatalogoViaturas />
 
       {/* ─── 6. SECÇÃO DE PROCURA DE VIATURAS (MATCHING DE ALUGUER) ───────────── */}
       <section id="aluguer" className="bg-slate-900 text-white py-16 md:py-20 px-4 sm:px-6 border-t border-slate-800">
@@ -10735,38 +10936,32 @@ export default function LogsSistema() {
 --------------------------------------------------
 import React, { useState } from 'react';
 import { db } from '../firebase';
-import { collection, getDocs, updateDoc, doc, query, where } from 'firebase/firestore';
+import { collection, getDocs, updateDoc, doc, setDoc } from 'firebase/firestore';
+import { MOCK_VEICULOS } from '../utils/mockVeiculos';
 
 /**
- * UTILITÁRIO DE MIGRAÇÃO — Executar UMA única vez
- *
- * Problema: lançamentos criados antes da correcção têm pagoNoFechoId: null
- * A query actual filtra por pagoNoFechoId == "" — esses documentos ficam invisíveis.
- *
- * Esta página percorre todos os movimentos_financeiros com pagoNoFechoId == null
- * e actualiza para pagoNoFechoId == "" (string vazia), tornando-os visíveis novamente.
- *
- * COMO USAR:
- * 1. Adiciona esta rota temporariamente no App.jsx:
- *    <Route path="/migracao" element={<MigracaoFirestore />} />
- * 2. Acede a localhost:5173/migracao
- * 3. Clica "Executar Migração"
- * 4. Aguarda a mensagem de conclusão
- * 5. Remove a rota e este ficheiro
+ * UTILITÁRIO DE MIGRAÇÃO — Executar conforme necessário
+ * 
+ * Permite:
+ * 1. Corrigir movimentos financeiros antigos (pagoNoFechoId: null -> "")
+ * 2. Popular a base de dados com as 25 viaturas de teste para o catálogo.
  */
 export default function MigracaoFirestore() {
   const [status, setStatus]     = useState('idle'); // idle | running | done | error
   const [log, setLog]           = useState([]);
   const [totalFixed, setTotal]  = useState(0);
+  const [acaoAtual, setAcaoAtual] = useState(''); // 'financeiro' | 'veiculos'
 
   const addLog = (msg) => setLog(prev => [...prev, `${new Date().toLocaleTimeString('pt-PT')} — ${msg}`]);
 
-  const executarMigracao = async () => {
+  // 1. Migração de Movimentos Financeiros (Existente)
+  const executarMigracaoFinanceira = async () => {
     if (!window.confirm(
       'Esta operação vai actualizar todos os lançamentos financeiros com pagoNoFechoId: null para pagoNoFechoId: "". Confirmas?'
     )) return;
 
     setStatus('running');
+    setAcaoAtual('financeiro');
     setLog([]);
     setTotal(0);
     let count = 0;
@@ -10774,8 +10969,6 @@ export default function MigracaoFirestore() {
     try {
       addLog('A carregar documentos com pagoNoFechoId: null...');
 
-      // O Firestore permite filtrar por null directamente em getDocs
-      // (o problema é no onSnapshot com índices compostos — aqui é só uma query simples)
       const snap = await getDocs(collection(db, 'movimentos_financeiros'));
       
       const docsComNull = snap.docs.filter(d => {
@@ -10795,11 +10988,43 @@ export default function MigracaoFirestore() {
 
       setTotal(count);
       addLog(`✅ Migração concluída! ${count} documentos actualizados.`);
-      addLog('Podes remover esta página do App.jsx agora.');
       setStatus('done');
 
     } catch (error) {
       addLog(`❌ Erro: ${error.message}`);
+      setStatus('error');
+    }
+  };
+
+  // 2. Importação das 25 Viaturas de Teste (Nova)
+  const executarImportacaoVeiculos = async () => {
+    if (!window.confirm(
+      'Esta operação vai importar 25 viaturas de teste para a coleção "veiculos" no Firestore. Se as viaturas já existirem, serão atualizadas. Confirmas?'
+    )) return;
+
+    setStatus('running');
+    setAcaoAtual('veiculos');
+    setLog([]);
+    setTotal(0);
+    let count = 0;
+
+    try {
+      addLog('A iniciar a importação de viaturas para o Firestore...');
+      addLog(`Lendo ${MOCK_VEICULOS.length} viaturas do mock...`);
+
+      for (const veiculo of MOCK_VEICULOS) {
+        // Usamos setDoc com ID fixo para evitar duplicações se correr o script várias vezes
+        await setDoc(doc(db, 'veiculos', veiculo.id), veiculo);
+        count++;
+        addLog(`[${count}/25] Guardado: ${veiculo.marca} ${veiculo.modelo} (${veiculo.matricula})`);
+      }
+
+      setTotal(count);
+      addLog(`✅ Importação concluída! ${count} viaturas prontas no Firestore.`);
+      setStatus('done');
+
+    } catch (error) {
+      addLog(`❌ Erro ao importar viaturas: ${error.message}`);
       setStatus('error');
     }
   };
@@ -10809,52 +11034,92 @@ export default function MigracaoFirestore() {
       <div className="bg-white rounded-3xl shadow-xl border border-slate-100 p-8 max-w-2xl w-full space-y-6">
         
         <div>
-          <h1 className="text-2xl font-black text-slate-800">Migração Firestore</h1>
+          <h1 className="text-2xl font-black text-slate-800">Centro de Migrações Firestore</h1>
           <p className="text-slate-500 text-sm mt-1">
-            Corrige lançamentos financeiros invisíveis — executa uma única vez.
+            Utilitários de manutenção e carregamento de dados de teste.
           </p>
         </div>
 
-        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-4 text-sm text-amber-800">
-          <strong>O que isto faz:</strong> Actualiza todos os documentos em{' '}
-          <code className="bg-amber-100 px-1 rounded">movimentos_financeiros</code> onde{' '}
-          <code className="bg-amber-100 px-1 rounded">pagoNoFechoId</code> é <code className="bg-amber-100 px-1 rounded">null</code>{' '}
-          para <code className="bg-amber-100 px-1 rounded">""</code> (string vazia),
-          tornando-os visíveis nas queries dos formulários.
+        {/* Painel de Ações */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          
+          {/* Caixa 1: Financeiro */}
+          <div className="border border-slate-100 rounded-2xl p-4 flex flex-col justify-between space-y-4 hover:border-slate-200 transition-all bg-slate-50/50">
+            <div>
+              <h2 className="font-bold text-slate-800 text-sm">Correção Financeira</h2>
+              <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                Corrige lançamentos com <code className="bg-slate-100 px-1 py-0.5 rounded">pagoNoFechoId: null</code> para string vazia.
+              </p>
+            </div>
+            {status === 'idle' && (
+              <button
+                onClick={executarMigracaoFinanceira}
+                className="w-full py-2.5 bg-slate-900 text-white font-bold rounded-xl hover:bg-blue-600 transition-colors text-xs"
+              >
+                Executar Correção
+              </button>
+            )}
+          </div>
+
+          {/* Caixa 2: Viaturas de Teste */}
+          <div className="border border-slate-100 rounded-2xl p-4 flex flex-col justify-between space-y-4 hover:border-slate-200 transition-all bg-slate-50/50">
+            <div>
+              <h2 className="font-bold text-slate-800 text-sm">Catálogo de Teste (25)</h2>
+              <p className="text-xs text-slate-500 mt-1 leading-relaxed">
+                Cria ou atualiza 25 viaturas reais na coleção <code className="bg-slate-100 px-1 py-0.5 rounded">veiculos</code> para a landing page.
+              </p>
+            </div>
+            {status === 'idle' && (
+              <button
+                onClick={executarImportacaoVeiculos}
+                className="w-full py-2.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors text-xs"
+              >
+                Importar 25 Viaturas
+              </button>
+            )}
+          </div>
+
         </div>
 
-        {status === 'idle' && (
-          <button
-            onClick={executarMigracao}
-            className="w-full py-4 bg-tvde-primary text-white font-black rounded-2xl hover:bg-blue-600 transition-colors text-lg"
-          >
-            Executar Migração
-          </button>
-        )}
-
+        {/* Feedback de Execução */}
         {status === 'running' && (
-          <div className="flex items-center gap-3 text-tvde-primary font-bold">
-            <div className="w-5 h-5 border-2 border-tvde-primary border-t-transparent rounded-full animate-spin" />
-            A migrar documentos...
+          <div className="flex items-center gap-3 text-blue-600 font-bold justify-center bg-blue-50 py-3 rounded-2xl border border-blue-100 text-sm">
+            <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
+            A executar {acaoAtual === 'financeiro' ? 'correção financeira' : 'importação de viaturas'}...
           </div>
         )}
 
         {status === 'done' && (
-          <div className="bg-green-50 border border-green-200 rounded-2xl p-4 text-green-800 font-bold text-center">
-            ✅ {totalFixed} documentos migrados com sucesso!
-            <p className="text-sm font-normal mt-1">Podes remover esta página agora.</p>
+          <div className="bg-green-50 border border-green-200 rounded-2xl p-4 text-green-800 font-bold text-center text-sm">
+            ✅ Concluído! {totalFixed} registos processados com sucesso.
+            <button 
+              onClick={() => setStatus('idle')}
+              className="block mx-auto mt-2 text-xs text-green-700 underline hover:text-green-900"
+            >
+              Voltar ao início
+            </button>
           </div>
         )}
 
         {status === 'error' && (
-          <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-red-800 font-bold text-center">
-            ❌ Erro durante a migração. Vê o log abaixo.
+          <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-red-800 font-bold text-center text-sm">
+            ❌ Ocorreu um erro durante a execução. Verifique os registos no log abaixo.
+            <button 
+              onClick={() => setStatus('idle')}
+              className="block mx-auto mt-2 text-xs text-red-700 underline hover:text-red-900"
+            >
+              Tentar novamente
+            </button>
           </div>
         )}
 
+        {/* Logs */}
         {log.length > 0 && (
-          <div className="bg-slate-900 rounded-2xl p-4 font-mono text-xs text-green-400 space-y-1 max-h-60 overflow-y-auto">
-            {log.map((line, i) => <div key={i}>{line}</div>)}
+          <div className="space-y-2">
+            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Logs do Processo</p>
+            <div className="bg-slate-900 rounded-2xl p-4 font-mono text-xs text-emerald-400 space-y-1 max-h-60 overflow-y-auto border border-slate-800">
+              {log.map((line, i) => <div key={i}>{line}</div>)}
+            </div>
           </div>
         )}
 
@@ -10867,13 +11132,22 @@ export default function MigracaoFirestore() {
 
 ### ARQUIVO: src\pages\MinhasTarefas.jsx ###
 --------------------------------------------------
+/**
+ * MinhasTarefas.jsx
+ * Localização: src/pages/MinhasTarefas.jsx
+ *
+ * Página de tarefas do funcionário.
+ * Atualizado com:
+ * - Exibição em formato de lista com linhas horizontais (Inbox-style)
+ * - Tabela auto-rolável (Horizontal Scroll-Safe) contra quebras no mobile
+ */
+
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { collection, query, where, getDocs, updateDoc, doc, orderBy } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
 import { logAcaoGlobal } from '../utils/logger';
-import TicketCard from '../features/tickets/TicketCard';
-import { Inbox, CheckCircle2, Loader2, AlertCircle, UserX } from 'lucide-react';
+import { Inbox, CheckCircle2, Loader2, AlertCircle, UserX, Clock, UserCheck } from 'lucide-react';
 
 export default function MinhasTarefas() {
   const { userData, loading: authLoading } = useAuth();
@@ -10906,7 +11180,6 @@ export default function MinhasTarefas() {
       setTickets(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     } catch (error) {
       console.error("Erro ao carregar tarefas:", error);
-      // Se o erro for de índice, ele aparecerá aqui na consola do navegador com um link
       setError("Não foi possível carregar as tarefas. Verifique se o seu perfil está configurado.");
     } finally {
       setLoading(false);
@@ -10960,7 +11233,7 @@ export default function MinhasTarefas() {
           <UserX size={40} />
         </div>
         <h2 className="text-2xl font-bold text-slate-800">Perfil Não Encontrado</h2>
-        <p className="text-slate-500 mt-2 max-w-md">
+        <p className="text-slate-500 mt-2 max-w-md text-sm leading-relaxed">
           O seu login foi efetuado, mas não existe um perfil de funcionário associado a este email no sistema. Peça ao Diretor para o registar na <strong>Gestão de Equipa</strong>.
         </p>
       </div>
@@ -10968,12 +11241,12 @@ export default function MinhasTarefas() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 sm:space-y-8">
       <header>
-        <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-3">
+        <h1 className="text-xl sm:text-2xl font-bold text-slate-800 flex items-center gap-3">
           <Inbox className="text-tvde-primary" /> Minhas Tarefas
         </h1>
-        <p className="text-slate-500 text-sm">Fluxo de trabalho atribuído a <strong>{userData.nome}</strong>.</p>
+        <p className="text-slate-500 text-xs sm:text-sm">Fluxo de trabalho atribuído a <strong>{userData.nome}</strong>.</p>
       </header>
 
       {error ? (
@@ -10982,17 +11255,97 @@ export default function MinhasTarefas() {
           <p className="text-sm font-medium">{error}</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {tickets.length > 0 ? (
-            tickets.map(t => (
-              <TicketCard key={t.id} ticket={t} onComplete={handleComplete} />
-            ))
-          ) : (
-            <div className="col-span-full py-20 text-center bg-white rounded-[3rem] border-2 border-dashed border-slate-100">
-              <CheckCircle2 className="mx-auto text-slate-200 mb-4" size={48} />
-              <p className="text-slate-400 font-medium">Não tem tarefas pendentes. Bom trabalho!</p>
-            </div>
-          )}
+        /* ◄ ALTERADO: Lista em formato de linhas horizontais responsivas */
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-x-auto w-full custom-scrollbar">
+          <table className="w-full text-left border-collapse min-w-[700px]">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                <th className="p-4">Vínculo / Entidade</th>
+                <th className="p-4">Instrução / Nota</th>
+                <th className="p-4">Atribuído Por</th>
+                <th className="p-4">Data</th>
+                <th className="p-4 text-center">Estado</th>
+                <th className="p-4 text-right">Ação</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {tickets.length > 0 ? (
+                tickets.map(t => {
+                  const concluido = t.status === 'concluido';
+
+                  return (
+                    <tr key={t.id} className="hover:bg-slate-50/50 transition-colors text-slate-700">
+                      {/* Vínculo / Entidade */}
+                      <td className="p-4">
+                        <div className="flex items-center gap-2">
+                          <span className="bg-slate-800 text-white text-[10px] font-mono font-black px-2 py-0.5 rounded shadow-sm shrink-0">
+                            {t.vinculoCodigo || 'WF-XXX'}
+                          </span>
+                          <p className="font-extrabold text-slate-800 text-xs sm:text-sm">{t.vinculoNome || 'Workflow'}</p>
+                        </div>
+                        <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-1 ml-1">
+                          Módulo: {t.modulo || 'Geral'}
+                        </p>
+                      </td>
+
+                      {/* Instrução / Nota */}
+                      <td className="p-4 max-w-[280px] min-w-[150px]">
+                        <p className="text-xs text-slate-600 font-medium leading-relaxed break-words">
+                          {t.nota || 'Ação necessária no registo.'}
+                        </p>
+                      </td>
+
+                      {/* Atribuída Por (Remetente) */}
+                      <td className="p-4 text-xs font-bold text-slate-500">
+                        {t.remetente || 'Sistema'}
+                      </td>
+
+                      {/* Data de Criação */}
+                      <td className="p-4 text-xs font-semibold text-slate-400 font-mono">
+                        <span className="flex items-center gap-1">
+                          <Clock size={12} className="text-slate-300" />
+                          {new Date(t.dataCriacao).toLocaleDateString('pt-PT')}
+                        </span>
+                      </td>
+
+                      {/* Estado do Ticket */}
+                      <td className="p-4 text-center">
+                        <span className={`inline-block px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider border ${
+                          concluido 
+                            ? 'bg-emerald-50 text-emerald-600 border-emerald-100' 
+                            : 'bg-orange-50 text-orange-600 border-orange-100 animate-pulse'
+                        }`}>
+                          {t.status}
+                        </span>
+                      </td>
+
+                      {/* Botão transacional de Ação */}
+                      <td className="p-4 text-right">
+                        {!concluido ? (
+                          <button
+                            type="button"
+                            onClick={() => handleComplete(t.id)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-emerald-600 text-white font-bold text-xs transition-all shadow-sm cursor-pointer hover:shadow-md active:scale-95"
+                          >
+                            <CheckCircle2 size={13} /> Concluir
+                          </button>
+                        ) : (
+                          <span className="text-[10px] text-slate-400 italic pr-2 font-medium">Concluída</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
+              ) : (
+                <tr>
+                  <td colSpan="6" className="p-20 text-center">
+                    <CheckCircle2 className="mx-auto text-slate-200 mb-4" size={48} />
+                    <p className="text-slate-400 font-medium">Não tem tarefas pendentes de momento. Bom trabalho!</p>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
@@ -11037,11 +11390,10 @@ export default function Motoristas() {
   const [tempDados, setTempDados] = useState(null);
   const [lastSavedItem, setLastSavedItem] = useState(null);
   
-  // ESTADO DA PESQUISA (Adicionado para ativar a barra de busca)
+  // ESTADO DA PESQUISA
   const [searchTerm, setSearchTerm] = useState('');
 
-  // CORREÇÃO 1: useCallback para evitar que handleEditClick seja recriada
-  // em cada render, causando loop infinito no useEffect do onSnapshot
+  // useCallback para evitar que handleEditClick seja recriada
   const handleEditClick = useCallback((motorista, viewOnly = false) => {
     setEditingId(motorista.id);
     setIsViewOnly(viewOnly);
@@ -11059,8 +11411,6 @@ export default function Motoristas() {
     return novoObj;
   };
 
-  // CORREÇÃO 2: handleEditClick agora está estável via useCallback,
-  // por isso pode entrar nas dependências sem causar loop
   useEffect(() => {
     const qM = query(collection(db, "motoristas"));
     const unsubscribe = onSnapshot(qM, (snapshot) => {
@@ -11084,10 +11434,10 @@ export default function Motoristas() {
     return () => unsubscribe();
   }, [location.search, editingId, handleEditClick]);
 
-  // CHAVE DO PIPELINE: recalcula reativamente a cada update do onSnapshot
+  // Recalcula reativamente a cada update do onSnapshot
   const motoristaEmEdicao = motoristas.find(m => m.id === editingId) || null;
 
-  // LÓGICA DE FILTRAGEM (Filtra a lista em tempo real com base no input do utilizador)
+  // LÓGICA DE FILTRAGEM
   const motoristasFiltrados = motoristas.filter(m => {
     const campoBusca = searchTerm.toLowerCase();
     return (
@@ -11175,8 +11525,6 @@ export default function Motoristas() {
 
       await logAcaoGlobal(userData?.nome, "Edição", "Motoristas", dadosLimpos.nome, editingId);
 
-      // CORREÇÃO 3: lastSavedItem atualizado antes de fechar para o TicketModal
-      // ter os dados corretos (estava em falta na versão anterior)
       setLastSavedItem({ 
         id: editingId, 
         nome: dadosLimpos.nome, 
@@ -11236,17 +11584,22 @@ export default function Motoristas() {
 
   return (
     <div className="space-y-6">
-      <header className="flex justify-between items-center">
+      {/* ◄ ALTERADO: Header empilhável responsivo e botão expandido em mobile */}
+      <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Motoristas</h1>
-          <p className="text-slate-500 text-sm">Gestão de condutores e fluxo de trabalho.</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-800">Motoristas</h1>
+          <p className="text-slate-500 text-xs sm:text-sm">Gestão de condutores e fluxo de trabalho.</p>
         </div>
-        <Button onClick={() => { setEditingId(null); setIsModalOpen(true); }}>
-          <Plus size={20} /> Novo Motorista
+        <Button 
+          onClick={() => { setEditingId(null); setIsModalOpen(true); }}
+          className="w-full sm:w-auto justify-center text-xs sm:text-sm"
+        >
+          <Plus size={18} /> Novo Motorista
         </Button>
       </header>
 
-      <div className="flex gap-4 bg-white p-4 rounded-xl shadow-sm border border-slate-100">
+      {/* ◄ ALTERADO: Padding otimizado para mobile */}
+      <div className="flex gap-4 bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-slate-100">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
           <input
@@ -11254,7 +11607,7 @@ export default function Motoristas() {
             placeholder="Procurar motorista..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-tvde-primary/20"
+            className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-tvde-primary/20 text-xs sm:text-sm"
           />
         </div>
       </div>
@@ -11262,14 +11615,17 @@ export default function Motoristas() {
       {loading && motoristas.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-slate-400">
           <Loader2 className="animate-spin mb-2" size={40} />
-          <p>A carregar motoristas...</p>
+          <p className="text-xs sm:text-sm font-semibold">A carregar motoristas...</p>
         </div>
       ) : (
-        <MotoristasList 
-          motoristas={motoristasFiltrados} 
-          onEdit={handleEditClick} 
-          onDelete={handleDelete} 
-        />
+        /* ◄ ALTERADO: Contentor de segurança de scroll lateral adicionado ao redor da tabela */
+        <div className="w-full overflow-x-auto rounded-2xl border border-slate-100 shadow-sm bg-white">
+          <MotoristasList 
+            motoristas={motoristasFiltrados} 
+            onEdit={handleEditClick} 
+            onDelete={handleDelete} 
+          />
+        </div>
       )}
 
       <Modal
@@ -12303,23 +12659,28 @@ export default function Veiculos() {
 
   return (
     <div className="space-y-6">
-      <header className="flex justify-between items-center">
+      {/* ◄ ALTERADO: Header empilhável responsivo e botão de registo expandido em mobile */}
+      <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Veículos</h1>
-          <p className="text-slate-500 text-sm">Gestão da frota, condutores e tarefas.</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-800">Veículos</h1>
+          <p className="text-slate-500 text-xs sm:text-sm">Gestão da frota, condutores e tarefas.</p>
         </div>
-        <Button onClick={() => setIsModalOpen(true)}>
-          <Plus size={20} /> Novo Veículo
+        <Button 
+          onClick={() => setIsModalOpen(true)}
+          className="w-full sm:w-auto justify-center text-xs sm:text-sm"
+        >
+          <Plus size={18} /> Novo Veículo
         </Button>
       </header>
 
-      <div className="flex gap-4 bg-white p-4 rounded-xl shadow-sm border border-slate-100">
+      {/* ◄ ALTERADO: Padding otimizado para telemóveis */}
+      <div className="flex gap-4 bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-slate-100">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
           <input 
             type="text" 
             placeholder="Procurar veículo por matrícula ou marca..."
-            className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-tvde-primary/20"
+            className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-tvde-primary/20 text-xs sm:text-sm"
           />
         </div>
       </div>
@@ -12327,16 +12688,19 @@ export default function Veiculos() {
       {loading && veiculos.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-slate-400">
           <Loader2 className="animate-spin mb-2" size={40} />
-          <p>A carregar frota...</p>
+          <p className="text-xs sm:text-sm font-semibold">A carregar frota...</p>
         </div>
       ) : (
-        <VeiculosList 
-          veiculos={veiculos} 
-          cartoes={cartoes}
-          onEdit={handleEditClick}
-          onDelete={handleDelete} 
-          onToggleAnuncio={handleToggleAnuncio} // Associação do callback integrada
-        />
+        /* ◄ ALTERADO: Contentor de segurança de scroll lateral adicionado ao redor da tabela */
+        <div className="w-full overflow-x-auto rounded-2xl border border-slate-100 shadow-sm bg-white">
+          <VeiculosList 
+            veiculos={veiculos} 
+            cartoes={cartoes}
+            onEdit={handleEditClick}
+            onDelete={handleDelete} 
+            onToggleAnuncio={handleToggleAnuncio} 
+          />
+        </div>
       )}
 
       <Modal isOpen={isModalOpen} onClose={fecharModal} title={isViewOnly ? "Ficha do Veículo" : (editingVeiculo ? "Editar Veículo" : "Novo Veículo")}>
@@ -14155,11 +14519,6 @@ export const registarLeadPública = async (dados) => {
 /**
  * veiculoService.js
  * Localização: src/services/veiculoService.js
- *
- * Funções Firestore para a gestão de viaturas e controlo de catálogo público.
- *
- * Todas as funções recebem `db` como primeiro argumento para seguir
- * o padrão de consistência já adotado no projeto.
  */
 
 import { 
@@ -14195,8 +14554,14 @@ export const obterViaturasParaCatalogo = async (db) => {
         anuncioAtivo: dados.anuncioAtivo ?? false,
         precoSemanal: Number(dados.precoSemanal || 0),
         cidade: dados.cidade || 'Lisboa',
-        // Correção efetuada: Mapeamento do campo fotoUrl para exibição no catálogo público
-        fotoUrl: dados.fotoUrl || "" 
+        fotoUrl: dados.fotoUrl || "", 
+        
+        // ◄ ADICIONADO: Novos mapeamentos com fallback para garantir a UX do catálogo
+        transmissao: dados.transmissao || 'Automática',
+        autonomia: Number(dados.autonomia || 350),
+        lugares: Number(dados.lugares || 5),
+        categoria: dados.categoria || 'Standard',
+        estado: dados.estado || (dados.anuncioAtivo ? 'Disponível' : 'Alugado')
       };
     });
 
@@ -14211,13 +14576,6 @@ export const obterViaturasParaCatalogo = async (db) => {
 /**
  * Altera o estado de ativação do anúncio público de uma viatura.
  * Atualiza o campo 'anuncioAtivo' no Firestore e regista um log na auditoria global do ERP.
- *
- * @param {Firestore} db
- * @param {string} veiculoId     - ID do documento da viatura no Firestore
- * @param {boolean} novoEstado   - true (para ativar anúncio) | false (para pausar anúncio)
- * @param {string} matricula     - Matrícula da viatura (para o texto do log de auditoria)
- * @param {string} alteradoPor   - Nome do gestor/admin que realizou a alteração
- * @returns {Promise<{ sucesso: boolean, msg: string }>}
  */
 export const alternarEstadoAnuncioViatura = async (db, veiculoId, novoEstado, matricula, alteradoPor) => {
   try {
@@ -14384,6 +14742,471 @@ export const logAcaoGlobal = async (usuario, acao, modulo, itemNome, itemId) => 
     console.error("Erro ao gerar log global:", e);
   }
 };
+--------------------------------------------------
+
+
+### ARQUIVO: src\utils\mockVeiculos.js ###
+--------------------------------------------------
+/**
+ * mockVeiculos.js
+ * Localização: src/utils/mockVeiculos.js
+ * 
+ * Lista de 25 viaturas realistas para teste do catálogo TVDE em Portugal.
+ * Inclui dados de autonomia (para elétricos), lotação (para XL), tarifas e imagens demonstrativas.
+ */
+
+export const MOCK_VEICULOS = [
+  {
+    id: "v-tesla-m3-01",
+    marca: "Tesla",
+    modelo: "Model 3 Standard Range",
+    ano: 2023,
+    combustivel: "Elétrico",
+    transmissao: "Automática",
+    matricula: "AA-88-XX",
+    cor: "Branco Pérola",
+    lugares: 5,
+    autonomia: 491, // km
+    categoria: "Green / Comfort",
+    precoSemana: 250, // €/semana comum para aluguer TVDE
+    caucao: 400,
+    estado: "Disponível",
+    imagem: "https://images.unsplash.com/photo-1619767886558-efdc259cde1a?auto=format&fit=crop&q=80&w=600",
+    destaque: true
+  },
+  {
+    id: "v-dacia-jog-02",
+    marca: "Dacia",
+    modelo: "Jogger Comfort Stepway",
+    ano: 2024,
+    combustivel: "GPL / Gasolina",
+    transmissao: "Manual",
+    matricula: "AA-12-YY",
+    cor: "Cinzento Cometa",
+    lugares: 7,
+    autonomia: 1000, // Bi-fuel
+    categoria: "Standard / XL",
+    precoSemana: 220,
+    caucao: 350,
+    estado: "Disponível",
+    imagem: "https://images.unsplash.com/photo-1606016159991-dfe4f2746ad5?auto=format&fit=crop&q=80&w=600", // Representativo
+    destaque: true
+  },
+  {
+    id: "v-toyota-cor-03",
+    marca: "Toyota",
+    modelo: "Corolla Touring Sports",
+    ano: 2022,
+    combustivel: "Híbrido (Gasolina)",
+    transmissao: "Automática",
+    matricula: "99-ZZ-44",
+    cor: "Preto Metálico",
+    lugares: 5,
+    autonomia: 850,
+    categoria: "Standard / Comfort",
+    precoSemana: 210,
+    caucao: 300,
+    estado: "Disponível",
+    imagem: "https://images.unsplash.com/photo-1621007947382-cc34aa8668c2?auto=format&fit=crop&q=80&w=600",
+    destaque: true
+  },
+  {
+    id: "v-renault-zoe-04",
+    marca: "Renault",
+    modelo: "Zoe E-Tech GT Line",
+    ano: 2022,
+    combustivel: "Elétrico",
+    transmissao: "Automática",
+    matricula: "AA-55-ZZ",
+    cor: "Azul Céleste",
+    lugares: 5,
+    autonomia: 385,
+    categoria: "Green",
+    precoSemana: 190,
+    caucao: 300,
+    estado: "Disponível",
+    imagem: "https://images.unsplash.com/photo-1554744512-d6c603f27c54?auto=format&fit=crop&q=80&w=600",
+    destaque: false
+  },
+  {
+    id: "v-peugeot-2008-05",
+    marca: "Peugeot",
+    modelo: "e-2008 GT",
+    ano: 2023,
+    combustivel: "Elétrico",
+    transmissao: "Automática",
+    matricula: "AA-99-AA",
+    cor: "Cinzento Platinium",
+    lugares: 5,
+    autonomia: 345,
+    categoria: "Green / Standard",
+    precoSemana: 230,
+    caucao: 400,
+    estado: "Alugado",
+    imagem: "https://images.unsplash.com/photo-1563720223185-11003d516935?auto=format&fit=crop&q=80&w=600",
+    destaque: false
+  },
+  {
+    id: "v-nissan-leaf-06",
+    marca: "Nissan",
+    modelo: "Leaf Acenta II",
+    ano: 2021,
+    combustivel: "Elétrico",
+    transmissao: "Automática",
+    matricula: "35-XD-82",
+    cor: "Branco",
+    lugares: 5,
+    autonomia: 270,
+    categoria: "Green / Standard",
+    precoSemana: 180,
+    caucao: 300,
+    estado: "Disponível",
+    imagem: "https://images.unsplash.com/photo-1536700503339-1e4b06520771?auto=format&fit=crop&q=80&w=600",
+    destaque: false
+  },
+  {
+    id: "v-kia-niro-07",
+    marca: "Kia",
+    modelo: "Niro EV Concept",
+    ano: 2023,
+    combustivel: "Elétrico",
+    transmissao: "Automática",
+    matricula: "AA-33-CC",
+    cor: "Preto",
+    lugares: 5,
+    autonomia: 460,
+    categoria: "Green / Comfort",
+    precoSemana: 240,
+    caucao: 400,
+    estado: "Disponível",
+    imagem: "https://images.unsplash.com/photo-1678767931327-05c04e223508?auto=format&fit=crop&q=80&w=600",
+    destaque: true
+  },
+  {
+    id: "v-hyundai-io5-08",
+    marca: "Hyundai",
+    modelo: "Ioniq 5 Premium",
+    ano: 2023,
+    combustivel: "Elétrico",
+    transmissao: "Automática",
+    matricula: "AA-44-DD",
+    cor: "Cinzento Matte",
+    lugares: 5,
+    autonomia: 507,
+    categoria: "Green / Comfort / Black",
+    precoSemana: 280,
+    caucao: 500,
+    estado: "Disponível",
+    imagem: "https://images.unsplash.com/photo-1669045751911-09689877b066?auto=format&fit=crop&q=80&w=600",
+    destaque: true
+  },
+  {
+    id: "v-mbenz-eqe-09",
+    marca: "Mercedes-Benz",
+    modelo: "EQE 350+",
+    ano: 2024,
+    combustivel: "Elétrico",
+    transmissao: "Automática",
+    matricula: "AA-22-EE",
+    cor: "Preto Obsidiana",
+    lugares: 5,
+    autonomia: 639,
+    categoria: "Black",
+    precoSemana: 390,
+    caucao: 750,
+    estado: "Disponível",
+    imagem: "https://images.unsplash.com/photo-1617814076367-b759c7d7e738?auto=format&fit=crop&q=80&w=600",
+    destaque: true
+  },
+  {
+    id: "v-tesla-my-10",
+    marca: "Tesla",
+    modelo: "Model Y Long Range",
+    ano: 2024,
+    combustivel: "Elétrico",
+    transmissao: "Automática",
+    matricula: "AA-11-FF",
+    cor: "Cinzento Midnight",
+    lugares: 5,
+    autonomia: 533,
+    categoria: "Green / Comfort",
+    precoSemana: 275,
+    caucao: 500,
+    estado: "Alugado",
+    imagem: "https://images.unsplash.com/photo-1619767886558-efdc259cde1a?auto=format&fit=crop&q=80&w=600",
+    destaque: false
+  },
+  {
+    id: "v-citroen-ec4-11",
+    marca: "Citroën",
+    modelo: "ë-C4 Feel Pack",
+    ano: 2022,
+    combustivel: "Elétrico",
+    transmissao: "Automática",
+    matricula: "AA-77-GG",
+    cor: "Cinzento Platinum",
+    lugares: 5,
+    autonomia: 350,
+    categoria: "Green / Standard",
+    precoSemana: 205,
+    caucao: 350,
+    estado: "Disponível",
+    imagem: "https://images.unsplash.com/photo-1541899481282-d53bffe3c35d?auto=format&fit=crop&q=80&w=600",
+    destaque: false
+  },
+  {
+    id: "v-skoda-oct-12",
+    marca: "Skoda",
+    modelo: "Octavia Break IV Hybrid",
+    ano: 2022,
+    combustivel: "Híbrido Plug-In",
+    transmissao: "Automática",
+    matricula: "42-ZR-10",
+    cor: "Azul Lava",
+    lugares: 5,
+    autonomia: 800, // Total
+    categoria: "Standard / Comfort",
+    precoSemana: 215,
+    caucao: 300,
+    estado: "Disponível",
+    imagem: "https://images.unsplash.com/photo-1605559424843-9e4c228bf1c2?auto=format&fit=crop&q=80&w=600",
+    destaque: false
+  },
+  {
+    id: "v-peugeot-5008-13",
+    marca: "Peugeot",
+    modelo: "5008 BlueHDi S&S",
+    ano: 2021,
+    combustivel: "Diesel",
+    transmissao: "Automática",
+    matricula: "11-YV-99",
+    cor: "Preto Perla Nera",
+    lugares: 7,
+    autonomia: 950,
+    categoria: "Standard / XL",
+    precoSemana: 245,
+    caucao: 400,
+    estado: "Manutenção",
+    imagem: "https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&q=80&w=600",
+    destaque: false
+  },
+  {
+    id: "v-renault-clio-14",
+    marca: "Renault",
+    modelo: "Clio V Sport Tourer LPG",
+    ano: 2021,
+    combustivel: "GPL / Gasolina",
+    transmissao: "Manual",
+    matricula: "88-UT-12",
+    cor: "Cinzento Urban",
+    lugares: 5,
+    autonomia: 900,
+    categoria: "Standard",
+    precoSemana: 175,
+    caucao: 250,
+    estado: "Disponível",
+    imagem: "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&q=80&w=600",
+    destaque: false
+  },
+  {
+    id: "v-mg4-15",
+    marca: "MG",
+    modelo: "4 Electric Luxury",
+    ano: 2023,
+    combustivel: "Elétrico",
+    transmissao: "Automática",
+    matricula: "AA-99-BB",
+    cor: "Laranja Fizzy",
+    lugares: 5,
+    autonomia: 435,
+    categoria: "Green / Standard",
+    precoSemana: 210,
+    caucao: 350,
+    estado: "Disponível",
+    imagem: "https://images.unsplash.com/photo-1542282088-fe8426682b8f?auto=format&fit=crop&q=80&w=600",
+    destaque: false
+  },
+  {
+    id: "v-seat-leon-16",
+    marca: "SEAT",
+    modelo: "Leon Sportstourer e-Hybrid",
+    ano: 2022,
+    combustivel: "Híbrido Plug-In",
+    transmissao: "Automática",
+    matricula: "55-ZX-33",
+    cor: "Branco Nevada",
+    lugares: 5,
+    autonomia: 780,
+    categoria: "Standard / Comfort",
+    precoSemana: 200,
+    caucao: 300,
+    estado: "Disponível",
+    imagem: "https://images.unsplash.com/photo-1511919884226-fd3cad34687c?auto=format&fit=crop&q=80&w=600",
+    destaque: false
+  },
+  {
+    id: "v-volkswagen-id4-17",
+    marca: "Volkswagen",
+    modelo: "ID.4 Pro Performance",
+    ano: 2023,
+    combustivel: "Elétrico",
+    transmissao: "Automática",
+    matricula: "AA-11-HH",
+    cor: "Azul Dusk",
+    lugares: 5,
+    autonomia: 522,
+    categoria: "Green / Comfort",
+    precoSemana: 260,
+    caucao: 450,
+    estado: "Disponível",
+    imagem: "https://images.unsplash.com/photo-1525609004556-c46c7d6cf0a3?auto=format&fit=crop&q=80&w=600",
+    destaque: false
+  },
+  {
+    id: "v-opel-mokka-18",
+    marca: "Opel",
+    modelo: "Mokka-e Ultimate",
+    ano: 2022,
+    combustivel: "Elétrico",
+    transmissao: "Automática",
+    matricula: "AA-22-JJ",
+    cor: "Verde Matcha",
+    lugares: 5,
+    autonomia: 338,
+    categoria: "Green / Standard",
+    precoSemana: 195,
+    caucao: 300,
+    estado: "Alugado",
+    imagem: "https://images.unsplash.com/photo-1605559424843-9e4c228bf1c2?auto=format&fit=crop&q=80&w=600",
+    destaque: false
+  },
+  {
+    id: "v-volvo-xc40-19",
+    marca: "Volvo",
+    modelo: "XC40 Recharge Single Motor",
+    ano: 2023,
+    combustivel: "Elétrico",
+    transmissao: "Automática",
+    matricula: "AA-55-KK",
+    cor: "Azul Fjord",
+    lugares: 5,
+    autonomia: 425,
+    categoria: "Green / Comfort",
+    precoSemana: 270,
+    caucao: 500,
+    estado: "Disponível",
+    imagem: "https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&q=80&w=600",
+    destaque: false
+  },
+  {
+    id: "v-ford-focus-20",
+    marca: "Ford",
+    modelo: "Focus SW EcoBoost Hybrid",
+    ano: 2021,
+    combustivel: "Híbrido (Gasolina)",
+    transmissao: "Manual",
+    matricula: "67-YP-45",
+    cor: "Cinzento Magnetic",
+    lugares: 5,
+    autonomia: 850,
+    categoria: "Standard",
+    precoSemana: 185,
+    caucao: 300,
+    estado: "Disponível",
+    imagem: "https://images.unsplash.com/photo-1549399542-7e3f8b79c341?auto=format&fit=crop&q=80&w=600",
+    destaque: false
+  },
+  {
+    id: "v-bmw-i4-21",
+    marca: "BMW",
+    modelo: "i4 eDrive35 Gran Coupé",
+    ano: 2023,
+    combustivel: "Elétrico",
+    transmissao: "Automática",
+    matricula: "AA-66-LL",
+    cor: "Preto Safira",
+    lugares: 5,
+    autonomia: 483,
+    categoria: "Black",
+    precoSemana: 340,
+    caucao: 600,
+    estado: "Disponível",
+    imagem: "https://images.unsplash.com/photo-1555215695-3004980ad54e?auto=format&fit=crop&q=80&w=600",
+    destaque: true
+  },
+  {
+    id: "v-dacia-log-22",
+    marca: "Dacia",
+    modelo: "Logan Comfort TCe ECO-G",
+    ano: 2022,
+    combustivel: "GPL / Gasolina",
+    transmissao: "Manual",
+    matricula: "10-ZX-89",
+    cor: "Branco Glaciar",
+    lugares: 5,
+    autonomia: 1000,
+    categoria: "Standard",
+    precoSemana: 170,
+    caucao: 250,
+    estado: "Disponível",
+    imagem: "https://images.unsplash.com/photo-1606016159991-dfe4f2746ad5?auto=format&fit=crop&q=80&w=600",
+    destaque: false
+  },
+  {
+    id: "v-mbenz-c220-23",
+    marca: "Mercedes-Benz",
+    modelo: "C 220 d Limousine",
+    ano: 2022,
+    combustivel: "Diesel / Híbrido MHEV",
+    transmissao: "Automática",
+    matricula: "33-ZV-22",
+    cor: "Cinzento Selenite",
+    lugares: 5,
+    autonomia: 1050,
+    categoria: "Comfort / Black",
+    precoSemana: 300,
+    caucao: 500,
+    estado: "Disponível",
+    imagem: "https://images.unsplash.com/photo-1617814076367-b759c7d7e738?auto=format&fit=crop&q=80&w=600",
+    destaque: false
+  },
+  {
+    id: "v-fiat-tipo-24",
+    marca: "Fiat",
+    modelo: "Tipo SW Life MultiJet",
+    ano: 2021,
+    combustivel: "Diesel",
+    transmissao: "Manual",
+    matricula: "91-YA-88",
+    cor: "Azul Venezia",
+    lugares: 5,
+    autonomia: 900,
+    categoria: "Standard",
+    precoSemana: 180,
+    caucao: 300,
+    estado: "Disponível",
+    imagem: "https://images.unsplash.com/photo-1541899481282-d53bffe3c35d?auto=format&fit=crop&q=80&w=600",
+    destaque: false
+  },
+  {
+    id: "v-audi-q4-25",
+    marca: "Audi",
+    modelo: "Q4 e-tron 40",
+    ano: 2023,
+    combustivel: "Elétrico",
+    transmissao: "Automática",
+    matricula: "AA-99-MM",
+    cor: "Cinzento Pebble",
+    lugares: 5,
+    autonomia: 520,
+    categoria: "Green / Comfort",
+    precoSemana: 290,
+    caucao: 500,
+    estado: "Disponível",
+    imagem: "https://images.unsplash.com/photo-1605559424843-9e4c228bf1c2?auto=format&fit=crop&q=80&w=600",
+    destaque: false
+  }
+];
 --------------------------------------------------
 
 
