@@ -1,3 +1,13 @@
+/**
+ * FechoSemanal.jsx
+ * Localização: src/pages/FechoSemanal.jsx
+ *
+ * Processador de fecho financeiro semanal (Uplod de CSVs e Geração de SEPA/PDF).
+ * Atualizado com suporte responsivo:
+ * - Tabela auto-rolável horizontalmente (min-w-750px)
+ * - Bloco de rodapé global empilhável e botões fluidos em mobile
+ */
+
 import React, { useState, useEffect } from 'react';
 import { 
   UploadCloud, FileSpreadsheet, Calculator, 
@@ -69,7 +79,7 @@ export default function FechoSemanal() {
           <Lock size={40} />
         </div>
         <h2 className="text-2xl font-bold text-slate-800">Acesso Restrito</h2>
-        <p className="text-slate-500 max-w-sm mx-auto">
+        <p className="text-slate-500 max-w-sm mx-auto text-sm">
           Apenas o Diretor tem permissão para aceder e processar o fecho financeiro semanal.
         </p>
         <Button variant="secondary" className="mt-6" onClick={() => window.location.href = '/'}>
@@ -202,16 +212,16 @@ export default function FechoSemanal() {
   };
 
   return (
-    <div className="space-y-8 pb-20">
+    <div className="space-y-6 sm:space-y-8 pb-20">
       <header>
-        <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-3">
+        <h1 className="text-xl sm:text-2xl font-bold text-slate-800 flex items-center gap-3">
           <Calculator className="text-tvde-primary" /> Fecho de Semana
         </h1>
-        <p className="text-slate-500 text-sm">Consolidação de rendimentos e conta corrente.</p>
+        <p className="text-slate-500 text-xs sm:text-sm">Consolidação de rendimentos e conta corrente.</p>
       </header>
 
       {step === 1 && (
-        <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4">
+        <div className="space-y-6 sm:space-y-8 animate-in fade-in slide-in-from-bottom-4">
           <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
             <UploadBox title="UBER" icon={UploadCloud} color="blue" onChange={(e) => handleFileChange(e, 'uber')} ready={!!files.uber} />
             <UploadBox title="BOLT" icon={UploadCloud} color="green" onChange={(e) => handleFileChange(e, 'bolt')} ready={!!files.bolt} />
@@ -220,7 +230,7 @@ export default function FechoSemanal() {
             <UploadBox title="MIIO/ZAP" icon={Zap} color="yellow" onChange={(e) => handleFileChange(e, 'eletrico')} ready={!!files.eletrico} />
           </div>
           <div className="flex justify-center">
-            <Button onClick={processarSemana} disabled={loading} className="h-16 px-12 text-lg shadow-2xl">
+            <Button onClick={processarSemana} disabled={loading} className="h-14 sm:h-16 w-full sm:w-auto px-12 text-sm sm:text-lg shadow-2xl justify-center">
               {loading ? <Loader2 className="animate-spin mr-2" /> : 'Processar Fecho Completo'}
             </Button>
           </div>
@@ -229,8 +239,9 @@ export default function FechoSemanal() {
 
       {step === 2 && (
         <div className="space-y-6 animate-in fade-in zoom-in-95">
-          <div className="bg-white rounded-[2.5rem] border border-slate-200 shadow-sm overflow-hidden">
-            <table className="w-full text-left border-collapse">
+          {/* ◄ ALTERADO: Contentor auto-rolável e largura mínima estipulada para a tabela financeira */}
+          <div className="bg-white rounded-[2rem] sm:rounded-[2.5rem] border border-slate-200 shadow-sm overflow-x-auto w-full custom-scrollbar">
+            <table className="w-full text-left border-collapse min-w-[750px]">
               <thead className="bg-slate-50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
                 <tr>
                   <th className="p-5">Motorista</th>
@@ -272,14 +283,16 @@ export default function FechoSemanal() {
               </tbody>
             </table>
           </div>
-          <div className="flex justify-between items-center bg-tvde-dark p-8 rounded-[2.5rem] text-white shadow-2xl">
+
+          {/* ◄ ALTERADO: Rodapé de fecho empilhável em telemóvel e botões 100% fluídos */}
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-tvde-dark p-6 sm:p-8 rounded-[2rem] sm:rounded-[2.5rem] text-white shadow-2xl gap-6">
             <div>
               <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Global a Pagar</p>
-              <p className="text-4xl font-black">{formatCurrency(dadosProcessados.reduce((acc, curr) => acc + curr.saldoFinal, 0))}</p>
+              <p className="text-2xl sm:text-4xl font-black">{formatCurrency(dadosProcessados.reduce((acc, curr) => acc + curr.saldoFinal, 0))}</p>
             </div>
-            <div className="flex gap-4">
-              <Button variant="secondary" onClick={() => setStep(1)}>Recomeçar</Button>
-              <Button onClick={finalizarSemana} disabled={loading} className="bg-tvde-accent h-14 px-8">
+            <div className="flex flex-col sm:flex-row gap-3 w-full sm:w-auto">
+              <Button variant="secondary" onClick={() => setStep(1)} className="w-full sm:w-auto justify-center">Recomeçar</Button>
+              <Button onClick={finalizarSemana} disabled={loading} className="bg-tvde-accent h-14 px-8 w-full sm:w-auto justify-center shrink-0">
                 {loading ? <Loader2 className="animate-spin mr-2" /> : 'Finalizar Semana'}
               </Button>
             </div>
@@ -289,22 +302,22 @@ export default function FechoSemanal() {
 
       {step === 3 && (
         <div className="max-w-3xl mx-auto text-center space-y-10 py-10 animate-in zoom-in-95">
-          <div className="w-24 h-24 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto shadow-inner"><CheckCircle2 size={48} /></div>
-          <h2 className="text-4xl font-black text-slate-800">Semana Fechada!</h2>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <button onClick={downloadSEPA} className="flex items-center justify-between p-8 bg-white border border-slate-200 rounded-[2.5rem] hover:shadow-2xl transition-all group">
-              <div className="flex items-center gap-5">
-                <div className="p-4 rounded-2xl bg-blue-50 text-blue-500"><Banknote size={32} /></div>
-                <div className="text-left"><p className="font-black text-slate-800 text-lg">Ficheiro SEPA</p><p className="text-xs text-slate-400 font-bold uppercase">Bancos Portugal</p></div>
+          <div className="w-20 h-20 sm:w-24 sm:h-24 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto shadow-inner"><CheckCircle2 size={40} /></div>
+          <h2 className="text-3xl sm:text-4xl font-black text-slate-800">Semana Fechada!</h2>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6">
+            <button onClick={downloadSEPA} className="flex items-center justify-between p-6 sm:p-8 bg-white border border-slate-200 rounded-[2rem] sm:rounded-[2.5rem] hover:shadow-2xl transition-all group">
+              <div className="flex items-center gap-4 sm:gap-5">
+                <div className="p-3 sm:p-4 rounded-2xl bg-blue-50 text-blue-500"><Banknote size={28} /></div>
+                <div className="text-left"><p className="font-black text-slate-800 text-base sm:text-lg leading-tight">Ficheiro SEPA</p><p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Bancos Portugal</p></div>
               </div>
-              <Download size={24} className="text-slate-200 group-hover:text-tvde-primary" />
+              <Download size={22} className="text-slate-200 group-hover:text-tvde-primary shrink-0" />
             </button>
-            <button onClick={handleDownloadPDFs} className="flex items-center justify-between p-8 bg-white border border-slate-200 rounded-[2.5rem] hover:shadow-2xl transition-all group">
-              <div className="flex items-center gap-5">
-                <div className="p-4 rounded-2xl bg-red-50 text-red-500"><FileText size={32} /></div>
-                <div className="text-left"><p className="font-black text-slate-800 text-lg">Extratos PDF</p><p className="text-xs text-slate-400 font-bold uppercase">Recibos Motoristas</p></div>
+            <button onClick={handleDownloadPDFs} className="flex items-center justify-between p-6 sm:p-8 bg-white border border-slate-200 rounded-[2rem] sm:rounded-[2.5rem] hover:shadow-2xl transition-all group">
+              <div className="flex items-center gap-4 sm:gap-5">
+                <div className="p-3 sm:p-4 rounded-2xl bg-red-50 text-red-500"><FileText size={28} /></div>
+                <div className="text-left"><p className="font-black text-slate-800 text-base sm:text-lg leading-tight">Extratos PDF</p><p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Recibos Motoristas</p></div>
               </div>
-              <Download size={24} className="text-slate-200 group-hover:text-tvde-primary" />
+              <Download size={22} className="text-slate-200 group-hover:text-tvde-primary shrink-0" />
             </button>
           </div>
           <Button variant="secondary" onClick={() => setStep(1)} className="w-full h-14">Novo Fecho</Button>
@@ -315,9 +328,9 @@ export default function FechoSemanal() {
 }
 
 const UploadBox = ({ title, icon: Icon, color, onChange, ready }) => (
-  <div className={`bg-white p-6 rounded-[2rem] border-2 border-dashed transition-all flex flex-col items-center text-center group ${ready ? 'border-green-500 bg-green-50/30' : 'border-slate-200 hover:border-tvde-primary'}`}>
-    <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-3 ${ready ? 'bg-green-500 text-white' : `bg-${color}-50 text-${color}-500`}`}>
-      {ready ? <CheckCircle2 size={24} /> : <Icon size={24} />}
+  <div className={`bg-white p-5 rounded-[2rem] border-2 border-dashed transition-all flex flex-col items-center text-center group ${ready ? 'border-green-500 bg-green-50/30' : 'border-slate-200 hover:border-tvde-primary'}`}>
+    <div className={`w-11 h-11 rounded-xl flex items-center justify-center mb-3 ${ready ? 'bg-green-500 text-white' : `bg-${color}-50 text-${color}-500`}`}>
+      {ready ? <CheckCircle2 size={20} /> : <Icon size={20} />}
     </div>
     <h3 className="font-bold text-slate-800 text-xs">{title}</h3>
     <input type="file" className="hidden" id={title} onChange={onChange} />

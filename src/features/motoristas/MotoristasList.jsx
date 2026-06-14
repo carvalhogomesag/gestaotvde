@@ -1,3 +1,11 @@
+/**
+ * MotoristasList.jsx
+ * Localização: src/features/motoristas/MotoristasList.jsx
+ *
+ * Lista de motoristas em formato de tabela.
+ * Atualizado com suporte responsivo autocapsulado (Horizontal Scroll-Safe)
+ */
+
 import React from 'react';
 import { 
   Edit, Trash2, User, FileText, CreditCard, 
@@ -26,7 +34,7 @@ export default function MotoristasList({ motoristas, onEdit, onDelete }) {
   const isProfileIncomplete = (m) => {
     const camposObrigatorios = [
       'email', 'telemovel', 'nif', 'iban', 'numID', 'numTVDE',
-      'docIDFront', 'docCartaFront', 'docCertificadoTVDE', 'docRegistoCriminal'
+      'docIDFront', 'docIDBack', 'docCartaFront', 'docCartaBack', 'docCertificadoTVDE', 'docRegistoCriminal'
     ];
     return camposObrigatorios.some(campo => !m[campo] || m[campo] === '');
   };
@@ -39,8 +47,10 @@ export default function MotoristasList({ motoristas, onEdit, onDelete }) {
   };
 
   return (
-    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
-      <table className="w-full text-left border-collapse">
+    // ◄ ALTERADO: Contentor agora é auto-rolável mantendo os cantos arredondados do cartão
+    <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-x-auto w-full custom-scrollbar">
+      {/* ◄ ALTERADO: min-w-[750px] adicionado para proteger colunas em telemóveis */}
+      <table className="w-full text-left border-collapse min-w-[750px]">
         <thead>
           <tr className="bg-slate-50 border-b border-slate-100">
             <th className="p-4 font-semibold text-slate-600 text-sm">Motorista</th>
@@ -149,9 +159,9 @@ export default function MotoristasList({ motoristas, onEdit, onDelete }) {
 
                 <td className="p-4 text-right">
                   <div className="flex justify-end gap-2">
-                    <button onClick={() => onEdit(m, true)} className="p-2 text-slate-400 hover:text-indigo-600 transition-colors bg-slate-50 rounded-lg hover:bg-indigo-50" title="Visualizar"><Eye size={18} /></button>
-                    <button onClick={() => onEdit(m, false)} className="p-2 text-slate-400 hover:text-tvde-primary transition-colors bg-slate-50 rounded-lg hover:bg-blue-50" title="Editar"><Edit size={18} /></button>
-                    <button onClick={() => onDelete(m.id)} className="p-2 text-slate-400 hover:text-tvde-danger transition-colors bg-slate-50 rounded-lg hover:bg-red-50" title="Eliminar"><Trash2 size={18} /></button>
+                    <button onClick={() => onEdit(m, true)} className="p-2 text-slate-400 hover:text-indigo-600 transition-colors bg-slate-50 rounded-lg hover:bg-indigo-50 cursor-pointer" title="Visualizar"><Eye size={18} /></button>
+                    <button onClick={() => onEdit(m, false)} className="p-2 text-slate-400 hover:text-tvde-primary transition-colors bg-slate-50 rounded-lg hover:bg-blue-50 cursor-pointer" title="Editar"><Edit size={18} /></button>
+                    <button onClick={() => onDelete(m.id)} className="p-2 text-slate-400 hover:text-tvde-danger transition-colors bg-slate-50 rounded-lg hover:bg-red-50 cursor-pointer" title="Eliminar"><Trash2 size={18} /></button>
                   </div>
                 </td>
               </tr>

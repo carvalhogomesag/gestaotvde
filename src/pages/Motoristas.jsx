@@ -32,11 +32,10 @@ export default function Motoristas() {
   const [tempDados, setTempDados] = useState(null);
   const [lastSavedItem, setLastSavedItem] = useState(null);
   
-  // ESTADO DA PESQUISA (Adicionado para ativar a barra de busca)
+  // ESTADO DA PESQUISA
   const [searchTerm, setSearchTerm] = useState('');
 
-  // CORREÇÃO 1: useCallback para evitar que handleEditClick seja recriada
-  // em cada render, causando loop infinito no useEffect do onSnapshot
+  // useCallback para evitar que handleEditClick seja recriada
   const handleEditClick = useCallback((motorista, viewOnly = false) => {
     setEditingId(motorista.id);
     setIsViewOnly(viewOnly);
@@ -54,8 +53,6 @@ export default function Motoristas() {
     return novoObj;
   };
 
-  // CORREÇÃO 2: handleEditClick agora está estável via useCallback,
-  // por isso pode entrar nas dependências sem causar loop
   useEffect(() => {
     const qM = query(collection(db, "motoristas"));
     const unsubscribe = onSnapshot(qM, (snapshot) => {
@@ -79,10 +76,10 @@ export default function Motoristas() {
     return () => unsubscribe();
   }, [location.search, editingId, handleEditClick]);
 
-  // CHAVE DO PIPELINE: recalcula reativamente a cada update do onSnapshot
+  // Recalcula reativamente a cada update do onSnapshot
   const motoristaEmEdicao = motoristas.find(m => m.id === editingId) || null;
 
-  // LÓGICA DE FILTRAGEM (Filtra a lista em tempo real com base no input do utilizador)
+  // LÓGICA DE FILTRAGEM
   const motoristasFiltrados = motoristas.filter(m => {
     const campoBusca = searchTerm.toLowerCase();
     return (
@@ -170,8 +167,6 @@ export default function Motoristas() {
 
       await logAcaoGlobal(userData?.nome, "Edição", "Motoristas", dadosLimpos.nome, editingId);
 
-      // CORREÇÃO 3: lastSavedItem atualizado antes de fechar para o TicketModal
-      // ter os dados corretos (estava em falta na versão anterior)
       setLastSavedItem({ 
         id: editingId, 
         nome: dadosLimpos.nome, 
@@ -231,17 +226,22 @@ export default function Motoristas() {
 
   return (
     <div className="space-y-6">
-      <header className="flex justify-between items-center">
+      {/* ◄ ALTERADO: Header empilhável responsivo e botão expandido em mobile */}
+      <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-800">Motoristas</h1>
-          <p className="text-slate-500 text-sm">Gestão de condutores e fluxo de trabalho.</p>
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-800">Motoristas</h1>
+          <p className="text-slate-500 text-xs sm:text-sm">Gestão de condutores e fluxo de trabalho.</p>
         </div>
-        <Button onClick={() => { setEditingId(null); setIsModalOpen(true); }}>
-          <Plus size={20} /> Novo Motorista
+        <Button 
+          onClick={() => { setEditingId(null); setIsModalOpen(true); }}
+          className="w-full sm:w-auto justify-center text-xs sm:text-sm"
+        >
+          <Plus size={18} /> Novo Motorista
         </Button>
       </header>
 
-      <div className="flex gap-4 bg-white p-4 rounded-xl shadow-sm border border-slate-100">
+      {/* ◄ ALTERADO: Padding otimizado para mobile */}
+      <div className="flex gap-4 bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-slate-100">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
           <input
@@ -249,7 +249,7 @@ export default function Motoristas() {
             placeholder="Procurar motorista..."
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-tvde-primary/20"
+            className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-tvde-primary/20 text-xs sm:text-sm"
           />
         </div>
       </div>
@@ -257,14 +257,17 @@ export default function Motoristas() {
       {loading && motoristas.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-slate-400">
           <Loader2 className="animate-spin mb-2" size={40} />
-          <p>A carregar motoristas...</p>
+          <p className="text-xs sm:text-sm font-semibold">A carregar motoristas...</p>
         </div>
       ) : (
-        <MotoristasList 
-          motoristas={motoristasFiltrados} 
-          onEdit={handleEditClick} 
-          onDelete={handleDelete} 
-        />
+        /* ◄ ALTERADO: Contentor de segurança de scroll lateral adicionado ao redor da tabela */
+        <div className="w-full overflow-x-auto rounded-2xl border border-slate-100 shadow-sm bg-white">
+          <MotoristasList 
+            motoristas={motoristasFiltrados} 
+            onEdit={handleEditClick} 
+            onDelete={handleDelete} 
+          />
+        </div>
       )}
 
       <Modal

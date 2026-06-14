@@ -161,7 +161,7 @@ export default function LandingPage() {
 
       setFeedbackCarro(res);
       if (res.sucesso) {
-        setLeadCarro({ nome: '', email: '', telemovel: '', regiao: 'Lisboa', mensagem: '' });
+        setLeadCarro({ nome: '', email: '', telemovel: '', regiao: 'Lisboa', text: '' });
       }
     } catch (err) {
       console.error(err);
@@ -186,8 +186,8 @@ export default function LandingPage() {
       <header className="relative py-12 md:py-24 px-4 sm:px-6 bg-slate-950 text-white overflow-hidden">
         <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
           
-          {/* LADO ESQUERDO: Carrossel de Texto Rotativo (Sem card, raw text) */}
-          <div className="lg:col-span-7 space-y-6 text-left min-h-[360px] flex flex-col justify-between">
+          {/* LADO ESQUERDO: Carrossel de Texto Rotativo (Sem card, raw text) com Altura Mínima Responsiva [CORRIGIDO] */}
+          <div className="lg:col-span-7 space-y-6 text-left min-h-[440px] sm:min-h-[380px] lg:min-h-[360px] flex flex-col justify-between">
             
             <div className="space-y-5 flex-1 flex flex-col justify-center">
               
@@ -305,7 +305,7 @@ export default function LandingPage() {
               <button 
                 type="button"
                 onClick={handleProximoSlide}
-                className="p-1 rounded-lg hover:bg-slate-900 text-slate-500 hover:text-white transition-colors cursor-pointer"
+                className="p-1 rounded-lg hover:bg-slate-950 text-slate-500 hover:text-white transition-colors cursor-pointer"
               >
                 <ChevronRight size={16} />
               </button>
@@ -805,4 +805,4 @@ export default function LandingPage() {
 
     </div>
   );
-} 
+}

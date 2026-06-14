@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react'; // ◄ Alterado: useState incluído para controlo responsivo
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Sidebar from './components/layout/Sidebar';
@@ -22,7 +22,7 @@ import GeradorDistico from './pages/GeradorDistico';
 import ReactGA from 'react-ga4';
 import CentroComando from './pages/CentroComando';
 import OnboardingMotorista from './pages/OnboardingMotorista';
-import MigracaoFirestore from './pages/MigracaoFirestore'; // ◄ Importado temporariamente para manutenção
+import MigracaoFirestore from './pages/MigracaoFirestore';
 
 const GA_MEASUREMENT_ID = import.meta.env.VITE_GA_MEASUREMENT_ID;
 if (GA_MEASUREMENT_ID) {
@@ -46,10 +46,15 @@ function AppContent() {
   const { user } = useAuth();
   const location = useLocation();
 
+  // ◄ ADICIONADO: Controlo de estado para gaveta de navegação mobile
+  const [sidebarAberta, setSidebarAberta] = useState(false);
+
   useEffect(() => {
     if (GA_MEASUREMENT_ID) {
       ReactGA.send({ hitType: "pageview", page: location.pathname });
     }
+    // Fecha o menu lateral automaticamente ao navegar entre páginas no telemóvel
+    setSidebarAberta(false);
   }, [location]);
 
   const isPublicPath = 
@@ -57,20 +62,29 @@ function AppContent() {
     location.pathname === '/login' || 
     location.pathname === '/guia-onboarding' ||
     location.pathname === '/gerador-distico' ||
-    location.pathname === '/migracao' || // ◄ Adicionado para limpar layout na página de migração
+    location.pathname === '/migracao' || 
     location.pathname.startsWith('/blog') ||
     location.pathname.startsWith('/onboarding');
 
   const mostrarLayoutERP = user && !isPublicPath;
 
   return (
-    <div className="flex min-h-screen bg-tvde-bg">
-      {mostrarLayoutERP && <Sidebar />}
+    <div className="flex min-h-screen bg-tvde-bg overflow-x-hidden">
+      {/* ◄ ALTERADO: Sidebar recebe os controlos de visualização mobile */}
+      {mostrarLayoutERP && (
+        <Sidebar aberta={sidebarAberta} setAberta={setSidebarAberta} />
+      )}
       
-      <div className={`flex-1 flex flex-col ${mostrarLayoutERP ? 'ml-64' : ''}`}>
-        {mostrarLayoutERP && <Header />}
+      {/* ◄ ALTERADO: ml-64 passa a lg:ml-64 (afasta apenas no computador) */}
+      <div className={`flex-1 flex flex-col min-w-0 ${mostrarLayoutERP ? 'lg:ml-64 ml-0' : ''}`}>
         
-        <main className={mostrarLayoutERP ? "p-8 pt-4" : ""}>
+        {/* ◄ ALTERADO: Header recebe o gatilho para abrir a Sidebar no telemóvel */}
+        {mostrarLayoutERP && (
+          <Header setSidebarAberta={setSidebarAberta} />
+        )}
+        
+        {/* ◄ ALTERADO: Padding fluido (p-4 no telemóvel, p-8 no computador) */}
+        <main className={mostrarLayoutERP ? "p-4 sm:p-8 pt-4" : ""}>
           <Routes>
             {/* ROTAS PÚBLICAS */}
             <Route path="/" element={<LandingPage />} />

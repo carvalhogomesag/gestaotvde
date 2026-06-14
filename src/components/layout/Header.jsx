@@ -1,12 +1,22 @@
+/**
+ * Header.jsx
+ * Localização: src/components/layout/Header.jsx
+ *
+ * Cabeçalho administrativo do ERP.
+ * Atualizado com:
+ * - Botão de menu hambúrguer para mobile (lg:hidden)
+ * - Paddings fluidos e adaptabilidade a ecrãs reduzidos
+ */
+
 import React, { useState, useEffect, useRef } from 'react';
 import GlobalSearch from './GlobalSearch';
-import { Bell, User, Clock, ArrowRight, Inbox, AlertCircle } from 'lucide-react';
+import { Bell, User, Clock, ArrowRight, Inbox, AlertCircle, Menu } from 'lucide-react'; // ◄ Importado ícone Menu
 import { useAuth } from '../../context/AuthContext';
 import { db } from '../../firebase';
 import { collection, query, where, onSnapshot, orderBy, limit } from 'firebase/firestore';
 import { useNavigate } from 'react-router-dom';
 
-export default function Header() {
+export default function Header({ setSidebarAberta }) { // ◄ Recebe a prop de controlo responsivo
   const { userData, user } = useAuth();
   const navigate = useNavigate();
   const [notifications, setNotifications] = useState([]);
@@ -80,18 +90,31 @@ export default function Header() {
     };
     document.addEventListener('mousedown', handleClickOutside);
     
-    // CORREÇÃO: Método removeEventListener restaurado para o padrão JavaScript
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
   return (
-    <header className="h-20 flex items-center justify-between px-8 bg-tvde-bg/80 backdrop-blur-md sticky top-0 z-30">
-      <GlobalSearch />
+    // ◄ ALTERADO: Padding fluido (px-4 no telemóvel, px-8 no computador)
+    <header className="h-20 flex items-center justify-between px-4 sm:px-8 bg-tvde-bg/80 backdrop-blur-md sticky top-0 z-30">
       
-      <div className="flex items-center gap-4">
+      {/* ◄ ALTERADO: Contentor flexível para agrupar o botão hambúrguer mobile e a barra de pesquisa */}
+      <div className="flex items-center gap-3 flex-1 min-w-0 mr-4">
+        {/* Botão Hambúrguer — Visível apenas em ecrãs Mobile/Tablet */}
+        <button
+          type="button"
+          onClick={() => setSidebarAberta(true)}
+          className="lg:hidden p-2 text-slate-500 hover:text-tvde-primary hover:bg-white rounded-xl transition-all cursor-pointer shrink-0"
+          aria-label="Abrir menu lateral"
+        >
+          <Menu size={20} />
+        </button>
         
-        {/* 🌟 SLOT DA SALA DE COMANDO IA 
-            Fica posicionado exatamente entre a barra de pesquisa geral e o sino de notificações */}
+        <GlobalSearch />
+      </div>
+      
+      <div className="flex items-center gap-4 shrink-0">
+        
+        {/* SLOT DA SALA DE COMANDO IA */}
         <div id="navbar-slot-ia" className="flex items-center mr-2"></div>
 
         {/* CENTRO DE NOTIFICAÇÕES */}
