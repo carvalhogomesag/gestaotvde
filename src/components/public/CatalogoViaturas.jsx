@@ -5,7 +5,7 @@
  * Catálogo interativo de viaturas com:
  * - Filtros rápidos por categoria (Standard, Green, Comfort, XL, Black)
  * - Carrossel de rolagem suave (Smooth Scroll) controlado por Refs
- * - Exibição total da frota: anúncios ativos/disponíveis e anúncios pausados/indisponíveis
+ * - Suporte a badges múltiplos de categorias e etiqueta de foto ilustrativa
  */
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -37,8 +37,6 @@ export default function CatalogoViaturas() {
       try {
         setLoading(true);
         const dados = await obterViaturasParaCatalogo(db);
-        
-        // Exibimos sempre todos os carros da base de dados, sem filtrar por anúncio ativo
         setTodasViaturas(dados);
       } catch (err) {
         console.error("[CatalogoViaturas] Erro ao ligar ao Firestore:", err);
@@ -147,7 +145,6 @@ export default function CatalogoViaturas() {
             >
               {viaturasFiltradas.length > 0 ? (
                 viaturasFiltradas.map((viatura) => {
-                  // Determina se a viatura está verdadeiramente disponível para ser alugada
                   const isDisponivel = viatura.anuncioAtivo && viatura.estado === 'Disponível';
 
                   return (
@@ -171,13 +168,15 @@ export default function CatalogoViaturas() {
                           </div>
                         )}
                         
-                        <div className="absolute top-3 left-3 flex flex-wrap gap-1.5">
-                          <span className="text-[10px] font-black tracking-wider uppercase bg-slate-900/80 backdrop-blur-md text-white px-2.5 py-1 rounded-lg">
-                            {viatura.categoria.split(' / ')[0]}
-                          </span>
+                        {/* ◄ ALTERADO: Suporte a Badges Múltiplos por Viatura */}
+                        <div className="absolute top-3 left-3 flex flex-wrap gap-1">
+                          {viatura.categoria.split(' / ').map((cat, idx) => (
+                            <span key={idx} className="text-[9px] font-black tracking-wider uppercase bg-slate-900/80 backdrop-blur-md text-white px-2.5 py-1 rounded-lg">
+                              {cat}
+                            </span>
+                          ))}
                         </div>
 
-                        {/* Distintivo de Disponibilidade Automático */}
                         <div className="absolute top-3 right-3">
                           <span className={`text-[10px] font-bold px-2.5 py-1 rounded-lg shadow-sm ${
                             isDisponivel
@@ -186,6 +185,11 @@ export default function CatalogoViaturas() {
                           }`}>
                             {isDisponivel ? 'Disponível' : 'Indisponível'}
                           </span>
+                        </div>
+
+                        {/* ◄ ADICIONADO: Legenda "Foto ilustrativa" no canto inferior direito */}
+                        <div className="absolute bottom-2 right-2 text-[8px] font-bold text-white/80 bg-slate-950/40 backdrop-blur-xs px-1.5 py-0.5 rounded select-none pointer-events-none uppercase tracking-wider">
+                          * Foto ilustrativa
                         </div>
                       </div>
 
