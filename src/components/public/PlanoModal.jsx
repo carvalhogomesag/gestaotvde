@@ -2,14 +2,15 @@
  * PlanoModal.jsx
  * Localização: src/components/public/PlanoModal.jsx
  *
- * Gaveta/Modal de checkout de assessoria TVDE para captação de leads.
+ * Gaveta/Modal de checkout de assessoria TVDE adaptado para suportar carrinhos de compras.
  */
 
 import React, { useState, useEffect } from 'react';
 import { X, ArrowRight, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { registarLeadPública } from '../../services/leadService';
+import { formatCurrency } from '../../utils/formatters';
 
-export default function PlanoModal({ isOpen, onClose, plano }) {
+export default function PlanoModal({ isOpen, onClose, plano, dadosCarrinho }) {
   const [leadPlano, setLeadPlano] = useState({ 
     nome: '', 
     email: '', 
@@ -22,15 +23,20 @@ export default function PlanoModal({ isOpen, onClose, plano }) {
   // Preenche a mensagem padrão dinamicamente sempre que o plano selecionado muda ou o modal abre
   useEffect(() => {
     if (isOpen && plano) {
+      // Caso seja um pacote construído de forma personalizada pelo carrinho
+      const msgInicial = dadosCarrinho?.mensagemSuporte
+        ? `Solicito orçamento e validação para o meu pacote personalizado. ${dadosCarrinho.mensagemSuporte}`
+        : `Gostaria de obter informações detalhadas para aderir ao vosso ${plano}.`;
+
       setLeadPlano({
         nome: '',
         email: '',
         telemovel: '',
-        mensagem: `Gostaria de obter informações detalhadas para aderir ao vosso ${plano}.`
+        mensagem: msgInicial
       });
       setFeedbackPlano(null);
     }
-  }, [isOpen, plano]);
+  }, [isOpen, plano, dadosCarrinho]);
 
   const handleSubmeterLeadPlano = async (e) => {
     e.preventDefault();
@@ -42,20 +48,22 @@ export default function PlanoModal({ isOpen, onClose, plano }) {
         nome: leadPlano.nome,
         email: leadPlano.email,
         telemovel: leadPlano.telemovel,
-        origem: 'servicos_assessoria', // Origem para o CRM de Assessoria
-        mensagemAdicional: `Interesse no plano: ${plano}. Mensagem: ${leadPlano.mensagem}`
+        origem: 'servicos_assessoria', // Filtro automático para CRM de Assessoria
+        mensagemAdicional: leadPlano.mensagem,
+        itensSelecionados: dadosCarrinho?.itensSelecionados || [], // Passagem do carrinho de IDs
+        precoTotal: dadosCarrinho?.precoTotal || null              // Preço total para processamento futuro Stripe
       });
 
       setFeedbackPlano(res);
       if (res.sucesso) {
         setLeadPlano({ nome: '', email: '', telemovel: '', mensagem: '' });
-        // Fecha o modal suavemente após 2.2 segundos para exibir a mensagem de sucesso
+        // Fecha o modal suavemente após 2.2 segundos para dar tempo ao feedback de sucesso
         setTimeout(() => {
           onClose();
         }, 2200);
       }
     } catch (err) {
-      console.error(err);
+      console.error('[PlanoModal] Erro ao submeter lead de assessoria:', err);
       setFeedbackPlano({ sucesso: false, msg: "Erro técnico de rede. Tente de novo." });
     } finally {
       setLoadingPlano(false);
@@ -84,10 +92,15 @@ export default function PlanoModal({ isOpen, onClose, plano }) {
         {/* Cabeçalho */}
         <div className="space-y-2 mb-6">
           <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 bg-blue-50 px-3 py-1.5 rounded-full">
-            Reservar Assessoria
+            {dadosCarrinho?.itensSelecionados ? 'Checkout Carrinho' : 'Reservar Assessoria'}
           </span>
-          <h3 className="text-xl font-black text-slate-950 pt-2 leading-tight">
-            {plano}
+          <h3 className="text-xl font-black text-slate-950 pt-2 leading-tight flex items-center justify-between gap-2">
+            <span>{plano}</span>
+            {dadosCarrinho?.precoTotal > 0 && (
+              <span className="text-lg font-black text-indigo-600 shrink-0 bg-indigo-50 px-2.5 py-1 rounded-xl">
+                {formatCurrency(dadosCarrinho.precoTotal)}
+              </span>
+            )}
           </h3>
           <p className="text-xs text-slate-500 leading-relaxed">
             Preencha os seus dados de contacto abaixo para validarmos o seu processo documental e darmos início à sua preparação TVDE.

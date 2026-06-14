@@ -4,6 +4,8 @@
  *
  * Funções Firestore para a gestão de clientes em Assessoria (Assessorados)
  * e tabela de serviços e planos de assessoria.
+ * 
+ * Atualizado para suportar pacotes compostos por serviços avulsos (relações por ID).
  */
 
 import { 
@@ -14,13 +16,77 @@ import { logAcaoGlobal } from '../utils/logger';
 import { generateNextCode } from '../utils/idGenerator';
 
 // Lista de Planos e Serviços Padrão para Auto-inicialização (Seed)
+// Os Pacotes (tipo: 'pacote') agora descrevem explicitamente quais os Serviços Avulsos (tipo: 'avulso') que contêm.
 const PLANOS_PADRAO = [
-  { id: 'p-essencial', nome: 'Plano Essencial', tipo: 'pacote', preco: 49.00, descricao: 'Apoio documental na escolha de escolas TVDE, exames médicos e psicotécnicos.' },
-  { id: 'p-avancado', nome: 'Plano Avançado', tipo: 'pacote', preco: 149.00, descricao: 'Organização estruturada do dossiê de candidatura e submissão eletrónica no IMT.' },
-  { id: 'p-premium', nome: 'Plano Premium (Chave na Mão)', tipo: 'pacote', preco: 249.00, descricao: 'Acompanhamento total de ponta a ponta: IMT, ativação de contas e curso de apps.' },
-  { id: 's-criminal', nome: 'Agendamento de Registo Criminal', tipo: 'avulso', preco: 15.00, descricao: 'Obtenção e triagem do registo criminal focado em TVDE.' },
-  { id: 's-psico', nome: 'Agendamento de Psicotécnicos', tipo: 'avulso', preco: 35.00, descricao: 'Marcação rápida de exames psicotécnicos de Grupo 2 em clínicas parceiras.' },
-  { id: 's-contas', nome: 'Criação & Ativação de Contas', tipo: 'avulso', preco: 30.00, descricao: 'Criação e validação do perfil do motorista na Uber e Bolt.' }
+  // 1. Serviços Avulsos (Unidades Base de Trabalho)
+  { 
+    id: 's-formacao', 
+    nome: 'Apoio Burocrático na Etapa de Formação', 
+    tipo: 'avulso', 
+    preco: 25.00, 
+    descricao: 'Orientação documental e encaminhamento para escolas TVDE certificadas.' 
+  },
+  { 
+    id: 's-psico', 
+    nome: 'Agendamento de Psicotécnicos', 
+    tipo: 'avulso', 
+    preco: 35.00, 
+    descricao: 'Marcação rápida de exames psicotécnicos de Grupo 2 em clínicas parceiras.' 
+  },
+  { 
+    id: 's-criminal', 
+    nome: 'Agendamento de Registo Criminal', 
+    tipo: 'avulso', 
+    preco: 15.00, 
+    descricao: 'Obtenção e triagem do registo criminal focado em TVDE.' 
+  },
+  { 
+    id: 's-imt', 
+    nome: 'Submissão de Candidatura no IMT', 
+    tipo: 'avulso', 
+    preco: 119.00, 
+    descricao: 'Organização de dossiê documental e submissão eletrónica do certificado no IMT.' 
+  },
+  { 
+    id: 's-contas', 
+    nome: 'Criação & Ativação de Contas', 
+    tipo: 'avulso', 
+    preco: 30.00, 
+    descricao: 'Criação e validação do perfil do motorista na Uber e Bolt.' 
+  },
+  { 
+    id: 's-aplicacoes', 
+    nome: 'Instrução Prática de Operação', 
+    tipo: 'avulso', 
+    preco: 25.00, 
+    descricao: 'Instrução sobre o funcionamento das aplicações (aceitar viagens, tarifas, mapas térmicos).' 
+  },
+
+  // 2. Pacotes Dinâmicos (Conjuntos de Serviços Avulsos)
+  { 
+    id: 'p-essencial', 
+    nome: 'Plano Essencial', 
+    tipo: 'pacote', 
+    preco: 49.00, 
+    descricao: 'Apoio documental na escolha de escolas TVDE, exames médicos e psicotécnicos.',
+    itens: ['s-formacao', 's-psico', 's-aplicacoes'] // IDs dos serviços individuais incluídos
+  },
+  { 
+    id: 'p-avancado', 
+    nome: 'Plano Avançado', 
+    tipo: 'pacote', 
+    preco: 149.00, 
+    descricao: 'Organização estruturada do dossiê de candidatura e submissão eletrónica no IMT.',
+    itens: ['s-imt', 's-psico', 's-criminal']
+  },
+  { 
+    id: 'p-premium', 
+    nome: 'Plano Premium (Chave na Mão)', 
+    tipo: 'pacote', 
+    preco: 249.00, 
+    descricao: 'Acompanhamento total de ponta a ponta: IMT, ativação de contas e curso de apps.',
+    itens: ['s-formacao', 's-psico', 's-criminal', 's-imt', 's-contas', 's-aplicacoes']
+  }
 ];
 
 /**
@@ -34,7 +100,7 @@ export const inicializarPlanosAssessoriaPadrao = async (db) => {
     const snap = await getDocs(colRef);
     
     if (snap.empty) {
-      console.log('[assessoriaService] Coleção de serviços vazia. A inicializar planos padrão...');
+      console.log('[assessoriaService] Coleção de serviços vazia. A inicializar planos padrão estruturados...');
       for (const plano of PLANOS_PADRAO) {
         await setDoc(doc(db, 'servicos_assessoria', plano.id), {
           ...plano,
@@ -171,4 +237,4 @@ export const atualizarAssessorado = async (db, id, dadosNovos, alteradoPor, moti
     console.error('[assessoriaService] Erro ao atualizar assessorado:', error);
     throw error;
   }
-};  
+};

@@ -3,6 +3,7 @@
  * Localização: src/services/leadService.js
  *
  * Serviço Firestore para gestão e captação de leads públicas do website.
+ * Atualizado para suportar a seleção de múltiplos serviços (carrinho de compras).
  */
 
 import { db } from '../firebase'; 
@@ -20,7 +21,7 @@ export const validarTelemovelPT = (numero) => {
   if (!numero) return false;
   // Limpa espaços, traços e parêntesis para uma validação limpa
   const limpo = numero.replace(/[\s\-()]/g, '');
-  // Atualizado: Qualquer número iniciado por 9 (móvel) ou 2 (fixo) com 9 dígitos no total
+  // Qualquer número iniciado por 9 (móvel) ou 2 (fixo) com 9 dígitos no total
   const regexPT = /^(?:\+351|00351)?([29]\d{8})$/;
   return regexPT.test(limpo);
 };
@@ -39,13 +40,16 @@ export const validarEmail = (email) => {
 
 /**
  * Regista uma nova lead captada no formulário público para o Firestore.
+ * Suporta agora carrinhos de compras compostos por múltiplos serviços.
  * 
  * @param {Object} dados
  *   @param {string} dados.nome              - Nome do candidato
  *   @param {string} dados.email             - Endereço de correio eletrónico (opcional para eguia_onboarding)
  *   @param {string} dados.telemovel         - Telemóvel de contacto (formato PT)
- *   @param {string} dados.origem            - "eguia_onboarding" | "procura_viatura" | "assessoria_completa"
+ *   @param {string} dados.origem            - "eguia_onboarding" | "procura_viatura" | "servicos_assessoria"
  *   @param {string} dados.mensagemAdicional - Mensagem adicional ou observações do utilizador
+ *   @param {Array}  dados.itensSelecionados - IDs de serviços selecionados no carrinho (opcional)
+ *   @param {number} dados.precoTotal        - Preço total acumulado do carrinho (opcional, Stripe-ready)
  * @returns {Promise<{ sucesso: boolean, id: string|null, msg: string }>}
  */
 export const registarLeadPública = async (dados) => {
@@ -55,6 +59,10 @@ export const registarLeadPública = async (dados) => {
     const telemovel = dados.telemovel?.replace(/[\s\-()]/g, '') || '';
     const origem = dados.origem || 'eguia_onboarding';
     const mensagemAdicional = dados.mensagemAdicional?.trim() || '';
+    
+    // Processamento de itens do carrinho de compras dinâmico
+    const itensSelecionados = Array.isArray(dados.itensSelecionados) ? dados.itensSelecionados : [];
+    const precoTotal = typeof dados.precoTotal === 'number' ? dados.precoTotal : null;
 
     // 1. Validação do preenchimento do Nome
     if (!nome) {
@@ -85,7 +93,9 @@ export const registarLeadPública = async (dados) => {
       telemovel,
       origem,
       mensagemAdicional,
-      estado: 'novo', // Estado inicial da lead para controlo de gestão de funil no CRM
+      itensSelecionados,    // Registo de múltiplos IDs do carrinho de compras
+      precoTotal,           // Registo do preço final calculado para futura integração Stripe
+      estado: 'novo',       // Estado inicial da lead para controlo de gestão de funil no CRM
       gestorAtribuidoId: '', // Vazio inicialmente
       criadoEm: new Date().toISOString()
     };

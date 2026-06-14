@@ -29,10 +29,14 @@ export default function LandingPage() {
   // Controlo de abertura do modal de planos e seleção do respetivo pacote
   const [isPlanoModalOpen, setIsPlanoModalOpen] = useState(false);
   const [planoSelecionado, setPlanoSelecionado] = useState('');
+  
+  // Armazena as informações dinâmicas do carrinho de compras (itens e valor total)
+  const [dadosCarrinho, setDadosCarrinho] = useState(null);
 
   // Ativação do Modal de Assessoria com preenchimento de plano e envio de analítica para o GA4
-  const handleEscolherPlano = (planoNome) => {
+  const handleEscolherPlano = (planoNome, cartData = null) => {
     setPlanoSelecionado(planoNome);
+    setDadosCarrinho(cartData);
     setIsPlanoModalOpen(true);
 
     // Envia evento dinâmico de clique para sabermos quais os pacotes com mais cliques
@@ -41,6 +45,11 @@ export default function LandingPage() {
       action: 'Click_Plano_Assessoria',
       label: planoNome
     });
+  };
+
+  const handleCloseModal = () => {
+    setIsPlanoModalOpen(false);
+    setDadosCarrinho(null); // Limpa os dados de checkout ao fechar
   };
 
   return (
@@ -79,8 +88,9 @@ export default function LandingPage() {
       {/* 11. Modal/Gaveta Lateral de Reservas e Assessoria */}
       <PlanoModal 
         isOpen={isPlanoModalOpen} 
-        onClose={() => setIsPlanoModalOpen(false)} 
+        onClose={handleCloseModal} 
         plano={planoSelecionado} 
+        dadosCarrinho={dadosCarrinho}
       />
 
     </div>
