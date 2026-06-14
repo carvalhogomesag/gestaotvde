@@ -14,7 +14,7 @@ import {
   Shield, Check, ArrowRight, Loader2, BookOpen, 
   Car, HelpCircle, FileText, Smartphone, Mail, User,
   CheckCircle2, ChevronDown, ChevronUp, AlertCircle, Sparkles, Clock,
-  ChevronRight, ChevronLeft, Printer, LayoutGrid, X // ◄ Importado o ícone X para fechar o modal
+  ChevronRight, ChevronLeft, Printer, LayoutGrid, X 
 } from 'lucide-react';
 import ReactGA from 'react-ga4';
 import { registarLeadPública } from '../services/leadService';
@@ -47,7 +47,7 @@ export default function LandingPage() {
   const [loadingCarro, setLoadingCarro] = useState(false);
   const [feedbackCarro, setFeedbackCarro] = useState(null);
 
-  // ◄ ADICIONADO: Estados para o novo CRM de Assessoria Dedicado (Modal de Planos) [LandingPage.jsx]
+  // Estados para o novo CRM de Assessoria Dedicado (Modal de Planos)
   const [isPlanoModalOpen, setIsPlanoModalOpen] = useState(false);
   const [planoSelecionado, setPlanoSelecionado] = useState('');
   const [leadPlano, setLeadPlano] = useState({ nome: '', email: '', telemovel: '', mensagem: '' });
@@ -68,7 +68,7 @@ export default function LandingPage() {
   const handleProximoSlide = () => setSlideAtivo((prev) => (prev + 1) % totalSlides);
   const handleSlideAnterior = () => setSlideAtivo((prev) => (prev - 1 + totalSlides) % totalSlides);
 
-  // ◄ ALTERADO: Ativação do Modal de Assessoria com preenchimento de plano e GA4
+  // Ativação do Modal de Assessoria com preenchimento de plano e GA4
   const handleEscolherPlano = (planoNome) => {
     setPlanoSelecionado(planoNome);
     setLeadPlano({
@@ -171,7 +171,7 @@ export default function LandingPage() {
     }
   };
 
-  // ◄ ADICIONADO: Submissão do novo formulário de lead para Assessoria de Serviços
+  // Submissão do novo formulário de lead para Assessoria de Serviços
   const handleSubmeterLeadPlano = async (e) => {
     e.preventDefault();
     setLoadingPlano(true);
@@ -182,7 +182,7 @@ export default function LandingPage() {
         nome: leadPlano.nome,
         email: leadPlano.email,
         telemovel: leadPlano.telemovel,
-        origem: 'servicos_assessoria', // ◄ Origem específica para CRM de Assessoria
+        origem: 'servicos_assessoria', // Origem específica para CRM de Assessoria
         mensagemAdicional: `Interesse no plano: ${planoSelecionado}. Mensagem: ${leadPlano.mensagem}`
       });
 
@@ -544,10 +544,8 @@ export default function LandingPage() {
             </div>
             <div className="text-left relative mt-auto pt-4 border-t border-slate-50">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Investimento único</p>
-              {/* Desfocado removido em prol da interação direta real */}
               <p className="text-2xl font-black text-slate-900">{formatCurrency(49.00)}</p>
               
-              {/* ◄ ALTERADO: Botão interativo que abre o Check-out de Assessoria dedicado */}
               <button
                 type="button"
                 onClick={() => handleEscolherPlano('Plano Essencial (Apoio Documental)')}
@@ -579,7 +577,6 @@ export default function LandingPage() {
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Investimento único</p>
               <p className="text-2xl font-black text-blue-600">{formatCurrency(149.00)}</p>
 
-              {/* ◄ ALTERADO: Botão interativo que abre o Check-out de Assessoria dedicado */}
               <button
                 type="button"
                 onClick={() => handleEscolherPlano('Plano Avançado (Organização IMT)')}
@@ -608,7 +605,6 @@ export default function LandingPage() {
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Investimento único</p>
               <p className="text-2xl font-black text-slate-900">{formatCurrency(249.00)}</p>
 
-              {/* ◄ ALTERADO: Botão interativo que abre o Check-out de Assessoria dedicado */}
               <button
                 type="button"
                 onClick={() => handleEscolherPlano('Plano Premium (Ativação & Instrução)')}
@@ -887,7 +883,7 @@ export default function LandingPage() {
       <PublicChatWidget />
 
 
-      {/* ◄ 🟢 NOVO: GAVETA/MODAL DE CHECK-OUT DE ASSESSORIA TVDE (CRM DE SERVIÇOS SEPARADO) */}
+      {/* ◄ 🟢 GAVETA/MODAL DE CHECK-OUT DE ASSESSORIA TVDE (CRM DE SERVIÇOS SEPARADO) */}
       {isPlanoModalOpen && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-950/80 backdrop-blur-xs animate-fade-in">
           {/* Backdrop Clicável */}
@@ -976,7 +972,7 @@ export default function LandingPage() {
                 ) : (
                   <ArrowRight size={14} />
                 )}
-                Confirmar Reserva de Assessoria
+                Enviar
               </button>
             </form>
 
