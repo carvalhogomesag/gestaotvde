@@ -368,7 +368,7 @@ export default {
 
 ### ARQUIVO: src\App.jsx ###
 --------------------------------------------------
-import { useEffect, useState } from 'react'; // ◄ Alterado: useState incluído para controlo responsivo
+import { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Sidebar from './components/layout/Sidebar';
@@ -394,6 +394,10 @@ import CentroComando from './pages/CentroComando';
 import OnboardingMotorista from './pages/OnboardingMotorista';
 import MigracaoFirestore from './pages/MigracaoFirestore';
 
+// ◄ ADICIONADO: Importação das novas páginas de Assessoria de Clientes [App.jsx]
+import Assessorados from './pages/Assessorados';
+import ServicosConfig from './pages/ServicosConfig';
+
 const GA_MEASUREMENT_ID = import.meta.env.VITE_GA_MEASUREMENT_ID;
 if (GA_MEASUREMENT_ID) {
   ReactGA.initialize(GA_MEASUREMENT_ID);
@@ -416,7 +420,7 @@ function AppContent() {
   const { user } = useAuth();
   const location = useLocation();
 
-  // ◄ ADICIONADO: Controlo de estado para gaveta de navegação mobile
+  // Controlo de estado para gaveta de navegação mobile
   const [sidebarAberta, setSidebarAberta] = useState(false);
 
   useEffect(() => {
@@ -440,20 +444,20 @@ function AppContent() {
 
   return (
     <div className="flex min-h-screen bg-tvde-bg overflow-x-hidden">
-      {/* ◄ ALTERADO: Sidebar recebe os controlos de visualização mobile */}
+      {/* Sidebar recebe os controlos de visualização mobile */}
       {mostrarLayoutERP && (
         <Sidebar aberta={sidebarAberta} setAberta={setSidebarAberta} />
       )}
       
-      {/* ◄ ALTERADO: ml-64 passa a lg:ml-64 (afasta apenas no computador) */}
+      {/* ml-64 passa a lg:ml-64 (afasta apenas no computador) */}
       <div className={`flex-1 flex flex-col min-w-0 ${mostrarLayoutERP ? 'lg:ml-64 ml-0' : ''}`}>
         
-        {/* ◄ ALTERADO: Header recebe o gatilho para abrir a Sidebar no telemóvel */}
+        {/* Header recebe o gatilho para abrir a Sidebar no telemóvel */}
         {mostrarLayoutERP && (
           <Header setSidebarAberta={setSidebarAberta} />
         )}
         
-        {/* ◄ ALTERADO: Padding fluido (p-4 no telemóvel, p-8 no computador) */}
+        {/* Padding fluido (p-4 no telemóvel, p-8 no computador) */}
         <main className={mostrarLayoutERP ? "p-4 sm:p-8 pt-4" : ""}>
           <Routes>
             {/* ROTAS PÚBLICAS */}
@@ -472,6 +476,10 @@ function AppContent() {
             <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
             <Route path="/motoristas" element={<PrivateRoute><Motoristas /></PrivateRoute>} />
             <Route path="/leads" element={<PrivateRoute><GestaoLeads /></PrivateRoute>} />
+            
+            {/* ◄ ADICIONADO: Nova Rota de Gestão de Clientes em Assessoria */}
+            <Route path="/assessorados" element={<PrivateRoute><Assessorados /></PrivateRoute>} />
+            
             <Route path="/veiculos" element={<PrivateRoute><Veiculos /></PrivateRoute>} />
             <Route path="/proprietarios" element={<PrivateRoute><Proprietarios /></PrivateRoute>} />
             <Route path="/tarefas" element={<PrivateRoute><MinhasTarefas /></PrivateRoute>} />
@@ -483,6 +491,10 @@ function AppContent() {
             <Route path="/centro-comando" element={<AdminRoute><CentroComando /></AdminRoute>} />
             <Route path="/fecho-semanal" element={<AdminRoute><FechoSemanal /></AdminRoute>} />
             <Route path="/utilizadores" element={<AdminRoute><GestaoUtilizadores /></AdminRoute>} />
+            
+            {/* ◄ ADICIONADO: Nova Rota de Configuração de Planos (Exclusivo Diretor) */}
+            <Route path="/config/servicos" element={<AdminRoute><ServicosConfig /></AdminRoute>} />
+            
             <Route path="/logs" element={<AdminRoute><LogsSistema /></AdminRoute>} />
 
             <Route path="*" element={<Navigate to={user ? "/dashboard" : "/"} />} />
@@ -870,9 +882,7 @@ export default function Header({ setSidebarAberta }) { // ◄ Recebe a prop de c
  * Localização: src/components/layout/Sidebar.jsx
  *
  * Menu lateral administrativo.
- * Atualizado com responsividade fluida:
- * - Gaveta deslizável no mobile com backdrop semi-transparente
- * - Barra lateral rígida de tamanho standard no desktop
+ * Atualizado com responsividade fluida e rotas do novo fluxo de Assessoria de Clientes.
  */
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -881,7 +891,8 @@ import {
   LayoutDashboard, Car, UserCheck, Users, 
   Settings, LogOut, CreditCard, ChevronDown, ChevronUp,
   Fuel, Zap, ClipboardList, Inbox, ShieldAlert, Users2,
-  Sparkles, UserPlus, X // ◄ Importado ícone X de fechar para mobile
+  Sparkles, UserPlus, X,
+  BookOpen, Sliders // ◄ Importados ícones para Assessoria e Configuração de Planos
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -913,7 +924,7 @@ const SubMenuItem = ({ icon: Icon, label, to, active }) => (
   </Link>
 );
 
-export default function Sidebar({ aberta, setAberta }) { // ◄ Recebe as props para controlo responsivo
+export default function Sidebar({ aberta, setAberta }) {
   const location = useLocation();
   const navigate = useNavigate();
   const { userData, logout } = useAuth();
@@ -973,7 +984,7 @@ export default function Sidebar({ aberta, setAberta }) { // ◄ Recebe as props 
 
   return (
     <>
-      {/* ◄ ADICIONADO: Backdrop de escurecimento de fundo (Apenas Mobile quando o menu está aberto) */}
+      {/* Backdrop de escurecimento de fundo (Apenas Mobile quando o menu está aberto) */}
       {aberta && (
         <div 
           className="fixed inset-0 z-30 bg-slate-950/60 backdrop-blur-xs lg:hidden"
@@ -981,7 +992,7 @@ export default function Sidebar({ aberta, setAberta }) { // ◄ Recebe as props 
         />
       )}
 
-      {/* ◄ ALTERADO: Classes CSS dinâmicas para ocultação e deslizamento responsivo */}
+      {/* Classes CSS dinâmicas para ocultação e deslizamento responsivo */}
       <aside 
         className={`w-64 h-screen bg-tvde-dark text-white p-3 flex flex-col fixed left-0 top-0 z-40 shadow-2xl transition-transform duration-300 ease-in-out ${
           aberta ? 'translate-x-0' : '-translate-x-full'
@@ -996,7 +1007,7 @@ export default function Sidebar({ aberta, setAberta }) { // ◄ Recebe as props 
             <p className="text-[9px] text-slate-500 uppercase tracking-widest font-semibold italic">Operador Portugal</p>
           </div>
 
-          {/* ◄ ADICIONADO: Botão para fechar o menu (Visível apenas em Mobile) */}
+          {/* Botão para fechar o menu (Visível apenas em Mobile) */}
           <button
             type="button"
             onClick={() => setAberta(false)}
@@ -1032,6 +1043,14 @@ export default function Sidebar({ aberta, setAberta }) { // ◄ Recebe as props 
             label="Gestão de Leads" 
             to="/leads" 
             active={location.pathname === '/leads'} 
+          />
+
+          {/* ◄ ADICIONADO: Canalização operacional de Clientes em Assessoria */}
+          <MenuItem 
+            icon={BookOpen} 
+            label="Clientes Assessoria" 
+            to="/assessorados" 
+            active={location.pathname === '/assessorados'} 
           />
 
           {/* Grupo Administração */}
@@ -1106,7 +1125,16 @@ export default function Sidebar({ aberta, setAberta }) { // ◄ Recebe as props 
                 label="Gestão de Equipa" 
                 to="/utilizadores" 
                 active={location.pathname === '/utilizadores'} 
-                />
+              />
+
+              {/* ◄ ADICIONADO: Configuração dos Planos/Serviços de Assessoria (Apenas Diretor) */}
+              <MenuItem 
+                icon={Sliders} 
+                label="Planos de Assessoria" 
+                to="/config/servicos" 
+                active={location.pathname === '/config/servicos'} 
+              />
+
               <MenuItem 
                 icon={ShieldAlert} 
                 label="Auditoria Global" 
@@ -1879,6 +1907,466 @@ export function AuthProvider({ children }) {
 }
 
 export const useAuth = () => useContext(AuthContext);
+--------------------------------------------------
+
+
+### ARQUIVO: src\features\assessorados\AssessoradoForm.jsx ###
+--------------------------------------------------
+/**
+ * AssessoradoForm.jsx
+ * Localização: src/features/assessorados/AssessoradoForm.jsx
+ *
+ * Formulário para criação, edição e consulta detalhada de Clientes em Assessoria.
+ * Totalmente responsivo com suporte a checklists táteis divididas por etapas burocráticas.
+ */
+
+import React, { useState } from 'react';
+import { 
+  User, Phone, Mail, BookOpen, Layers, CheckCircle2, 
+  ChevronDown, ChevronUp, History, ClipboardCheck, DollarSign
+} from 'lucide-react';
+import Button from '../../components/ui/Button';
+
+/**
+ * Componente Auxiliar: Secção Colapsável Compacta
+ */
+const CollapsibleSection = ({ title, icon: Icon, iconColor, defaultOpen = false, children }) => {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+  return (
+    <div className="border-b border-slate-100/50 last:border-0">
+      <button 
+        type="button" 
+        onClick={() => setIsOpen(!isOpen)} 
+        className="w-full flex items-center justify-between group cursor-pointer hover:bg-slate-50 rounded-lg px-2 -mx-2 transition-all py-2"
+      >
+        <h4 className={`text-[11px] font-black uppercase tracking-wider flex items-center gap-2 ${iconColor}`}>
+          <Icon size={14} /> {title}
+        </h4>
+        <div className="text-slate-300 group-hover:text-slate-500 transition-colors">
+          {isOpen ? <ChevronDown size={16} /> : <ChevronUp size={16} />}
+        </div>
+      </button>
+      <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isOpen ? 'max-h-[2000px] opacity-100 mt-2 mb-4' : 'max-h-0 opacity-0'}`}>
+        {children}
+      </div>
+    </div>
+  );
+};
+
+export default function AssessoradoForm({ 
+  onSubmit, onCancel, initialData = {}, planos = [], isReadOnly = false 
+}) {
+  const [formData, setFormData] = useState({
+    nome: initialData.nome || '',
+    telemovel: initialData.telemovel || '',
+    email: initialData.email || '',
+    nif: initialData.nif || '',
+    iban: initialData.iban || '',
+    cidade: initialData.cidade || 'Lisboa',
+    planoId: initialData.planoId || '',
+    planoNome: initialData.planoNome || '',
+    precoCobrado: initialData.precoCobrado || '',
+    etapaAdicional: initialData.etapaAdicional || 'Inscrição',
+    status: initialData.status || 'Ativo',
+    
+    // Checkbox de progresso (Checklist TVDE)
+    chkRegistoCriminal: initialData.chkRegistoCriminal || false,
+    chkPsicotecnico: initialData.chkPsicotecnico || false,
+    chkExameMedico: initialData.chkExameMedico || false,
+    chkEscolaInscrito: initialData.chkEscolaInscrito || false,
+    chkCursoConcluido: initialData.chkCursoConcluido || false,
+    chkTaxasPagas: initialData.chkTaxasPagas || false,
+    chkPedidoSubmetido: initialData.chkPedidoSubmetido || false,
+    chkCertificadoEmitido: initialData.chkCertificadoEmitido || false,
+    chkContaUber: initialData.chkContaUber || false,
+    chkContaBolt: initialData.chkContaBolt || false,
+  });
+
+  const inputClass = `w-full p-2.5 border border-slate-200 rounded-xl outline-none transition-all text-xs sm:text-sm ${
+    isReadOnly 
+      ? 'bg-slate-50/50 border-transparent font-semibold text-slate-700' 
+      : 'bg-white focus:ring-2 focus:ring-tvde-primary/20 hover:border-slate-300'
+  }`;
+
+  // Sincroniza o preenchimento automático do preço e do nome do plano ao selecionar
+  const handlePlanoChange = (e) => {
+    const selectedId = e.target.value;
+    const planoObj = planos.find(p => p.id === selectedId);
+    if (planoObj) {
+      setFormData(prev => ({
+        ...prev,
+        planoId: selectedId,
+        planoNome: planoObj.nome,
+        precoCobrado: Number(planoObj.preco || 0)
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        planoId: '',
+        planoNome: 'Personalizado',
+        precoCobrado: ''
+      }));
+    }
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onSubmit(formData);
+  };
+
+  /**
+   * Componente Interno Responsivo para cada Caixa de Checklist Táctil
+   */
+  const CheckboxItem = ({ label, field }) => (
+    <label className={`flex items-start gap-3 p-3 rounded-xl border transition-all cursor-pointer select-none ${
+      formData[field] 
+        ? 'bg-emerald-50/50 border-emerald-200' 
+        : 'bg-slate-50/50 border-slate-200/80 hover:border-slate-300'
+    } ${isReadOnly ? 'pointer-events-none' : ''}`}>
+      <input
+        type="checkbox"
+        disabled={isReadOnly}
+        checked={formData[field]}
+        onChange={(e) => setFormData({ ...formData, [field]: e.target.checked })}
+        className="mt-0.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 w-4 h-4 shrink-0"
+      />
+      <span className="text-xs font-bold text-slate-700 leading-tight">{label}</span>
+    </label>
+  );
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4 max-h-[75vh] overflow-y-auto pr-2 custom-scrollbar text-left">
+      
+      {/* 1. Identificação do Cliente */}
+      <div className="bg-slate-50 p-4 sm:p-5 rounded-[2rem] border border-slate-100/50 space-y-4">
+        <h4 className="text-[11px] font-black text-tvde-primary uppercase tracking-wider flex items-center gap-2 mb-2">
+          <User size={14} /> Dados do Cliente
+        </h4>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+          <div className="col-span-1 md:col-span-2">
+            <label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Nome Completo *</label>
+            <input required readOnly={isReadOnly} className={inputClass} value={formData.nome} onChange={(e) => setFormData({...formData, nome: e.target.value})} />
+          </div>
+          <div>
+            <label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Telemóvel *</label>
+            <input required type="tel" readOnly={isReadOnly} className={inputClass} value={formData.telemovel} onChange={(e) => setFormData({...formData, telemovel: e.target.value})} />
+          </div>
+          <div>
+            <label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Email</label>
+            <input type="email" readOnly={isReadOnly} className={inputClass} value={formData.email} onChange={(e) => setFormData({...formData, email: e.target.value})} />
+          </div>
+          <div>
+            <label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">NIF</label>
+            <input readOnly={isReadOnly} className={`${inputClass} font-mono`} value={formData.nif} onChange={(e) => setFormData({...formData, nif: e.target.value})} />
+          </div>
+          <div>
+            <label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">IBAN</label>
+            <input readOnly={isReadOnly} className={`${inputClass} font-mono`} value={formData.iban} onChange={(e) => setFormData({...formData, iban: e.target.value})} />
+          </div>
+        </div>
+      </div>
+
+      {/* 2. Seleção de Plano & Finanças */}
+      <CollapsibleSection title="Plano & Negócio" icon={BookOpen} iconColor="text-tvde-primary" defaultOpen={true}>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-3.5">
+          <div>
+            <label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Plano Pretendido</label>
+            <select 
+              disabled={isReadOnly} 
+              className={inputClass} 
+              value={formData.planoId} 
+              onChange={handlePlanoChange}
+            >
+              <option value="">Selecione um plano...</option>
+              {planos.map(p => <option key={p.id} value={p.id}>{p.nome} ({p.preco}€)</option>)}
+              <option value="avulso">Serviço Avulso / Personalizado</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Valor Cobrado (€)</label>
+            <div className="relative">
+              <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+              <input 
+                type="number" 
+                readOnly={isReadOnly} 
+                className={`${inputClass} pl-6`} 
+                value={formData.precoCobrado} 
+                onChange={(e) => setFormData({...formData, precoCobrado: e.target.value})} 
+              />
+            </div>
+          </div>
+          <div>
+            <label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Região da Licença</label>
+            <select 
+              disabled={isReadOnly} 
+              className={inputClass} 
+              value={formData.cidade} 
+              onChange={(e) => setFormData({...formData, cidade: e.target.value})}
+            >
+              <option value="Lisboa">Grande Lisboa</option>
+              <option value="Porto">Grande Porto</option>
+              <option value="Braga">Minho / Braga</option>
+              <option value="Algarve">Algarve</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Etapa de Assessoria</label>
+            <select 
+              disabled={isReadOnly} 
+              className={inputClass} 
+              value={formData.etapaAdicional} 
+              onChange={(e) => setFormData({...formData, etapaAdicional: e.target.value})}
+            >
+              <option value="Inscrição">🔵 1. Inscrição & Clínicas</option>
+              <option value="Formação">🟡 2. Curso Formação TVDE</option>
+              <option value="IMT">🟣 3. Pedido / Validação IMT</option>
+              <option value="Contas">🔵 4. Ativação de Aplicações</option>
+              <option value="Vinculado">🟢 5. Concluído & Vinculado</option>
+            </select>
+          </div>
+          <div>
+            <label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Status Geral</label>
+            <select 
+              disabled={isReadOnly} 
+              className={inputClass} 
+              value={formData.status} 
+              onChange={(e) => setFormData({...formData, status: e.target.value})}
+            >
+              <option value="Ativo">Ativo / Em curso</option>
+              <option value="Concluído">Concluído</option>
+              <option value="Cancelado">Cancelado</option>
+            </select>
+          </div>
+        </div>
+      </CollapsibleSection>
+
+      {/* 3. Checklists de Progresso (Regulatório Português) */}
+      <CollapsibleSection title="Checklist de Progresso (Etapas TVDE)" icon={ClipboardCheck} iconColor="text-tvde-primary" defaultOpen={false}>
+        <div className="space-y-4 pt-1">
+          
+          {/* Grupo 1: Etapa de Inscrição e Clínicas */}
+          <div>
+            <p className="text-[10px] font-black text-blue-500 uppercase tracking-widest mb-2">Fase 1: Preparação & Clínicas</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <CheckboxItem label="Registo Criminal TVDE emitido (menos de 30 dias)" field="chkRegistoCriminal" />
+              <CheckboxItem label="Avaliação Psicotécnica Grupo 2 realizada" field="chkPsicotecnico" />
+              <CheckboxItem label="Atestado Médico Grupo 2 obtido" field="chkExameMedico" />
+              <CheckboxItem label="Pré-inscrição em Escola Homologada efectuada" field="chkEscolaInscrito" />
+            </div>
+          </div>
+
+          {/* Grupo 2: Formação e Emissão de Certificado */}
+          <div className="border-t border-slate-100 pt-3">
+            <p className="text-[10px] font-black text-purple-500 uppercase tracking-widest mb-2">Fase 2: Curso & Certificado IMT</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <CheckboxItem label="Curso TVDE 125h Concluído com Sucesso" field="chkCursoConcluido" />
+              <CheckboxItem label="Taxas do IMT (Certificado) Pagas" field="chkTaxasPagas" />
+              <CheckboxItem label="Pedido de Licença Submetido ao IMT" field="chkPedidoSubmetido" />
+              <CheckboxItem label="Certificado TVDE emitido (Código 997 averbado)" field="chkCertificadoEmitido" />
+            </div>
+          </div>
+
+          {/* Grupo 3: Criação de contas e Plataformas */}
+          <div className="border-t border-slate-100 pt-3">
+            <p className="text-[10px] font-black text-indigo-500 uppercase tracking-widest mb-2">Fase 3: Contas & Ativação</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <CheckboxItem label="Conta de Motorista Uber criada e validada" field="chkContaUber" />
+              <CheckboxItem label="Conta de Motorista Bolt criada e validada" field="chkContaBolt" />
+            </div>
+          </div>
+
+        </div>
+      </CollapsibleSection>
+
+      {/* 4. Histórico de Alterações */}
+      {initialData.historico && initialData.historico.length > 0 && (
+        <CollapsibleSection title="Histórico do Processo" icon={History} iconColor="text-slate-400" defaultOpen={false}>
+          <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
+            {[...initialData.historico].reverse().map((log, index) => (
+              <div key={index} className="p-3 bg-slate-50 rounded-xl border border-slate-100 text-[10px]">
+                <div className="flex justify-between font-bold text-slate-700 mb-1">
+                  <span>{log.usuario}</span>
+                  <span className="font-mono text-slate-400">{new Date(log.data).toLocaleDateString('pt-PT')} — {new Date(log.data).toLocaleTimeString('pt-PT')}</span>
+                </div>
+                <p className="text-slate-500 italic">"{log.descricao}"</p>
+              </div>
+            ))}
+          </div>
+        </CollapsibleSection>
+      )}
+
+      {/* Botões do Rodapé */}
+      <div className="flex gap-3 mt-6 sticky bottom-0 bg-white pt-4 border-t border-slate-100">
+        <Button variant="secondary" className="flex-1 h-10 text-xs" onClick={onCancel}>
+          {isReadOnly ? 'Fechar Ficha' : 'Cancelar'}
+        </Button>
+        {!isReadOnly && (
+          <Button type="submit" className="flex-1 h-10 text-xs shadow-md">
+            {initialData.id ? 'Gravar Alterações' : 'Iniciar Assessoria'}
+          </Button>
+        )}
+      </div>
+
+    </form>
+  );
+}
+--------------------------------------------------
+
+
+### ARQUIVO: src\features\assessorados\AssessoradosList.jsx ###
+--------------------------------------------------
+/**
+ * AssessoradosList.jsx
+ * Localização: src/features/assessorados/AssessoradosList.jsx
+ *
+ * Tabela de listagem de clientes em Assessoria de Apoio Documental TVDE.
+ * Totalmente responsiva com largura mínima de segurança para evitar quebras de layout.
+ */
+
+import React from 'react';
+import { Edit, Eye, User, Phone, BookOpen, Layers, Clock } from 'lucide-react';
+
+export default function AssessoradosList({ assessorados, onEdit }) {
+
+  /**
+   * Retorna os estilos visuais de acordo com a etapa regulatória atual do cliente em Portugal
+   */
+  const obterEtapaBadge = (etapa) => {
+    switch (etapa) {
+      case 'Inscrição':
+        return 'bg-blue-50 text-blue-600 border-blue-200';
+      case 'Formação':
+        return 'bg-amber-50 text-amber-600 border-amber-200';
+      case 'IMT':
+        return 'bg-purple-50 text-purple-600 border-purple-200';
+      case 'Contas':
+        return 'bg-indigo-50 text-indigo-600 border-indigo-200';
+      case 'Vinculado':
+        return 'bg-emerald-50 text-emerald-600 border-emerald-200 font-black animate-pulse';
+      default:
+        return 'bg-slate-50 text-slate-600 border-slate-200';
+    }
+  };
+
+  /**
+   * Retorna as cores de acordo com o estado geral de assessoria do cliente
+   */
+  const obterStatusColor = (status) => {
+    switch (status) {
+      case 'Ativo':
+        return 'bg-green-100 text-green-700 border-green-200';
+      case 'Concluído':
+        return 'bg-slate-100 text-slate-600 border-slate-200';
+      case 'Cancelado':
+        return 'bg-red-100 text-red-700 border-red-200';
+      default:
+        return 'bg-slate-100 text-slate-600 border-slate-200';
+    }
+  };
+
+  return (
+    // Largura mínima de segurança de 800px para garantir alinhamento limpo no mobile
+    <table className="w-full text-left border-collapse min-w-[800px]">
+      <thead>
+        <tr className="bg-slate-50 border-b border-slate-100">
+          <th className="p-4 font-semibold text-slate-600 text-sm">Cliente</th>
+          <th className="p-4 font-semibold text-slate-600 text-sm">Contacto / NIF</th>
+          <th className="p-4 font-semibold text-slate-600 text-sm">Plano Contratado</th>
+          <th className="p-4 font-semibold text-slate-600 text-sm text-center">Etapa Atual</th>
+          <th className="p-4 font-semibold text-slate-600 text-sm text-center">Estado</th>
+          <th className="p-4 font-semibold text-slate-600 text-sm text-right">Ações</th>
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-slate-50">
+        {assessorados.map((a) => (
+          <tr key={a.id} className="hover:bg-slate-50/50 transition-colors text-slate-700">
+            
+            {/* Nome e Código */}
+            <td className="p-4">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-blue-50 text-tvde-primary rounded-xl flex items-center justify-center border border-blue-100 shrink-0">
+                  <User size={18} />
+                </div>
+                <div>
+                  <div className="flex items-center gap-2 mb-0.5">
+                    <span className="bg-slate-800 text-white text-[10px] font-black px-1.5 py-0.5 rounded shadow-sm tracking-wider font-mono shrink-0">
+                      {a.codigoInterno || 'ASS-XXXX'}
+                    </span>
+                    <p className="font-bold text-slate-800">{a.nome}</p>
+                  </div>
+                  <p className="text-[10px] text-slate-400 font-mono uppercase tracking-tighter">ID: {a.id.substring(0, 8)}...</p>
+                </div>
+              </div>
+            </td>
+
+            {/* Telemóvel e NIF */}
+            <td className="p-4 text-xs sm:text-sm font-semibold">
+              <p className="flex items-center gap-1.5 text-slate-700">
+                <Phone size={13} className="text-slate-400 shrink-0" />
+                {a.telemovel || '---'}
+              </p>
+              <p className="text-[10px] text-slate-400 mt-1">NIF: {a.nif || '---'}</p>
+            </td>
+
+            {/* Plano Contratado */}
+            <td className="p-4 text-xs sm:text-sm">
+              <div className="flex items-center gap-2">
+                <BookOpen size={14} className="text-slate-400 shrink-0" />
+                <div>
+                  <p className="font-bold text-slate-800 leading-tight">
+                    {a.planoNome || 'Plano Personalizado'}
+                  </p>
+                  <p className="text-[9px] text-slate-400 font-medium uppercase mt-0.5 tracking-wider">
+                    {a.cidade || 'Lisboa'}
+                  </p>
+                </div>
+              </div>
+            </td>
+
+            {/* Etapa Atual do Processo TVDE */}
+            <td className="p-4 text-center">
+              <span className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-[10px] font-black uppercase tracking-wider border ${obterEtapaBadge(a.etapaAdicional)}`}>
+                <Layers size={10} />
+                {a.etapaAdicional || 'Inscrição'}
+              </span>
+            </td>
+
+            {/* Estado Geral */}
+            <td className="p-4 text-center">
+              <span className={`inline-flex px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-widest border ${obterStatusColor(a.status)}`}>
+                {a.status || 'Ativo'}
+              </span>
+            </td>
+
+            {/* Ações */}
+            <td className="p-4 text-right">
+              <div className="flex justify-end gap-2">
+                <button 
+                  type="button"
+                  onClick={() => onEdit(a, true)} 
+                  className="p-2 text-slate-400 hover:text-indigo-600 bg-slate-50 hover:bg-indigo-50 rounded-lg transition-colors cursor-pointer" 
+                  title="Visualizar Ficha"
+                >
+                  <Eye size={18} />
+                </button>
+                <button 
+                  type="button"
+                  onClick={() => onEdit(a, false)} 
+                  className="p-2 text-slate-400 hover:text-tvde-primary bg-slate-50 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer" 
+                  title="Editar Processo"
+                >
+                  <Edit size={18} />
+                </button>
+              </div>
+            </td>
+
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
 --------------------------------------------------
 
 
@@ -6233,6 +6721,184 @@ createRoot(document.getElementById('root')).render(
 --------------------------------------------------
 
 
+### ARQUIVO: src\pages\Assessorados.jsx ###
+--------------------------------------------------
+/**
+ * Assessorados.jsx
+ * Localização: src/pages/Assessorados.jsx
+ *
+ * Página de controlo do ERP para gestão de clientes em assessoria TVDE.
+ * Totalmente responsiva com suporte a listagem horizontal rolável, modal do formulário
+ * e sistema de auditoria transacional nativo.
+ */
+
+import React, { useState, useEffect } from 'react';
+import { Plus, Search, Loader2, BookOpen } from 'lucide-react';
+import Button from '../components/ui/Button';
+import Modal from '../components/ui/Modal';
+import AssessoradosList from '../features/assessorados/AssessoradosList';
+import AssessoradoForm from '../features/assessorados/AssessoradoForm';
+import { db } from '../firebase';
+import { useAuth } from '../context/AuthContext';
+import { 
+  obterAssessorados, 
+  obterPlanosAssessoria, 
+  criarAssessorado, 
+  atualizarAssessorado 
+} from '../services/assessoriaService';
+
+export default function Assessorados() {
+  const { userData } = useAuth();
+  const [assessorados, setAssessorados] = useState([]);
+  const [planos, setPlanos] = useState([]);
+  const [loading, setLoading] = useState(true);
+  
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [isViewOnly, setIsViewOnly] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+
+  // Carrega os dados agregados da assessoria e serviços
+  const carregarDados = async () => {
+    setLoading(true);
+    try {
+      const [dadosAssessorados, dadosPlanos] = await Promise.all([
+        obterAssessorados(db),
+        obterPlanosAssessoria(db)
+      ]);
+      setAssessorados(dadosAssessorados);
+      setPlanos(dadosPlanos);
+    } catch (error) {
+      console.error('[Assessorados] Erro ao carregar dados:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    carregarDados();
+  }, []);
+
+  // Gravação ou Edição de registos com auditoria integrada
+  const handleSaveAssessorado = async (dados) => {
+    const operador = userData?.nome || 'Sistema';
+    try {
+      setLoading(true);
+      if (editingId) {
+        // Padrão de segurança leve: Solicitação de justificação nativa via prompt
+        const motivo = window.prompt("Indique o motivo desta alteração para os registos de auditoria:");
+        if (motivo === null) {
+          setLoading(false);
+          return; // Cancelou a edição
+        }
+        await atualizarAssessorado(db, editingId, dados, operador, motivo || 'Atualização de dados cadastrais.');
+      } else {
+        await criarAssessorado(db, dados, operador);
+      }
+      fecharModal();
+      await carregarDados();
+    } catch (error) {
+      alert('Erro ao gravar os dados do assessorado.');
+      console.error(error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleEditClick = (assessorado, viewOnly = false) => {
+    setEditingId(assessorado.id);
+    setIsViewOnly(viewOnly);
+    setIsModalOpen(true);
+  };
+
+  const fecharModal = () => {
+    setIsModalOpen(false);
+    setEditingId(null);
+    setIsViewOnly(false);
+  };
+
+  // Filtragem de dados em tempo real (CRM Search)
+  const assessoradosFiltrados = assessorados.filter(a => {
+    const busca = searchTerm.toLowerCase();
+    return (
+      (a.nome || '').toLowerCase().includes(busca) ||
+      (a.codigoInterno || '').toLowerCase().includes(busca) ||
+      (a.telemovel || '').includes(busca) ||
+      (a.nif || '').includes(busca)
+    );
+  });
+
+  const assessoradoEmEdicao = assessorados.find(a => a.id === editingId) || null;
+
+  return (
+    <div className="space-y-6">
+      {/* Header Responsivo (Empilha em mobile) */}
+      <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-800 flex items-center gap-2 leading-tight">
+            <BookOpen className="text-tvde-primary shrink-0" size={24} />
+            Assessoria de Clientes
+          </h1>
+          <p className="text-slate-500 text-xs sm:text-sm">Gestão de novos condutores em processo regulatório.</p>
+        </div>
+        <Button 
+          onClick={() => { setEditingId(null); setIsModalOpen(true); }}
+          className="w-full sm:w-auto justify-center text-xs sm:text-sm h-10"
+        >
+          <Plus size={18} /> Novo Assessorado
+        </Button>
+      </header>
+
+      {/* Barra de Pesquisa */}
+      <div className="flex gap-4 bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-slate-100">
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+          <input
+            type="text"
+            placeholder="Procurar assessorado por nome, código, nif..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-tvde-primary/20 text-xs sm:text-sm"
+          />
+        </div>
+      </div>
+
+      {/* Listagem com barreira de segurança responsiva contra estouros de ecrã */}
+      {loading && assessorados.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+          <Loader2 className="animate-spin mb-2 text-tvde-primary" size={36} />
+          <p className="text-xs sm:text-sm font-semibold">A carregar registos de assessoria...</p>
+        </div>
+      ) : (
+        /* Envoltório responsivo para garantir legibilidade da tabela em mobile */
+        <div className="w-full overflow-x-auto rounded-2xl border border-slate-100 shadow-sm bg-white">
+          <AssessoradosList 
+            assessorados={assessoradosFiltrados}
+            onEdit={handleEditClick}
+          />
+        </div>
+      )}
+
+      {/* Modal responsivo do Formulário (Abre gaveta em mobile e popup central no PC) */}
+      <Modal
+        isOpen={isModalOpen}
+        onClose={fecharModal}
+        title={isViewOnly ? "Ficha do Assessorado" : (editingId ? "Editar Assessorado" : "Novo Registo de Assessoria")}
+      >
+        <AssessoradoForm
+          onSubmit={handleSaveAssessorado}
+          onCancel={fecharModal}
+          initialData={assessoradoEmEdicao || {}}
+          planos={planos}
+          isReadOnly={isViewOnly}
+        />
+      </Modal>
+    </div>
+  );
+}
+--------------------------------------------------
+
+
 ### ARQUIVO: src\pages\Blog.jsx ###
 --------------------------------------------------
 /**
@@ -8915,6 +9581,8 @@ export default function GeradorDistico() {
  * Painel de CRM para gestão em tempo real das leads públicas captadas na Landing Page.
  * Apresenta funil de estados, notas internas, diário de triagem e uma Agenda Diária consolidada,
  * agrupando todas as ações futuras em atraso, para hoje e planeadas de forma a definir prioridades de contacto.
+ * 
+ * Atualizado com suporte nativo e badges dedicados para Leads de Assessoria TVDE.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -9132,7 +9800,7 @@ export default function GestaoLeads() {
     try {
       const novoMotoristaPayload = {
         nome: leadSelecionada.nome,
-        email: leadSelecionada.email || '', // Garante string vazia se não fornecido
+        email: leadSelecionada.email || '', 
         telemovel: leadSelecionada.telemovel,
         nif: '---', 
         iban: '---',
@@ -9191,7 +9859,7 @@ export default function GestaoLeads() {
   return (
     <div className="space-y-6 text-slate-800">
       
-      {/* ─── Cabeçalho do Painel CRM ────────────────────────────────────────── */}
+      {/* Cabeçalho do Painel CRM */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-2xl font-black tracking-tight text-slate-900">Gestão de Leads (CRM)</h2>
@@ -9199,7 +9867,7 @@ export default function GestaoLeads() {
         </div>
       </div>
 
-      {/* ─── Filtros Rápidos de Controlo ────────────────────────────────────── */}
+      {/* Filtros Rápidos de Controlo */}
       <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col md:flex-row gap-4 items-center justify-between shadow-xs text-left">
         <div className="flex flex-wrap gap-3 items-center w-full md:w-auto">
           <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
@@ -9226,6 +9894,8 @@ export default function GestaoLeads() {
             <option value="todos">Todas as Origens</option>
             <option value="eguia_onboarding">📖 eGuia Onboarding</option>
             <option value="procura_viatura">🚗 Procura Viatura (Aluguer)</option>
+            {/* ◄ ADICIONADO: Nova opção de filtro para leads do novo fluxo de Assessoria de Serviços */}
+            <option value="servicos_assessoria">💼 Assessoria TVDE</option>
             <option value="isca_ebook">📖 Download de Guia (Legado)</option>
           </select>
         </div>
@@ -9235,7 +9905,7 @@ export default function GestaoLeads() {
         </div>
       </div>
 
-      {/* ─── Grelha Principal Split-Pane ───────────────────────────────────── */}
+      {/* Grelha Principal Split-Pane */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
         {/* Lado Esquerdo: Lista de Leads / Agenda Diária por Separador */}
@@ -9297,7 +9967,7 @@ export default function GestaoLeads() {
                         selecionada ? 'bg-slate-50/80 border-r-4 border-indigo-600' : ''
                       }`}
                     >
-                      <div className="space-y-1.5 min-w-0">
+                      <div className="space-y-1.5 min-w-0 text-left">
                         <div className="flex items-center gap-2">
                           <h4 className="font-bold text-slate-900 text-sm truncate max-w-[150px] sm:max-w-[200px]">{lead.nome}</h4>
                           <span className="text-[9px] font-bold text-slate-400 whitespace-nowrap">
@@ -9312,15 +9982,23 @@ export default function GestaoLeads() {
                           <p className="text-xs text-slate-400 font-medium italic truncate max-w-[150px] sm:max-w-[250px]">Sem email (Contacto exclusivo)</p>
                         )}
                         
-                        {/* Estilização por origem da lead */}
+                        {/* ◄ ALTERADO: Adicionado suporte com badge personalizado violeta para Leads de Assessoria */}
                         <span className={`inline-block text-[9px] font-bold px-2 py-0.5 rounded-lg border ${
                           lead.origem === 'procura_viatura' 
                             ? 'bg-emerald-50 text-emerald-700 border-emerald-100' 
                             : lead.origem === 'eguia_onboarding'
                               ? 'bg-blue-50 text-blue-700 border-blue-100'
-                              : 'bg-indigo-50 text-indigo-700 border-indigo-100'
+                              : lead.origem === 'servicos_assessoria'
+                                ? 'bg-violet-50 text-violet-700 border-violet-100' // ◄ Badge Violeta para Assessoria
+                                : 'bg-indigo-50 text-indigo-700 border-indigo-100'
                         }`}>
-                          {lead.origem === 'procura_viatura' ? '🚗 Aluguer' : lead.origem === 'eguia_onboarding' ? '📖 eGuia Onboarding' : '📖 Ebook (Legado)'}
+                          {lead.origem === 'procura_viatura' 
+                            ? '🚗 Aluguer' 
+                            : lead.origem === 'eguia_onboarding' 
+                              ? '📖 eGuia Onboarding' 
+                              : lead.origem === 'servicos_assessoria'
+                                ? '💼 Assessoria TVDE' // ◄ Etiqueta oficial corrigida
+                                : '📖 Ebook (Legado)'}
                         </span>
                       </div>
 
@@ -9339,11 +10017,11 @@ export default function GestaoLeads() {
             </div>
           )}
 
-          {/* VISTA B: AGENDA DIÁRIA CONSOLIDADA (AGRUPADA POR DIA E PRIORIDADE) */}
+          {/* VISTA B: AGENDA DIÁRIA CONSOLIDADA */}
           {vistaAtiva === 'agenda' && (
             <div className="space-y-6 max-h-[60vh] overflow-y-auto pr-1">
               
-              {/* 🔴 BLOCO 1: CONTACTOS EM ATRASO (URGENTE) */}
+              {/* BLOCO 1: CONTACTOS EM ATRASO (URGENTE) */}
               <div className="space-y-2 text-left">
                 <h4 className="text-xs font-black text-red-600 flex items-center gap-1.5 px-1 uppercase tracking-wider">
                   <AlertTriangle size={14} className="animate-pulse" /> Contactos em Atraso (Urgente)
@@ -9374,7 +10052,7 @@ export default function GestaoLeads() {
                 )}
               </div>
 
-              {/* 🔵 BLOCO 2: CONTACTOS PARA HOJE (PRIORITÁRIO) */}
+              {/* BLOCO 2: CONTACTOS PARA HOJE (PRIORITÁRIO) */}
               <div className="space-y-2 text-left">
                 <h4 className="text-xs font-black text-blue-600 flex items-center gap-1.5 px-1 uppercase tracking-wider">
                   <Clock size={14} /> Contactos para Hoje (Prioritário)
@@ -9405,7 +10083,7 @@ export default function GestaoLeads() {
                 )}
               </div>
 
-              {/* 📅 BLOCO 3: PRÓXIMOS CONTACTOS AGENDADOS (FUTURO) */}
+              {/* BLOCO 3: PRÓXIMOS CONTACTOS AGENDADOS (FUTURO) */}
               <div className="space-y-2 text-left">
                 <h4 className="text-xs font-black text-slate-400 flex items-center gap-1.5 px-1 uppercase tracking-wider">
                   <CalendarDays size={14} /> Planeamento Futuro
@@ -9448,7 +10126,7 @@ export default function GestaoLeads() {
               
               {/* Header do Perfil da Lead */}
               <div className="flex justify-between items-start border-b border-slate-100 pb-4">
-                <div className="space-y-1 min-w-0">
+                <div className="space-y-1 min-w-0 text-left">
                   <h3 className="font-bold text-slate-900 text-base truncate">{leadSelecionada.nome}</h3>
                   {leadSelecionada.email ? (
                     <p className="text-xs text-slate-500 font-semibold">{leadSelecionada.email}</p>
@@ -9900,7 +10578,7 @@ export default function GestaoUtilizadores() {
  *
  * Página inicial pública consolidada (Ficheiro Único Monolítico).
  * Otimizada com carrossel dinâmico de texto à esquerda, formulário eGuia fixo à direita,
- * catálogo de viaturas, destaques de blog e IA.
+ * catálogo de viaturas, destaques de blog, planos de assessoria interativos com CRM dedicado e IA.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -9910,7 +10588,7 @@ import {
   Shield, Check, ArrowRight, Loader2, BookOpen, 
   Car, HelpCircle, FileText, Smartphone, Mail, User,
   CheckCircle2, ChevronDown, ChevronUp, AlertCircle, Sparkles, Clock,
-  ChevronRight, ChevronLeft, Printer, LayoutGrid 
+  ChevronRight, ChevronLeft, Printer, LayoutGrid, X // ◄ Importado o ícone X para fechar o modal
 } from 'lucide-react';
 import ReactGA from 'react-ga4';
 import { registarLeadPública } from '../services/leadService';
@@ -9943,6 +10621,13 @@ export default function LandingPage() {
   const [loadingCarro, setLoadingCarro] = useState(false);
   const [feedbackCarro, setFeedbackCarro] = useState(null);
 
+  // ◄ ADICIONADO: Estados para o novo CRM de Assessoria Dedicado (Modal de Planos) [LandingPage.jsx]
+  const [isPlanoModalOpen, setIsPlanoModalOpen] = useState(false);
+  const [planoSelecionado, setPlanoSelecionado] = useState('');
+  const [leadPlano, setLeadPlano] = useState({ nome: '', email: '', telemovel: '', mensagem: '' });
+  const [loadingPlano, setLoadingPlano] = useState(false);
+  const [feedbackPlano, setFeedbackPlano] = useState(null);
+
   // Acordeão de FAQs
   const [faqAtiva, setFaqAtiva] = useState(null);
 
@@ -9956,6 +10641,26 @@ export default function LandingPage() {
 
   const handleProximoSlide = () => setSlideAtivo((prev) => (prev + 1) % totalSlides);
   const handleSlideAnterior = () => setSlideAtivo((prev) => (prev - 1 + totalSlides) % totalSlides);
+
+  // ◄ ALTERADO: Ativação do Modal de Assessoria com preenchimento de plano e GA4
+  const handleEscolherPlano = (planoNome) => {
+    setPlanoSelecionado(planoNome);
+    setLeadPlano({
+      nome: '',
+      email: '',
+      telemovel: '',
+      mensagem: `Gostaria de obter informações detalhadas para aderir ao vosso ${planoNome}.`
+    });
+    setFeedbackPlano(null);
+    setIsPlanoModalOpen(true);
+
+    // Envia evento dinâmico de clique para sabermos quais os pacotes com mais cliques
+    ReactGA.event({
+      category: 'Lead Generation',
+      action: 'Click_Plano_Assessoria',
+      label: planoNome
+    });
+  };
 
   // ─── ESCUTADOR DE SELEÇÃO DE VIATURAS DO CATÁLOGO ────────────────────────
   useEffect(() => {
@@ -10040,6 +10745,37 @@ export default function LandingPage() {
     }
   };
 
+  // ◄ ADICIONADO: Submissão do novo formulário de lead para Assessoria de Serviços
+  const handleSubmeterLeadPlano = async (e) => {
+    e.preventDefault();
+    setLoadingPlano(true);
+    setFeedbackPlano(null);
+
+    try {
+      const res = await registarLeadPública({
+        nome: leadPlano.nome,
+        email: leadPlano.email,
+        telemovel: leadPlano.telemovel,
+        origem: 'servicos_assessoria', // ◄ Origem específica para CRM de Assessoria
+        mensagemAdicional: `Interesse no plano: ${planoSelecionado}. Mensagem: ${leadPlano.mensagem}`
+      });
+
+      setFeedbackPlano(res);
+      if (res.sucesso) {
+        setLeadPlano({ nome: '', email: '', telemovel: '', mensagem: '' });
+        // Fecha o modal suavemente após 2 segundos para dar tempo ao feedback de sucesso
+        setTimeout(() => {
+          setIsPlanoModalOpen(false);
+        }, 2200);
+      }
+    } catch (err) {
+      console.error(err);
+      setFeedbackPlano({ sucesso: false, msg: "Erro técnico de rede. Tente de novo." });
+    } finally {
+      setLoadingPlano(false);
+    }
+  };
+
   // Submissão de Procura de Carro (Formulário do Meio)
   const handleSubmeterCarro = async (e) => {
     e.preventDefault();
@@ -10057,7 +10793,7 @@ export default function LandingPage() {
 
       setFeedbackCarro(res);
       if (res.sucesso) {
-        setLeadCarro({ nome: '', email: '', telemovel: '', regiao: 'Lisboa', text: '' });
+        setLeadCarro({ nome: '', email: '', telemovel: '', regiao: 'Lisboa', mensagem: '' });
       }
     } catch (err) {
       console.error(err);
@@ -10082,7 +10818,7 @@ export default function LandingPage() {
       <header className="relative py-12 md:py-24 px-4 sm:px-6 bg-slate-950 text-white overflow-hidden">
         <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
           
-          {/* LADO ESQUERDO: Carrossel de Texto Rotativo (Sem card, raw text) com Altura Mínima Responsiva [CORRIGIDO] */}
+          {/* LADO ESQUERDO: Carrossel de Texto Rotativo (Sem card, raw text) */}
           <div className="lg:col-span-7 space-y-6 text-left min-h-[440px] sm:min-h-[380px] lg:min-h-[360px] flex flex-col justify-between">
             
             <div className="space-y-5 flex-1 flex flex-col justify-center">
@@ -10355,7 +11091,7 @@ export default function LandingPage() {
         )}
       </section>
 
-      {/* ─── 4. SECÇÃO PLANOS DE ASSESSORIA (RESPONSIVA) ────────────────────── */}
+      {/* ─── 4. SECÇÃO PLANOS DE ASSESSORIA (RESPONSIVA) [INTERATIVA] ────────────────────── */}
       <section id="planos" className="py-16 md:py-20 px-4 sm:px-6 max-w-6xl mx-auto space-y-10 md:space-y-12 border-t border-slate-200">
         <div className="text-center space-y-2 max-w-xl mx-auto">
           <h2 className="text-2xl md:text-3xl font-black text-slate-900">Pacotes de Apoio à sua medida</h2>
@@ -10382,8 +11118,17 @@ export default function LandingPage() {
             </div>
             <div className="text-left relative mt-auto pt-4 border-t border-slate-50">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Investimento único</p>
-              <p className="text-2xl font-black text-slate-900 filter blur-[5px] select-none">{formatCurrency(49.00)}</p>
-              <span className="text-[10px] font-bold text-blue-600 block mt-1">Preço disponível em breve</span>
+              {/* Desfocado removido em prol da interação direta real */}
+              <p className="text-2xl font-black text-slate-900">{formatCurrency(49.00)}</p>
+              
+              {/* ◄ ALTERADO: Botão interativo que abre o Check-out de Assessoria dedicado */}
+              <button
+                type="button"
+                onClick={() => handleEscolherPlano('Plano Essencial (Apoio Documental)')}
+                className="w-full mt-3 py-2.5 bg-slate-900 hover:bg-blue-600 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer uppercase tracking-wider"
+              >
+                Tenho Interesse
+              </button>
             </div>
           </div>
 
@@ -10406,8 +11151,16 @@ export default function LandingPage() {
             </div>
             <div className="text-left relative mt-auto pt-4 border-t border-slate-50">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Investimento único</p>
-              <p className="text-2xl font-black text-blue-600 filter blur-[5px] select-none">{formatCurrency(149.00)}</p>
-              <span className="text-[10px] font-bold text-blue-600 block mt-1">Preço disponível em breve</span>
+              <p className="text-2xl font-black text-blue-600">{formatCurrency(149.00)}</p>
+
+              {/* ◄ ALTERADO: Botão interativo que abre o Check-out de Assessoria dedicado */}
+              <button
+                type="button"
+                onClick={() => handleEscolherPlano('Plano Avançado (Organização IMT)')}
+                className="w-full mt-3 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer uppercase tracking-wider"
+              >
+                Tenho Interesse
+              </button>
             </div>
           </div>
 
@@ -10427,8 +11180,16 @@ export default function LandingPage() {
             </div>
             <div className="text-left relative mt-auto pt-4 border-t border-slate-50">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Investimento único</p>
-              <p className="text-2xl font-black text-slate-900 filter blur-[5px] select-none">{formatCurrency(249.00)}</p>
-              <span className="text-[10px] font-bold text-blue-600 block mt-1">Preço disponível em breve</span>
+              <p className="text-2xl font-black text-slate-900">{formatCurrency(249.00)}</p>
+
+              {/* ◄ ALTERADO: Botão interativo que abre o Check-out de Assessoria dedicado */}
+              <button
+                type="button"
+                onClick={() => handleEscolherPlano('Plano Premium (Ativação & Instrução)')}
+                className="w-full mt-3 py-2.5 bg-slate-900 hover:bg-blue-600 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer uppercase tracking-wider"
+              >
+                Tenho Interesse
+              </button>
             </div>
           </div>
 
@@ -10438,7 +11199,7 @@ export default function LandingPage() {
       {/* ─── 5. CATÁLOGO INTERATIVO DE VIATURAS COM CARROSSEL (RESPONSIVO) ──── */}
       <CatalogoViaturas />
 
-      {/* ─── 6. SECÇÃO DE PROCURA DE VIATURAS (MATCHING DE ALUGUER) ───────────── */}
+      {/* ─── 6. SECÇÃO DE PROCURA DE VIATURAS (MATCHING DE ALUGUER / OPERADOR) ───────────── */}
       <section id="aluguer" className="bg-slate-900 text-white py-16 md:py-20 px-4 sm:px-6 border-t border-slate-800">
         <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
           
@@ -10698,6 +11459,116 @@ export default function LandingPage() {
 
       {/* 🟢 Microagente de Inteligência Artificial para Apoio Legislativo, Fiscal e Operacional (Disponível 24/7) */}
       <PublicChatWidget />
+
+
+      {/* ◄ 🟢 NOVO: GAVETA/MODAL DE CHECK-OUT DE ASSESSORIA TVDE (CRM DE SERVIÇOS SEPARADO) */}
+      {isPlanoModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-950/80 backdrop-blur-xs animate-fade-in">
+          {/* Backdrop Clicável */}
+          <div className="absolute inset-0" onClick={() => setIsPlanoModalOpen(false)} />
+          
+          {/* Caixa do Modal (Gaveta responsiva que se adapta perfeitamente ao telemóvel) */}
+          <div className="relative bg-white rounded-t-[2.5rem] sm:rounded-3xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden animate-in slide-in-from-bottom sm:zoom-in-95 duration-200 p-6 sm:p-8 text-slate-800 text-left">
+            
+            {/* Botão de Fechar */}
+            <button 
+              type="button" 
+              onClick={() => setIsPlanoModalOpen(false)}
+              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-all cursor-pointer"
+            >
+              <X size={18} />
+            </button>
+
+            {/* Cabeçalho */}
+            <div className="space-y-2 mb-6">
+              <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 bg-blue-50 px-3 py-1.5 rounded-full">
+                Reservar Assessoria
+              </span>
+              <h3 className="text-xl font-black text-slate-950 pt-2 leading-tight">
+                {planoSelecionado}
+              </h3>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Preencha os seus dados de contacto abaixo para validarmos o seu processo documental e darmos início à sua preparação TVDE.
+              </p>
+            </div>
+
+            {/* Formulário CRM dedicado a Serviços */}
+            <form onSubmit={handleSubmeterLeadPlano} className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase mb-1 ml-1">O seu nome *</label>
+                <input 
+                  type="text" 
+                  required 
+                  placeholder="Nome completo"
+                  value={leadPlano.nome}
+                  onChange={e => setLeadPlano({ ...leadPlano, nome: e.target.value })}
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase mb-1 ml-1">Telemóvel *</label>
+                  <input 
+                    type="tel" 
+                    required 
+                    placeholder="ex: 912 345 678"
+                    value={leadPlano.telemovel}
+                    onChange={e => setLeadPlano({ ...leadPlano, telemovel: e.target.value })}
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase mb-1 ml-1">Email *</label>
+                  <input 
+                    type="email" 
+                    required 
+                    placeholder="Endereço de email"
+                    value={leadPlano.email}
+                    onChange={e => setLeadPlano({ ...leadPlano, email: e.target.value })}
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase mb-1 ml-1">Questão / Detalhes (Opcional)</label>
+                <textarea 
+                  value={leadPlano.mensagem}
+                  onChange={e => setLeadPlano({ ...leadPlano, mensagem: e.target.value })}
+                  className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 h-20 resize-none transition-all"
+                />
+              </div>
+
+              <button 
+                type="submit"
+                disabled={loadingPlano}
+                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl text-xs flex items-center justify-center gap-2 transition-all shadow-md disabled:opacity-40 cursor-pointer"
+              >
+                {loadingPlano ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <ArrowRight size={14} />
+                )}
+                Confirmar Reserva de Assessoria
+              </button>
+            </form>
+
+            {/* Feedback */}
+            {feedbackPlano && (
+              <div className={`mt-4 flex items-center gap-2 text-xs font-semibold rounded-xl px-3 py-3 border ${
+                feedbackPlano.sucesso 
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-100' 
+                  : 'bg-red-50 text-red-700 border-red-100'
+              }`}>
+                {feedbackPlano.sucesso ? <CheckCircle2 size={14} className="shrink-0" /> : <AlertCircle size={14} className="shrink-0" />}
+                <span className="leading-tight text-[11px]">{feedbackPlano.msg}</span>
+              </div>
+            )}
+
+          </div>
+        </div>
+      )}
 
     </div>
   );
@@ -12288,6 +13159,297 @@ export default function Proprietarios() {
 --------------------------------------------------
 
 
+### ARQUIVO: src\pages\ServicosConfig.jsx ###
+--------------------------------------------------
+/**
+ * ServicosConfig.jsx
+ * Localização: src/pages/ServicosConfig.jsx
+ *
+ * Página de parametrização e preços de planos e serviços de assessoria.
+ * Reservado exclusivamente para Administradores (Diretores).
+ * Totalmente responsiva com suporte a listagem horizontal rolável e modal de edição.
+ */
+
+import React, { useState, useEffect } from 'react';
+import { Sliders, Plus, Edit, Loader2, Lock, CheckCircle2, DollarSign, Layers } from 'lucide-react';
+import { db } from '../firebase';
+import { doc, setDoc } from 'firebase/firestore';
+import { useAuth } from '../context/AuthContext';
+import { logAcaoGlobal } from '../utils/logger';
+import { formatCurrency } from '../utils/formatters';
+import { obterPlanosAssessoria } from '../services/assessoriaService';
+import Button from '../components/ui/Button';
+import Modal from '../components/ui/Modal';
+
+export default function ServicosConfig() {
+  const { userData, loading: authLoading } = useAuth();
+  const [planos, setPlanos] = useState([]);
+  const [loading, setLoading] = useState(true);
+  
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingPlano, setEditingPlano] = useState(null);
+  const [formData, setFormData] = useState({
+    nome: '',
+    tipo: 'pacote', // pacote | avulso
+    preco: '',
+    descricao: '',
+    ativo: true
+  });
+
+  const carregarDados = async () => {
+    setLoading(true);
+    try {
+      const dados = await obterPlanosAssessoria(db);
+      setPlanos(dados);
+    } catch (error) {
+      console.error('[ServicosConfig] Erro ao carregar planos:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (userData?.role === 'admin') {
+      carregarDados();
+    }
+  }, [userData]);
+
+  // BLOQUEIO DE SEGURANÇA: Se não for administrador, barra o acesso
+  if (!authLoading && userData?.role !== 'admin') {
+    return (
+      <div className="flex flex-col items-center justify-center h-[60vh] text-center animate-in fade-in duration-500">
+        <div className="w-20 h-20 bg-red-50 text-red-500 rounded-full flex items-center justify-center mb-4 shadow-sm">
+          <Lock size={40} />
+        </div>
+        <h2 className="text-2xl font-bold text-slate-800">Acesso Restrito</h2>
+        <p className="text-slate-500 max-w-sm mx-auto text-sm leading-relaxed">
+          Apenas o Diretor tem permissão para configurar os planos de assessoria e alterar tabelas de preços.
+        </p>
+        <Button variant="secondary" className="mt-6 h-10 text-xs" onClick={() => window.location.href = '/dashboard'}>
+          Voltar ao Dashboard
+        </Button>
+      </div>
+    );
+  }
+
+  const handleEditClick = (plano) => {
+    setEditingPlano(plano);
+    setFormData({
+      nome: plano.nome || '',
+      tipo: plano.tipo || 'pacote',
+      preco: plano.preco || '',
+      descricao: plano.descricao || '',
+      ativo: plano.ativo ?? true
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleNovoClick = () => {
+    setEditingPlano(null);
+    setFormData({
+      nome: '',
+      tipo: 'avulso',
+      preco: '',
+      descricao: '',
+      ativo: true
+    });
+    setIsModalOpen(true);
+  };
+
+  const handleSave = async (e) => {
+    e.preventDefault();
+    setLoading(true);
+    try {
+      const operador = userData?.nome || 'Diretor';
+      // Se não for edição, cria um ID/slug baseado no nome
+      const idDoc = editingPlano 
+        ? editingPlano.id 
+        : 's-' + formData.nome.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
+
+      const dadosParaGravar = {
+        ...formData,
+        preco: Number(formData.preco || 0),
+        id: idDoc,
+        atualizadoEm: new Date().toISOString()
+      };
+
+      await setDoc(doc(db, 'servicos_assessoria', idDoc), dadosParaGravar);
+
+      await logAcaoGlobal(
+        operador,
+        editingPlano ? 'Edição Preço' : 'Criação Serviço',
+        'Configurações',
+        `${editingPlano ? 'Atualizou' : 'Criou'} o serviço/plano: ${formData.nome} para o valor de ${formData.preco}€`,
+        idDoc
+      );
+
+      setIsModalOpen(false);
+      await carregarDados();
+    } catch (error) {
+      console.error('[ServicosConfig] Erro ao gravar plano:', error);
+      alert('Erro ao gravar o serviço de assessoria.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const inputClass = "w-full p-2.5 border border-slate-200 rounded-xl outline-none transition-all text-xs sm:text-sm bg-white focus:ring-2 focus:ring-tvde-primary/20 hover:border-slate-300";
+
+  return (
+    <div className="space-y-6">
+      {/* Header Responsivo */}
+      <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+        <div>
+          <h1 className="text-xl sm:text-2xl font-bold text-slate-800 flex items-center gap-2 leading-tight">
+            <Sliders className="text-tvde-primary shrink-0" size={24} />
+            Planos & Preços de Assessoria
+          </h1>
+          <p className="text-slate-500 text-xs sm:text-sm">Parametrização dos pacotes e serviços de apoio documentais.</p>
+        </div>
+        <Button 
+          onClick={handleNovoClick}
+          className="w-full sm:w-auto justify-center text-xs sm:text-sm h-10"
+        >
+          <Plus size={18} /> Novo Serviço / Plano
+        </Button>
+      </header>
+
+      {/* Tabela de Gestão de Preços (Com scroll lateral de segurança contra quebras no mobile) */}
+      {loading && planos.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+          <Loader2 className="animate-spin mb-2 text-tvde-primary" size={36} />
+          <p className="text-xs sm:text-sm font-semibold">A carregar tabela de preços...</p>
+        </div>
+      ) : (
+        <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-x-auto w-full custom-scrollbar">
+          <table className="w-full text-left border-collapse min-w-[650px]">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                <th className="p-4">Nome do Serviço / Pacote</th>
+                <th className="p-4">Tipo</th>
+                <th className="p-4">Descrição</th>
+                <th className="p-4 text-center">Preço</th>
+                <th className="p-4 text-center">Estado</th>
+                <th className="p-4 text-right">Ações</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50 text-xs sm:text-sm text-slate-700">
+              {planos.map((plano) => (
+                <tr key={plano.id} className="hover:bg-slate-50/50 transition-colors">
+                  {/* Nome */}
+                  <td className="p-4 font-bold text-slate-800">{plano.nome}</td>
+                  
+                  {/* Tipo */}
+                  <td className="p-4">
+                    <span className={`inline-block px-2.5 py-1 rounded-lg text-[9px] font-black uppercase border ${
+                      plano.tipo === 'pacote' 
+                        ? 'bg-blue-50 text-blue-600 border-blue-100' 
+                        : 'bg-slate-50 text-slate-500 border-slate-200'
+                    }`}>
+                      {plano.tipo}
+                    </span>
+                  </td>
+
+                  {/* Descrição */}
+                  <td className="p-4 max-w-[220px] text-slate-400 leading-relaxed truncate" title={plano.descricao}>
+                    {plano.descricao || 'Sem descrição cadastrada.'}
+                  </td>
+
+                  {/* Preço */}
+                  <td className="p-4 text-center font-black text-tvde-primary">
+                    {formatCurrency(plano.preco)}
+                  </td>
+
+                  {/* Estado (Ativo/Inativo) */}
+                  <td className="p-4 text-center">
+                    <span className={`inline-block px-2 py-0.5 rounded-md text-[9px] font-bold uppercase ${
+                      plano.ativo !== false 
+                        ? 'bg-green-100 text-green-700' 
+                        : 'bg-red-100 text-red-700'
+                    }`}>
+                      {plano.ativo !== false ? 'Ativo' : 'Inativo'}
+                    </span>
+                  </td>
+
+                  {/* Ações */}
+                  <td className="p-4 text-right">
+                    <button
+                      type="button"
+                      onClick={() => handleEditClick(plano)}
+                      className="p-2 text-slate-400 hover:text-tvde-primary bg-slate-50 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                      title="Editar preço e descrição"
+                    >
+                      <Edit size={16} />
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Modal responsivo de Edição/Criação */}
+      <Modal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        title={editingPlano ? "Editar Configurações de Serviço" : "Criar Novo Plano / Serviço"}
+      >
+        <form onSubmit={handleSave} className="space-y-4 text-left">
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+            <div className="col-span-1 md:col-span-2">
+              <label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Nome do Plano ou Serviço *</label>
+              <input required className={inputClass} value={formData.nome} onChange={(e) => setFormData({...formData, nome: e.target.value})} />
+            </div>
+            
+            <div>
+              <label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Tipo de Serviço</label>
+              <select className={inputClass} value={formData.tipo} onChange={(e) => setFormData({...formData, tipo: e.target.value})}>
+                <option value="pacote">📦 Pacote de Assessoria Completo</option>
+                <option value="avulso">⚙️ Serviço Avulso / Individual</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Preço do Plano (€) *</label>
+              <div className="relative">
+                <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                <input required type="number" step="0.01" className={`${inputClass} pl-6`} value={formData.preco} onChange={(e) => setFormData({...formData, preco: e.target.value})} />
+              </div>
+            </div>
+
+            <div className="col-span-1 md:col-span-2">
+              <label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Descrição Explicativa</label>
+              <textarea className={`${inputClass} h-20 resize-none`} value={formData.descricao} onChange={(e) => setFormData({...formData, descricao: e.target.value})} placeholder="Escreva aqui os detalhes de cobertura e suporte incluídos neste serviço..." />
+            </div>
+
+            <div>
+              <label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Estado de Venda</label>
+              <select className={inputClass} value={formData.ativo} onChange={(e) => setFormData({...formData, ativo: e.target.value === 'true'})}>
+                <option value="true">Disponível para venda (Ativo)</option>
+                <option value="false">Pausado (Inativo)</option>
+              </select>
+            </div>
+          </div>
+
+          <div className="flex gap-3 mt-6 pt-4 border-t border-slate-100">
+            <Button variant="secondary" className="flex-1 h-10 text-xs" onClick={() => setIsModalOpen(false)}>
+              Cancelar
+            </Button>
+            <Button type="submit" className="flex-1 h-10 text-xs shadow-md">
+              Guardar Definições
+            </Button>
+          </div>
+
+        </form>
+      </Modal>
+    </div>
+  );
+}
+--------------------------------------------------
+
+
 ### ARQUIVO: src\pages\Usuarios.jsx ###
 --------------------------------------------------
 import React, { useState, useEffect } from 'react';
@@ -12729,6 +13891,185 @@ export default function Veiculos() {
     </div>
   );
 }
+--------------------------------------------------
+
+
+### ARQUIVO: src\services\assessoriaService.js ###
+--------------------------------------------------
+/**
+ * assessoriaService.js
+ * Localização: src/services/assessoriaService.js
+ *
+ * Funções Firestore para a gestão de clientes em Assessoria (Assessorados)
+ * e tabela de serviços e planos de assessoria.
+ */
+
+import { 
+  collection, getDocs, doc, addDoc, updateDoc, 
+  query, where, orderBy, setDoc 
+} from 'firebase/firestore';
+import { logAcaoGlobal } from '../utils/logger';
+import { generateNextCode } from '../utils/idGenerator';
+
+// Lista de Planos e Serviços Padrão para Auto-inicialização (Seed)
+const PLANOS_PADRAO = [
+  { id: 'p-essencial', nome: 'Plano Essencial', tipo: 'pacote', preco: 49.00, descricao: 'Apoio documental na escolha de escolas TVDE, exames médicos e psicotécnicos.' },
+  { id: 'p-avancado', nome: 'Plano Avançado', tipo: 'pacote', preco: 149.00, descricao: 'Organização estruturada do dossiê de candidatura e submissão eletrónica no IMT.' },
+  { id: 'p-premium', nome: 'Plano Premium (Chave na Mão)', tipo: 'pacote', preco: 249.00, descricao: 'Acompanhamento total de ponta a ponta: IMT, ativação de contas e curso de apps.' },
+  { id: 's-criminal', nome: 'Agendamento de Registo Criminal', tipo: 'avulso', preco: 15.00, descricao: 'Obtenção e triagem do registo criminal focado em TVDE.' },
+  { id: 's-psico', nome: 'Agendamento de Psicotécnicos', tipo: 'avulso', preco: 35.00, descricao: 'Marcação rápida de exames psicotécnicos de Grupo 2 em clínicas parceiras.' },
+  { id: 's-contas', nome: 'Criação & Ativação de Contas', tipo: 'avulso', preco: 30.00, descricao: 'Criação e validação do perfil do motorista na Uber e Bolt.' }
+];
+
+/**
+ * Inicializa os planos de assessoria padrão no Firestore caso a coleção esteja vazia.
+ * 
+ * @param {Firestore} db 
+ */
+export const inicializarPlanosAssessoriaPadrao = async (db) => {
+  try {
+    const colRef = collection(db, 'servicos_assessoria');
+    const snap = await getDocs(colRef);
+    
+    if (snap.empty) {
+      console.log('[assessoriaService] Coleção de serviços vazia. A inicializar planos padrão...');
+      for (const plano of PLANOS_PADRAO) {
+        await setDoc(doc(db, 'servicos_assessoria', plano.id), {
+          ...plano,
+          ativo: true,
+          atualizadoEm: new Date().toISOString()
+        });
+      }
+      console.log('[assessoriaService] Planos padrão inicializados com sucesso.');
+    }
+  } catch (error) {
+    console.error('[assessoriaService] Erro ao inicializar planos padrão:', error);
+  }
+};
+
+/**
+ * Obtém todos os planos e serviços ativos de assessoria.
+ * 
+ * @param {Firestore} db 
+ * @returns {Promise<Array>}
+ */
+export const obterPlanosAssessoria = async (db) => {
+  try {
+    // Garante que existem planos padrão na base de dados antes de carregar
+    await inicializarPlanosAssessoriaPadrao(db);
+
+    const colRef = collection(db, 'servicos_assessoria');
+    const snap = await getDocs(colRef);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (error) {
+    console.error('[assessoriaService] Erro ao obter planos:', error);
+    throw error;
+  }
+};
+
+/**
+ * Obtém todos os clientes em assessoria (Assessorados) registados.
+ * 
+ * @param {Firestore} db 
+ * @returns {Promise<Array>}
+ */
+export const obterAssessorados = async (db) => {
+  try {
+    console.log('[assessoriaService] A obter lista de assessorados...');
+    const colRef = collection(db, 'assessorados');
+    const snap = await getDocs(colRef);
+    return snap.docs.map(d => ({ id: d.id, ...d.data() }));
+  } catch (error) {
+    console.error('[assessoriaService] Erro ao obter assessorados:', error);
+    throw error;
+  }
+};
+
+/**
+ * Cria um novo cliente em assessoria, gerando automaticamente um código 'ASS-XXXX'.
+ * 
+ * @param {Firestore} db 
+ * @param {Object} dados       - Informações preenchidas no formulário
+ * @param {string} criadoPor   - Nome do utilizador que realizou a ação
+ * @returns {Promise<string>}  - ID do documento criado
+ */
+export const criarAssessorado = async (db, dados, criadoPor) => {
+  try {
+    const novoCodigo = await generateNextCode('assessorados', 'ASS');
+    const colRef = collection(db, 'assessorados');
+    
+    const novoDocumento = {
+      ...dados,
+      codigoInterno: novoCodigo,
+      status: 'Ativo',                         // Ativo | Concluído | Cancelado
+      etapaAdicional: 'Inscrição',              // Inscrição | Formação | IMT | Contas | Vinculado
+      criadoPor: criadoPor,
+      dataCriacao: new Date().toISOString(),
+      historico: [
+        {
+          usuario: criadoPor,
+          data: new Date().toISOString(),
+          descricao: 'Iniciou processo de assessoria no sistema.'
+        }
+      ]
+    };
+
+    const docRef = await addDoc(colRef, novoDocumento);
+    
+    await logAcaoGlobal(
+      criadoPor,
+      'Criação',
+      'Assessoria',
+      `Criou o registo do assessorado: ${dados.nome} (${novoCodigo})`,
+      docRef.id
+    );
+
+    return docRef.id;
+  } catch (error) {
+    console.error('[assessoriaService] Erro ao criar assessorado:', error);
+    throw error;
+  }
+};
+
+/**
+ * Atualiza os dados de um cliente em assessoria e regista a alteração no histórico.
+ * 
+ * @param {Firestore} db 
+ * @param {string} id          - ID do documento do assessorado
+ * @param {Object} dadosNovos  - Novas informações e estado de checklists
+ * @param {string} alteradoPor - Nome do utilizador que editou
+ * @param {string} motivoLog   - Motivo da alteração para auditoria
+ */
+export const atualizarAssessorado = async (db, id, dadosNovos, alteradoPor, motivoLog) => {
+  try {
+    const docRef = doc(db, 'assessorados', id);
+    
+    const atualizacoes = {
+      ...dadosNovos,
+      historico: [
+        ...(dadosNovos.historico || []),
+        {
+          usuario: alteradoPor,
+          data: new Date().toISOString(),
+          descricao: motivoLog
+        }
+      ]
+    };
+
+    await updateDoc(docRef, atualizacoes);
+    
+    await logAcaoGlobal(
+      alteradoPor,
+      'Edição',
+      'Assessoria',
+      `Atualizou o assessorado: ${dadosNovos.nome || 'Cliente'}. Motivo: ${motivoLog}`,
+      id
+    );
+  } catch (error) {
+    console.error('[assessoriaService] Erro ao atualizar assessorado:', error);
+    throw error;
+  }
+};  
 --------------------------------------------------
 
 

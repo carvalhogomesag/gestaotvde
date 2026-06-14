@@ -5,6 +5,8 @@
  * Painel de CRM para gestão em tempo real das leads públicas captadas na Landing Page.
  * Apresenta funil de estados, notas internas, diário de triagem e uma Agenda Diária consolidada,
  * agrupando todas as ações futuras em atraso, para hoje e planeadas de forma a definir prioridades de contacto.
+ * 
+ * Atualizado com suporte nativo e badges dedicados para Leads de Assessoria TVDE.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -222,7 +224,7 @@ export default function GestaoLeads() {
     try {
       const novoMotoristaPayload = {
         nome: leadSelecionada.nome,
-        email: leadSelecionada.email || '', // Garante string vazia se não fornecido
+        email: leadSelecionada.email || '', 
         telemovel: leadSelecionada.telemovel,
         nif: '---', 
         iban: '---',
@@ -281,7 +283,7 @@ export default function GestaoLeads() {
   return (
     <div className="space-y-6 text-slate-800">
       
-      {/* ─── Cabeçalho do Painel CRM ────────────────────────────────────────── */}
+      {/* Cabeçalho do Painel CRM */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-2xl font-black tracking-tight text-slate-900">Gestão de Leads (CRM)</h2>
@@ -289,7 +291,7 @@ export default function GestaoLeads() {
         </div>
       </div>
 
-      {/* ─── Filtros Rápidos de Controlo ────────────────────────────────────── */}
+      {/* Filtros Rápidos de Controlo */}
       <div className="bg-white border border-slate-200 rounded-2xl p-4 flex flex-col md:flex-row gap-4 items-center justify-between shadow-xs text-left">
         <div className="flex flex-wrap gap-3 items-center w-full md:w-auto">
           <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-500">
@@ -316,6 +318,8 @@ export default function GestaoLeads() {
             <option value="todos">Todas as Origens</option>
             <option value="eguia_onboarding">📖 eGuia Onboarding</option>
             <option value="procura_viatura">🚗 Procura Viatura (Aluguer)</option>
+            {/* ◄ ADICIONADO: Nova opção de filtro para leads do novo fluxo de Assessoria de Serviços */}
+            <option value="servicos_assessoria">💼 Assessoria TVDE</option>
             <option value="isca_ebook">📖 Download de Guia (Legado)</option>
           </select>
         </div>
@@ -325,7 +329,7 @@ export default function GestaoLeads() {
         </div>
       </div>
 
-      {/* ─── Grelha Principal Split-Pane ───────────────────────────────────── */}
+      {/* Grelha Principal Split-Pane */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
         {/* Lado Esquerdo: Lista de Leads / Agenda Diária por Separador */}
@@ -387,7 +391,7 @@ export default function GestaoLeads() {
                         selecionada ? 'bg-slate-50/80 border-r-4 border-indigo-600' : ''
                       }`}
                     >
-                      <div className="space-y-1.5 min-w-0">
+                      <div className="space-y-1.5 min-w-0 text-left">
                         <div className="flex items-center gap-2">
                           <h4 className="font-bold text-slate-900 text-sm truncate max-w-[150px] sm:max-w-[200px]">{lead.nome}</h4>
                           <span className="text-[9px] font-bold text-slate-400 whitespace-nowrap">
@@ -402,15 +406,23 @@ export default function GestaoLeads() {
                           <p className="text-xs text-slate-400 font-medium italic truncate max-w-[150px] sm:max-w-[250px]">Sem email (Contacto exclusivo)</p>
                         )}
                         
-                        {/* Estilização por origem da lead */}
+                        {/* ◄ ALTERADO: Adicionado suporte com badge personalizado violeta para Leads de Assessoria */}
                         <span className={`inline-block text-[9px] font-bold px-2 py-0.5 rounded-lg border ${
                           lead.origem === 'procura_viatura' 
                             ? 'bg-emerald-50 text-emerald-700 border-emerald-100' 
                             : lead.origem === 'eguia_onboarding'
                               ? 'bg-blue-50 text-blue-700 border-blue-100'
-                              : 'bg-indigo-50 text-indigo-700 border-indigo-100'
+                              : lead.origem === 'servicos_assessoria'
+                                ? 'bg-violet-50 text-violet-700 border-violet-100' // ◄ Badge Violeta para Assessoria
+                                : 'bg-indigo-50 text-indigo-700 border-indigo-100'
                         }`}>
-                          {lead.origem === 'procura_viatura' ? '🚗 Aluguer' : lead.origem === 'eguia_onboarding' ? '📖 eGuia Onboarding' : '📖 Ebook (Legado)'}
+                          {lead.origem === 'procura_viatura' 
+                            ? '🚗 Aluguer' 
+                            : lead.origem === 'eguia_onboarding' 
+                              ? '📖 eGuia Onboarding' 
+                              : lead.origem === 'servicos_assessoria'
+                                ? '💼 Assessoria TVDE' // ◄ Etiqueta oficial corrigida
+                                : '📖 Ebook (Legado)'}
                         </span>
                       </div>
 
@@ -429,11 +441,11 @@ export default function GestaoLeads() {
             </div>
           )}
 
-          {/* VISTA B: AGENDA DIÁRIA CONSOLIDADA (AGRUPADA POR DIA E PRIORIDADE) */}
+          {/* VISTA B: AGENDA DIÁRIA CONSOLIDADA */}
           {vistaAtiva === 'agenda' && (
             <div className="space-y-6 max-h-[60vh] overflow-y-auto pr-1">
               
-              {/* 🔴 BLOCO 1: CONTACTOS EM ATRASO (URGENTE) */}
+              {/* BLOCO 1: CONTACTOS EM ATRASO (URGENTE) */}
               <div className="space-y-2 text-left">
                 <h4 className="text-xs font-black text-red-600 flex items-center gap-1.5 px-1 uppercase tracking-wider">
                   <AlertTriangle size={14} className="animate-pulse" /> Contactos em Atraso (Urgente)
@@ -464,7 +476,7 @@ export default function GestaoLeads() {
                 )}
               </div>
 
-              {/* 🔵 BLOCO 2: CONTACTOS PARA HOJE (PRIORITÁRIO) */}
+              {/* BLOCO 2: CONTACTOS PARA HOJE (PRIORITÁRIO) */}
               <div className="space-y-2 text-left">
                 <h4 className="text-xs font-black text-blue-600 flex items-center gap-1.5 px-1 uppercase tracking-wider">
                   <Clock size={14} /> Contactos para Hoje (Prioritário)
@@ -495,7 +507,7 @@ export default function GestaoLeads() {
                 )}
               </div>
 
-              {/* 📅 BLOCO 3: PRÓXIMOS CONTACTOS AGENDADOS (FUTURO) */}
+              {/* BLOCO 3: PRÓXIMOS CONTACTOS AGENDADOS (FUTURO) */}
               <div className="space-y-2 text-left">
                 <h4 className="text-xs font-black text-slate-400 flex items-center gap-1.5 px-1 uppercase tracking-wider">
                   <CalendarDays size={14} /> Planeamento Futuro
@@ -538,7 +550,7 @@ export default function GestaoLeads() {
               
               {/* Header do Perfil da Lead */}
               <div className="flex justify-between items-start border-b border-slate-100 pb-4">
-                <div className="space-y-1 min-w-0">
+                <div className="space-y-1 min-w-0 text-left">
                   <h3 className="font-bold text-slate-900 text-base truncate">{leadSelecionada.nome}</h3>
                   {leadSelecionada.email ? (
                     <p className="text-xs text-slate-500 font-semibold">{leadSelecionada.email}</p>
