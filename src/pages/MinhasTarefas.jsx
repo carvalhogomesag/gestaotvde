@@ -1,10 +1,19 @@
+/**
+ * MinhasTarefas.jsx
+ * Localização: src/pages/MinhasTarefas.jsx
+ *
+ * Página de tarefas do funcionário.
+ * Atualizado com:
+ * - Exibição em formato de lista com linhas horizontais (Inbox-style)
+ * - Tabela auto-rolável (Horizontal Scroll-Safe) contra quebras no mobile
+ */
+
 import React, { useState, useEffect } from 'react';
 import { db } from '../firebase';
 import { collection, query, where, getDocs, updateDoc, doc, orderBy } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
 import { logAcaoGlobal } from '../utils/logger';
-import TicketCard from '../features/tickets/TicketCard';
-import { Inbox, CheckCircle2, Loader2, AlertCircle, UserX } from 'lucide-react';
+import { Inbox, CheckCircle2, Loader2, AlertCircle, UserX, Clock, UserCheck } from 'lucide-react';
 
 export default function MinhasTarefas() {
   const { userData, loading: authLoading } = useAuth();
@@ -37,7 +46,6 @@ export default function MinhasTarefas() {
       setTickets(snap.docs.map(d => ({ id: d.id, ...d.data() })));
     } catch (error) {
       console.error("Erro ao carregar tarefas:", error);
-      // Se o erro for de índice, ele aparecerá aqui na consola do navegador com um link
       setError("Não foi possível carregar as tarefas. Verifique se o seu perfil está configurado.");
     } finally {
       setLoading(false);
@@ -91,7 +99,7 @@ export default function MinhasTarefas() {
           <UserX size={40} />
         </div>
         <h2 className="text-2xl font-bold text-slate-800">Perfil Não Encontrado</h2>
-        <p className="text-slate-500 mt-2 max-w-md">
+        <p className="text-slate-500 mt-2 max-w-md text-sm leading-relaxed">
           O seu login foi efetuado, mas não existe um perfil de funcionário associado a este email no sistema. Peça ao Diretor para o registar na <strong>Gestão de Equipa</strong>.
         </p>
       </div>
@@ -99,12 +107,12 @@ export default function MinhasTarefas() {
   }
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6 sm:space-y-8">
       <header>
-        <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-3">
+        <h1 className="text-xl sm:text-2xl font-bold text-slate-800 flex items-center gap-3">
           <Inbox className="text-tvde-primary" /> Minhas Tarefas
         </h1>
-        <p className="text-slate-500 text-sm">Fluxo de trabalho atribuído a <strong>{userData.nome}</strong>.</p>
+        <p className="text-slate-500 text-xs sm:text-sm">Fluxo de trabalho atribuído a <strong>{userData.nome}</strong>.</p>
       </header>
 
       {error ? (
@@ -113,17 +121,97 @@ export default function MinhasTarefas() {
           <p className="text-sm font-medium">{error}</p>
         </div>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {tickets.length > 0 ? (
-            tickets.map(t => (
-              <TicketCard key={t.id} ticket={t} onComplete={handleComplete} />
-            ))
-          ) : (
-            <div className="col-span-full py-20 text-center bg-white rounded-[3rem] border-2 border-dashed border-slate-100">
-              <CheckCircle2 className="mx-auto text-slate-200 mb-4" size={48} />
-              <p className="text-slate-400 font-medium">Não tem tarefas pendentes. Bom trabalho!</p>
-            </div>
-          )}
+        /* ◄ ALTERADO: Lista em formato de linhas horizontais responsivas */
+        <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-x-auto w-full custom-scrollbar">
+          <table className="w-full text-left border-collapse min-w-[700px]">
+            <thead>
+              <tr className="bg-slate-50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                <th className="p-4">Vínculo / Entidade</th>
+                <th className="p-4">Instrução / Nota</th>
+                <th className="p-4">Atribuído Por</th>
+                <th className="p-4">Data</th>
+                <th className="p-4 text-center">Estado</th>
+                <th className="p-4 text-right">Ação</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {tickets.length > 0 ? (
+                tickets.map(t => {
+                  const concluido = t.status === 'concluido';
+
+                  return (
+                    <tr key={t.id} className="hover:bg-slate-50/50 transition-colors text-slate-700">
+                      {/* Vínculo / Entidade */}
+                      <td className="p-4">
+                        <div className="flex items-center gap-2">
+                          <span className="bg-slate-800 text-white text-[10px] font-mono font-black px-2 py-0.5 rounded shadow-sm shrink-0">
+                            {t.vinculoCodigo || 'WF-XXX'}
+                          </span>
+                          <p className="font-extrabold text-slate-800 text-xs sm:text-sm">{t.vinculoNome || 'Workflow'}</p>
+                        </div>
+                        <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider mt-1 ml-1">
+                          Módulo: {t.modulo || 'Geral'}
+                        </p>
+                      </td>
+
+                      {/* Instrução / Nota */}
+                      <td className="p-4 max-w-[280px] min-w-[150px]">
+                        <p className="text-xs text-slate-600 font-medium leading-relaxed break-words">
+                          {t.nota || 'Ação necessária no registo.'}
+                        </p>
+                      </td>
+
+                      {/* Atribuída Por (Remetente) */}
+                      <td className="p-4 text-xs font-bold text-slate-500">
+                        {t.remetente || 'Sistema'}
+                      </td>
+
+                      {/* Data de Criação */}
+                      <td className="p-4 text-xs font-semibold text-slate-400 font-mono">
+                        <span className="flex items-center gap-1">
+                          <Clock size={12} className="text-slate-300" />
+                          {new Date(t.dataCriacao).toLocaleDateString('pt-PT')}
+                        </span>
+                      </td>
+
+                      {/* Estado do Ticket */}
+                      <td className="p-4 text-center">
+                        <span className={`inline-block px-2.5 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider border ${
+                          concluido 
+                            ? 'bg-emerald-50 text-emerald-600 border-emerald-100' 
+                            : 'bg-orange-50 text-orange-600 border-orange-100 animate-pulse'
+                        }`}>
+                          {t.status}
+                        </span>
+                      </td>
+
+                      {/* Botão transacional de Ação */}
+                      <td className="p-4 text-right">
+                        {!concluido ? (
+                          <button
+                            type="button"
+                            onClick={() => handleComplete(t.id)}
+                            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-900 hover:bg-emerald-600 text-white font-bold text-xs transition-all shadow-sm cursor-pointer hover:shadow-md active:scale-95"
+                          >
+                            <CheckCircle2 size={13} /> Concluir
+                          </button>
+                        ) : (
+                          <span className="text-[10px] text-slate-400 italic pr-2 font-medium">Concluída</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
+              ) : (
+                <tr>
+                  <td colSpan="6" className="p-20 text-center">
+                    <CheckCircle2 className="mx-auto text-slate-200 mb-4" size={48} />
+                    <p className="text-slate-400 font-medium">Não tem tarefas pendentes de momento. Bom trabalho!</p>
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
         </div>
       )}
     </div>
