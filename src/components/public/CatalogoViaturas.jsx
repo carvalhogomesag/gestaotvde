@@ -6,6 +6,7 @@
  * - Filtros rápidos por categoria (Standard, Green, Comfort, XL, Black)
  * - Carrossel de rolagem suave (Smooth Scroll) controlado por Refs
  * - Cores vibrantes forçadas (Verde para Disponível, Vermelho para Indisponível)
+ * - Matrículas protegidas/ocultas por motivos de privacidade (RGPD)
  */
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -208,7 +209,7 @@ export default function CatalogoViaturas() {
                               {viatura.ano}
                             </span>
                           </div>
-                          <p className="text-xs text-slate-400 mt-1">Matrícula: {viatura.matricula}</p>
+                          {/* ◄ ALTERADO: Linha da matrícula removida inteiramente para conformidade de privacidade */}
                         </div>
 
                         {/* Ficha Técnica */}
@@ -242,15 +243,15 @@ export default function CatalogoViaturas() {
                             </div>
                           </div>
                           
-                          {/* Botões de WhatsApp Ativos e Vibrantes com Estilo Inline Forçado */}
+                          {/* Botões de WhatsApp Ativos e Vibrantes — Mapeados via ID em vez de Matrícula */}
                           {isDisponivel ? (
                             <a
-                              href={`https://wa.me/351900000000?text=Olá! Vi no vosso catálogo que a viatura ${viatura.marca} ${viatura.modelo} (${viatura.matricula}) está disponível para aluguer. Gostaria de demonstrar o meu interesse e obter mais informações.`}
+                              href={`https://wa.me/351900000000?text=Olá! Vi no vosso catálogo que a viatura ${viatura.marca} ${viatura.modelo} (Ref: ${viatura.id}) está disponível para aluguer. Gostaria de demonstrar o meu interesse e obter mais informações.`}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="px-3.5 py-2.5 rounded-xl text-xs font-black transition-all shadow-md flex items-center justify-center text-center shrink-0 min-w-[120px] hover:opacity-90 uppercase"
                               style={{ 
-                                backgroundColor: '#10b981', // Verde TVDE Ativo
+                                backgroundColor: '#10b981', 
                                 color: '#ffffff' 
                               }}
                             >
@@ -258,12 +259,12 @@ export default function CatalogoViaturas() {
                             </a>
                           ) : (
                             <a
-                              href={`https://wa.me/351900000000?text=Olá! Vi no vosso catálogo que a viatura ${viatura.marca} ${viatura.modelo} (${viatura.matricula}) está atualmente indisponível. Gostaria de demonstrar o meu interesse em alugar uma viatura igual ou semelhante assim que houver disponibilidade.`}
+                              href={`https://wa.me/351900000000?text=Olá! Vi no vosso catálogo que a viatura ${viatura.marca} ${viatura.modelo} (Ref: ${viatura.id}) está atualmente indisponível. Gostaria de demonstrar o meu interesse em alugar uma viatura igual ou semelhante assim que houver disponibilidade.`}
                               target="_blank"
                               rel="noopener noreferrer"
                               className="px-2.5 py-2.5 rounded-xl text-[9.5px] font-black transition-all shadow-md flex items-center justify-center text-center shrink-0 min-w-[160px] hover:opacity-90 uppercase tracking-tight"
                               style={{ 
-                                backgroundColor: '#ef4444', // Vermelho TVDE Conversão
+                                backgroundColor: '#ef4444', 
                                 color: '#ffffff' 
                               }}
                             >
