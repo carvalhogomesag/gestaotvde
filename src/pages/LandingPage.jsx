@@ -4,7 +4,7 @@
  *
  * Página inicial pública consolidada (Ficheiro Único Monolítico).
  * Otimizada com carrossel dinâmico de texto à esquerda, formulário eGuia fixo à direita,
- * catálogo de viaturas, destaques de blog, planos de assessoria interativos e IA.
+ * catálogo de viaturas, destaques de blog, planos de assessoria interativos com CRM dedicado e IA.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -12,9 +12,9 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { 
   Shield, Check, ArrowRight, Loader2, BookOpen, 
-  Car, HelpCircle, Smartphone, Mail, User,
+  Car, HelpCircle, FileText, Smartphone, Mail, User,
   CheckCircle2, ChevronDown, ChevronUp, AlertCircle, Sparkles, Clock,
-  ChevronRight, ChevronLeft, Printer 
+  ChevronRight, ChevronLeft, Printer, LayoutGrid, X // ◄ Importado o ícone X para fechar o modal
 } from 'lucide-react';
 import ReactGA from 'react-ga4';
 import { registarLeadPública } from '../services/leadService';
@@ -47,6 +47,13 @@ export default function LandingPage() {
   const [loadingCarro, setLoadingCarro] = useState(false);
   const [feedbackCarro, setFeedbackCarro] = useState(null);
 
+  // ◄ ADICIONADO: Estados para o novo CRM de Assessoria Dedicado (Modal de Planos) [LandingPage.jsx]
+  const [isPlanoModalOpen, setIsPlanoModalOpen] = useState(false);
+  const [planoSelecionado, setPlanoSelecionado] = useState('');
+  const [leadPlano, setLeadPlano] = useState({ nome: '', email: '', telemovel: '', mensagem: '' });
+  const [loadingPlano, setLoadingPlano] = useState(false);
+  const [feedbackPlano, setFeedbackPlano] = useState(null);
+
   // Acordeão de FAQs
   const [faqAtiva, setFaqAtiva] = useState(null);
 
@@ -61,12 +68,17 @@ export default function LandingPage() {
   const handleProximoSlide = () => setSlideAtivo((prev) => (prev + 1) % totalSlides);
   const handleSlideAnterior = () => setSlideAtivo((prev) => (prev - 1 + totalSlides) % totalSlides);
 
-  // ◄ ADICIONADO: Handler para seleção de Plano de Assessoria com rastreio de conversão e scroll suave
+  // ◄ ALTERADO: Ativação do Modal de Assessoria com preenchimento de plano e GA4
   const handleEscolherPlano = (planoNome) => {
-    setLeadCarro(prev => ({
-      ...prev,
-      mensagem: `Gostaria de obter informações detalhadas para aderir ao vosso Plano de Assessoria TVDE: ${planoNome}.`
-    }));
+    setPlanoSelecionado(planoNome);
+    setLeadPlano({
+      nome: '',
+      email: '',
+      telemovel: '',
+      mensagem: `Gostaria de obter informações detalhadas para aderir ao vosso ${planoNome}.`
+    });
+    setFeedbackPlano(null);
+    setIsPlanoModalOpen(true);
 
     // Envia evento dinâmico de clique para sabermos quais os pacotes com mais cliques
     ReactGA.event({
@@ -74,12 +86,6 @@ export default function LandingPage() {
       action: 'Click_Plano_Assessoria',
       label: planoNome
     });
-
-    // Desliza suavemente até à secção do formulário
-    const seccaoForm = document.getElementById('aluguer');
-    if (seccaoForm) {
-      seccaoForm.scrollIntoView({ behavior: 'smooth' });
-    }
   };
 
   // ─── ESCUTADOR DE SELEÇÃO DE VIATURAS DO CATÁLOGO ────────────────────────
@@ -165,6 +171,37 @@ export default function LandingPage() {
     }
   };
 
+  // ◄ ADICIONADO: Submissão do novo formulário de lead para Assessoria de Serviços
+  const handleSubmeterLeadPlano = async (e) => {
+    e.preventDefault();
+    setLoadingPlano(true);
+    setFeedbackPlano(null);
+
+    try {
+      const res = await registarLeadPública({
+        nome: leadPlano.nome,
+        email: leadPlano.email,
+        telemovel: leadPlano.telemovel,
+        origem: 'servicos_assessoria', // ◄ Origem específica para CRM de Assessoria
+        mensagemAdicional: `Interesse no plano: ${planoSelecionado}. Mensagem: ${leadPlano.mensagem}`
+      });
+
+      setFeedbackPlano(res);
+      if (res.sucesso) {
+        setLeadPlano({ nome: '', email: '', telemovel: '', mensagem: '' });
+        // Fecha o modal suavemente após 2 segundos para dar tempo ao feedback de sucesso
+        setTimeout(() => {
+          setIsPlanoModalOpen(false);
+        }, 2200);
+      }
+    } catch (err) {
+      console.error(err);
+      setFeedbackPlano({ sucesso: false, msg: "Erro técnico de rede. Tente de novo." });
+    } finally {
+      setLoadingPlano(false);
+    }
+  };
+
   // Submissão de Procura de Carro (Formulário do Meio)
   const handleSubmeterCarro = async (e) => {
     e.preventDefault();
@@ -182,7 +219,6 @@ export default function LandingPage() {
 
       setFeedbackCarro(res);
       if (res.sucesso) {
-        // ◄ CORRIGIDO: Propriedade corrigida de "text" para "mensagem" para limpar a textarea de forma consistente
         setLeadCarro({ nome: '', email: '', telemovel: '', regiao: 'Lisboa', mensagem: '' });
       }
     } catch (err) {
@@ -208,7 +244,7 @@ export default function LandingPage() {
       <header className="relative py-12 md:py-24 px-4 sm:px-6 bg-slate-950 text-white overflow-hidden">
         <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
           
-          {/* LADO ESQUERDO: Carrossel de Texto Rotativo (Sem card, raw text) com Altura Mínima Responsiva */}
+          {/* LADO ESQUERDO: Carrossel de Texto Rotativo (Sem card, raw text) */}
           <div className="lg:col-span-7 space-y-6 text-left min-h-[440px] sm:min-h-[380px] lg:min-h-[360px] flex flex-col justify-between">
             
             <div className="space-y-5 flex-1 flex flex-col justify-center">
@@ -481,7 +517,7 @@ export default function LandingPage() {
         )}
       </section>
 
-      {/* ─── 4. SECÇÃO PLANOS DE ASSESSORIA (RESPONSIVA) [CORRIGIDO: UNBLURRED & INTERATIVO] ────────────────────── */}
+      {/* ─── 4. SECÇÃO PLANOS DE ASSESSORIA (RESPONSIVA) [INTERATIVA] ────────────────────── */}
       <section id="planos" className="py-16 md:py-20 px-4 sm:px-6 max-w-6xl mx-auto space-y-10 md:space-y-12 border-t border-slate-200">
         <div className="text-center space-y-2 max-w-xl mx-auto">
           <h2 className="text-2xl md:text-3xl font-black text-slate-900">Pacotes de Apoio à sua medida</h2>
@@ -508,12 +544,14 @@ export default function LandingPage() {
             </div>
             <div className="text-left relative mt-auto pt-4 border-t border-slate-50">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Investimento único</p>
+              {/* Desfocado removido em prol da interação direta real */}
               <p className="text-2xl font-black text-slate-900">{formatCurrency(49.00)}</p>
               
+              {/* ◄ ALTERADO: Botão interativo que abre o Check-out de Assessoria dedicado */}
               <button
                 type="button"
-                onClick={() => handleEscolherPlano('Plano Essencial / Apoio Documental')}
-                className="w-full mt-3 py-2 bg-slate-900 hover:bg-blue-600 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer"
+                onClick={() => handleEscolherPlano('Plano Essencial (Apoio Documental)')}
+                className="w-full mt-3 py-2.5 bg-slate-900 hover:bg-blue-600 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer uppercase tracking-wider"
               >
                 Tenho Interesse
               </button>
@@ -541,10 +579,11 @@ export default function LandingPage() {
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Investimento único</p>
               <p className="text-2xl font-black text-blue-600">{formatCurrency(149.00)}</p>
 
+              {/* ◄ ALTERADO: Botão interativo que abre o Check-out de Assessoria dedicado */}
               <button
                 type="button"
-                onClick={() => handleEscolherPlano('Plano Avançado / Organização IMT')}
-                className="w-full mt-3 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer"
+                onClick={() => handleEscolherPlano('Plano Avançado (Organização IMT)')}
+                className="w-full mt-3 py-2.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer uppercase tracking-wider"
               >
                 Tenho Interesse
               </button>
@@ -569,10 +608,11 @@ export default function LandingPage() {
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Investimento único</p>
               <p className="text-2xl font-black text-slate-900">{formatCurrency(249.00)}</p>
 
+              {/* ◄ ALTERADO: Botão interativo que abre o Check-out de Assessoria dedicado */}
               <button
                 type="button"
-                onClick={() => handleEscolherPlano('Plano Premium / Chave na Mão')}
-                className="w-full mt-3 py-2 bg-slate-900 hover:bg-blue-600 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer"
+                onClick={() => handleEscolherPlano('Plano Premium (Ativação & Instrução)')}
+                className="w-full mt-3 py-2.5 bg-slate-900 hover:bg-blue-600 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer uppercase tracking-wider"
               >
                 Tenho Interesse
               </button>
@@ -585,7 +625,7 @@ export default function LandingPage() {
       {/* ─── 5. CATÁLOGO INTERATIVO DE VIATURAS COM CARROSSEL (RESPONSIVO) ──── */}
       <CatalogoViaturas />
 
-      {/* ─── 6. SECÇÃO DE PROCURA DE VIATURAS (MATCHING DE ALUGUER) ───────────── */}
+      {/* ─── 6. SECÇÃO DE PROCURA DE VIATURAS (MATCHING DE ALUGUER / OPERADOR) ───────────── */}
       <section id="aluguer" className="bg-slate-900 text-white py-16 md:py-20 px-4 sm:px-6 border-t border-slate-800">
         <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
           
@@ -845,6 +885,116 @@ export default function LandingPage() {
 
       {/* 🟢 Microagente de Inteligência Artificial para Apoio Legislativo, Fiscal e Operacional (Disponível 24/7) */}
       <PublicChatWidget />
+
+
+      {/* ◄ 🟢 NOVO: GAVETA/MODAL DE CHECK-OUT DE ASSESSORIA TVDE (CRM DE SERVIÇOS SEPARADO) */}
+      {isPlanoModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-slate-950/80 backdrop-blur-xs animate-fade-in">
+          {/* Backdrop Clicável */}
+          <div className="absolute inset-0" onClick={() => setIsPlanoModalOpen(false)} />
+          
+          {/* Caixa do Modal (Gaveta responsiva que se adapta perfeitamente ao telemóvel) */}
+          <div className="relative bg-white rounded-t-[2.5rem] sm:rounded-3xl shadow-2xl w-full max-w-md max-h-[90vh] flex flex-col overflow-hidden animate-in slide-in-from-bottom sm:zoom-in-95 duration-200 p-6 sm:p-8 text-slate-800 text-left">
+            
+            {/* Botão de Fechar */}
+            <button 
+              type="button" 
+              onClick={() => setIsPlanoModalOpen(false)}
+              className="absolute top-4 right-4 p-2 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-full transition-all cursor-pointer"
+            >
+              <X size={18} />
+            </button>
+
+            {/* Cabeçalho */}
+            <div className="space-y-2 mb-6">
+              <span className="text-[10px] font-black uppercase tracking-wider text-blue-600 bg-blue-50 px-3 py-1.5 rounded-full">
+                Reservar Assessoria
+              </span>
+              <h3 className="text-xl font-black text-slate-950 pt-2 leading-tight">
+                {planoSelecionado}
+              </h3>
+              <p className="text-xs text-slate-500 leading-relaxed">
+                Preencha os seus dados de contacto abaixo para validarmos o seu processo documental e darmos início à sua preparação TVDE.
+              </p>
+            </div>
+
+            {/* Formulário CRM dedicado a Serviços */}
+            <form onSubmit={handleSubmeterLeadPlano} className="space-y-4">
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase mb-1 ml-1">O seu nome *</label>
+                <input 
+                  type="text" 
+                  required 
+                  placeholder="Nome completo"
+                  value={leadPlano.nome}
+                  onChange={e => setLeadPlano({ ...leadPlano, nome: e.target.value })}
+                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase mb-1 ml-1">Telemóvel *</label>
+                  <input 
+                    type="tel" 
+                    required 
+                    placeholder="ex: 912 345 678"
+                    value={leadPlano.telemovel}
+                    onChange={e => setLeadPlano({ ...leadPlano, telemovel: e.target.value })}
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase mb-1 ml-1">Email *</label>
+                  <input 
+                    type="email" 
+                    required 
+                    placeholder="Endereço de email"
+                    value={leadPlano.email}
+                    onChange={e => setLeadPlano({ ...leadPlano, email: e.target.value })}
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase mb-1 ml-1">Questão / Detalhes (Opcional)</label>
+                <textarea 
+                  value={leadPlano.mensagem}
+                  onChange={e => setLeadPlano({ ...leadPlano, mensagem: e.target.value })}
+                  className="w-full p-4 bg-slate-50 border border-slate-200 rounded-xl text-xs font-bold text-slate-700 outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 h-20 resize-none transition-all"
+                />
+              </div>
+
+              <button 
+                type="submit"
+                disabled={loadingPlano}
+                className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white font-black rounded-xl text-xs flex items-center justify-center gap-2 transition-all shadow-md disabled:opacity-40 cursor-pointer"
+              >
+                {loadingPlano ? (
+                  <Loader2 size={14} className="animate-spin" />
+                ) : (
+                  <ArrowRight size={14} />
+                )}
+                Confirmar Reserva de Assessoria
+              </button>
+            </form>
+
+            {/* Feedback */}
+            {feedbackPlano && (
+              <div className={`mt-4 flex items-center gap-2 text-xs font-semibold rounded-xl px-3 py-3 border ${
+                feedbackPlano.sucesso 
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-100' 
+                  : 'bg-red-50 text-red-700 border-red-100'
+              }`}>
+                {feedbackPlano.sucesso ? <CheckCircle2 size={14} className="shrink-0" /> : <AlertCircle size={14} className="shrink-0" />}
+                <span className="leading-tight text-[11px]">{feedbackPlano.msg}</span>
+              </div>
+            )}
+
+          </div>
+        </div>
+      )}
 
     </div>
   );
