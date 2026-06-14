@@ -5,6 +5,7 @@
  * Barra de navegação da Landing Page integrada com o Firestore.
  * - Consome os serviços ativos parametrizados na área restrita (ERP).
  * - Totalmente responsivo (hamburger menu no mobile).
+ * - Otimizado com cores de marca oficiais para Tailwind v4.
  */
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -189,7 +190,7 @@ export default function NavbarLanding() {
         <div className="flex items-center gap-3">
           <Link
             to="/login"
-            className="px-3.5 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-blue-600 transition-all shadow-sm"
+            className="px-3.5 py-2 bg-tvde-dark text-white rounded-xl text-xs font-bold hover:bg-tvde-primary transition-all shadow-sm"
           >
             Área de Clientes
           </Link>

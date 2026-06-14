@@ -3,6 +3,7 @@
  * Localização: src/components/public/BlogDestaques.jsx
  *
  * Secção de SEO que destaca artigos informativos e legislação do setor TVDE em Portugal.
+ * Otimizado com cores de marca oficiais para Tailwind v4.
  */
 
 import React from 'react';
@@ -108,11 +109,11 @@ export default function BlogDestaques() {
 
       </div>
 
-      {/* Botão para ir para o índice do Blog */}
+      {/* Botão para ir para o índice do Blog (Atualizado com cores oficiais de tema) */}
       <div className="pt-4">
         <Link 
           to="/blog"
-          className="inline-flex items-center gap-2 px-6 py-3 bg-slate-900 hover:bg-slate-800 text-white font-black text-xs rounded-xl transition-all shadow-md cursor-pointer"
+          className="inline-flex items-center gap-2 px-6 py-3 bg-tvde-dark hover:bg-tvde-primary text-white font-black text-xs rounded-xl transition-all shadow-md cursor-pointer"
         >
           Aceder ao Blog Completo <ArrowRight size={14} />
         </Link>

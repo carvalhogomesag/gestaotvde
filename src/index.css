@@ -11,6 +11,7 @@
 
 @layer base {
   body {
-    @apply bg-[var(--color-tvde-bg)] text-[var(--color-tvde-dark)] antialiased font-sans;
+    /* No Tailwind v4, pode aplicar as suas classes personalizadas diretamente */
+    @apply bg-tvde-bg text-tvde-dark antialiased font-sans;
   }
 }
