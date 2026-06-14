@@ -4,7 +4,7 @@
  *
  * Página inicial pública consolidada (Ficheiro Único Monolítico).
  * Otimizada com carrossel dinâmico de texto à esquerda, formulário eGuia fixo à direita,
- * catálogo de viaturas, destaques de blog e IA.
+ * catálogo de viaturas, destaques de blog, planos de assessoria interativos e IA.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -12,9 +12,9 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { 
   Shield, Check, ArrowRight, Loader2, BookOpen, 
-  Car, HelpCircle, FileText, Smartphone, Mail, User,
+  Car, HelpCircle, Smartphone, Mail, User,
   CheckCircle2, ChevronDown, ChevronUp, AlertCircle, Sparkles, Clock,
-  ChevronRight, ChevronLeft, Printer, LayoutGrid 
+  ChevronRight, ChevronLeft, Printer 
 } from 'lucide-react';
 import ReactGA from 'react-ga4';
 import { registarLeadPública } from '../services/leadService';
@@ -60,6 +60,27 @@ export default function LandingPage() {
 
   const handleProximoSlide = () => setSlideAtivo((prev) => (prev + 1) % totalSlides);
   const handleSlideAnterior = () => setSlideAtivo((prev) => (prev - 1 + totalSlides) % totalSlides);
+
+  // ◄ ADICIONADO: Handler para seleção de Plano de Assessoria com rastreio de conversão e scroll suave
+  const handleEscolherPlano = (planoNome) => {
+    setLeadCarro(prev => ({
+      ...prev,
+      mensagem: `Gostaria de obter informações detalhadas para aderir ao vosso Plano de Assessoria TVDE: ${planoNome}.`
+    }));
+
+    // Envia evento dinâmico de clique para sabermos quais os pacotes com mais cliques
+    ReactGA.event({
+      category: 'Lead Generation',
+      action: 'Click_Plano_Assessoria',
+      label: planoNome
+    });
+
+    // Desliza suavemente até à secção do formulário
+    const seccaoForm = document.getElementById('aluguer');
+    if (seccaoForm) {
+      seccaoForm.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
 
   // ─── ESCUTADOR DE SELEÇÃO DE VIATURAS DO CATÁLOGO ────────────────────────
   useEffect(() => {
@@ -161,7 +182,8 @@ export default function LandingPage() {
 
       setFeedbackCarro(res);
       if (res.sucesso) {
-        setLeadCarro({ nome: '', email: '', telemovel: '', regiao: 'Lisboa', text: '' });
+        // ◄ CORRIGIDO: Propriedade corrigida de "text" para "mensagem" para limpar a textarea de forma consistente
+        setLeadCarro({ nome: '', email: '', telemovel: '', regiao: 'Lisboa', mensagem: '' });
       }
     } catch (err) {
       console.error(err);
@@ -186,7 +208,7 @@ export default function LandingPage() {
       <header className="relative py-12 md:py-24 px-4 sm:px-6 bg-slate-950 text-white overflow-hidden">
         <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-8 lg:gap-12 items-center">
           
-          {/* LADO ESQUERDO: Carrossel de Texto Rotativo (Sem card, raw text) com Altura Mínima Responsiva [CORRIGIDO] */}
+          {/* LADO ESQUERDO: Carrossel de Texto Rotativo (Sem card, raw text) com Altura Mínima Responsiva */}
           <div className="lg:col-span-7 space-y-6 text-left min-h-[440px] sm:min-h-[380px] lg:min-h-[360px] flex flex-col justify-between">
             
             <div className="space-y-5 flex-1 flex flex-col justify-center">
@@ -459,7 +481,7 @@ export default function LandingPage() {
         )}
       </section>
 
-      {/* ─── 4. SECÇÃO PLANOS DE ASSESSORIA (RESPONSIVA) ────────────────────── */}
+      {/* ─── 4. SECÇÃO PLANOS DE ASSESSORIA (RESPONSIVA) [CORRIGIDO: UNBLURRED & INTERATIVO] ────────────────────── */}
       <section id="planos" className="py-16 md:py-20 px-4 sm:px-6 max-w-6xl mx-auto space-y-10 md:space-y-12 border-t border-slate-200">
         <div className="text-center space-y-2 max-w-xl mx-auto">
           <h2 className="text-2xl md:text-3xl font-black text-slate-900">Pacotes de Apoio à sua medida</h2>
@@ -486,8 +508,15 @@ export default function LandingPage() {
             </div>
             <div className="text-left relative mt-auto pt-4 border-t border-slate-50">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Investimento único</p>
-              <p className="text-2xl font-black text-slate-900 filter blur-[5px] select-none">{formatCurrency(49.00)}</p>
-              <span className="text-[10px] font-bold text-blue-600 block mt-1">Preço disponível em breve</span>
+              <p className="text-2xl font-black text-slate-900">{formatCurrency(49.00)}</p>
+              
+              <button
+                type="button"
+                onClick={() => handleEscolherPlano('Plano Essencial / Apoio Documental')}
+                className="w-full mt-3 py-2 bg-slate-900 hover:bg-blue-600 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer"
+              >
+                Tenho Interesse
+              </button>
             </div>
           </div>
 
@@ -510,8 +539,15 @@ export default function LandingPage() {
             </div>
             <div className="text-left relative mt-auto pt-4 border-t border-slate-50">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Investimento único</p>
-              <p className="text-2xl font-black text-blue-600 filter blur-[5px] select-none">{formatCurrency(149.00)}</p>
-              <span className="text-[10px] font-bold text-blue-600 block mt-1">Preço disponível em breve</span>
+              <p className="text-2xl font-black text-blue-600">{formatCurrency(149.00)}</p>
+
+              <button
+                type="button"
+                onClick={() => handleEscolherPlano('Plano Avançado / Organização IMT')}
+                className="w-full mt-3 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer"
+              >
+                Tenho Interesse
+              </button>
             </div>
           </div>
 
@@ -531,8 +567,15 @@ export default function LandingPage() {
             </div>
             <div className="text-left relative mt-auto pt-4 border-t border-slate-50">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider mb-0.5">Investimento único</p>
-              <p className="text-2xl font-black text-slate-900 filter blur-[5px] select-none">{formatCurrency(249.00)}</p>
-              <span className="text-[10px] font-bold text-blue-600 block mt-1">Preço disponível em breve</span>
+              <p className="text-2xl font-black text-slate-900">{formatCurrency(249.00)}</p>
+
+              <button
+                type="button"
+                onClick={() => handleEscolherPlano('Plano Premium / Chave na Mão')}
+                className="w-full mt-3 py-2 bg-slate-900 hover:bg-blue-600 text-white font-bold rounded-xl text-xs transition-colors cursor-pointer"
+              >
+                Tenho Interesse
+              </button>
             </div>
           </div>
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'; // ◄ Alterado: useState incluído para controlo responsivo
+import { useEffect, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuth } from './context/AuthContext';
 import Sidebar from './components/layout/Sidebar';
@@ -24,6 +24,10 @@ import CentroComando from './pages/CentroComando';
 import OnboardingMotorista from './pages/OnboardingMotorista';
 import MigracaoFirestore from './pages/MigracaoFirestore';
 
+// ◄ ADICIONADO: Importação das novas páginas de Assessoria de Clientes [App.jsx]
+import Assessorados from './pages/Assessorados';
+import ServicosConfig from './pages/ServicosConfig';
+
 const GA_MEASUREMENT_ID = import.meta.env.VITE_GA_MEASUREMENT_ID;
 if (GA_MEASUREMENT_ID) {
   ReactGA.initialize(GA_MEASUREMENT_ID);
@@ -46,7 +50,7 @@ function AppContent() {
   const { user } = useAuth();
   const location = useLocation();
 
-  // ◄ ADICIONADO: Controlo de estado para gaveta de navegação mobile
+  // Controlo de estado para gaveta de navegação mobile
   const [sidebarAberta, setSidebarAberta] = useState(false);
 
   useEffect(() => {
@@ -70,20 +74,20 @@ function AppContent() {
 
   return (
     <div className="flex min-h-screen bg-tvde-bg overflow-x-hidden">
-      {/* ◄ ALTERADO: Sidebar recebe os controlos de visualização mobile */}
+      {/* Sidebar recebe os controlos de visualização mobile */}
       {mostrarLayoutERP && (
         <Sidebar aberta={sidebarAberta} setAberta={setSidebarAberta} />
       )}
       
-      {/* ◄ ALTERADO: ml-64 passa a lg:ml-64 (afasta apenas no computador) */}
+      {/* ml-64 passa a lg:ml-64 (afasta apenas no computador) */}
       <div className={`flex-1 flex flex-col min-w-0 ${mostrarLayoutERP ? 'lg:ml-64 ml-0' : ''}`}>
         
-        {/* ◄ ALTERADO: Header recebe o gatilho para abrir a Sidebar no telemóvel */}
+        {/* Header recebe o gatilho para abrir a Sidebar no telemóvel */}
         {mostrarLayoutERP && (
           <Header setSidebarAberta={setSidebarAberta} />
         )}
         
-        {/* ◄ ALTERADO: Padding fluido (p-4 no telemóvel, p-8 no computador) */}
+        {/* Padding fluido (p-4 no telemóvel, p-8 no computador) */}
         <main className={mostrarLayoutERP ? "p-4 sm:p-8 pt-4" : ""}>
           <Routes>
             {/* ROTAS PÚBLICAS */}
@@ -102,6 +106,10 @@ function AppContent() {
             <Route path="/dashboard" element={<PrivateRoute><Dashboard /></PrivateRoute>} />
             <Route path="/motoristas" element={<PrivateRoute><Motoristas /></PrivateRoute>} />
             <Route path="/leads" element={<PrivateRoute><GestaoLeads /></PrivateRoute>} />
+            
+            {/* ◄ ADICIONADO: Nova Rota de Gestão de Clientes em Assessoria */}
+            <Route path="/assessorados" element={<PrivateRoute><Assessorados /></PrivateRoute>} />
+            
             <Route path="/veiculos" element={<PrivateRoute><Veiculos /></PrivateRoute>} />
             <Route path="/proprietarios" element={<PrivateRoute><Proprietarios /></PrivateRoute>} />
             <Route path="/tarefas" element={<PrivateRoute><MinhasTarefas /></PrivateRoute>} />
@@ -113,6 +121,10 @@ function AppContent() {
             <Route path="/centro-comando" element={<AdminRoute><CentroComando /></AdminRoute>} />
             <Route path="/fecho-semanal" element={<AdminRoute><FechoSemanal /></AdminRoute>} />
             <Route path="/utilizadores" element={<AdminRoute><GestaoUtilizadores /></AdminRoute>} />
+            
+            {/* ◄ ADICIONADO: Nova Rota de Configuração de Planos (Exclusivo Diretor) */}
+            <Route path="/config/servicos" element={<AdminRoute><ServicosConfig /></AdminRoute>} />
+            
             <Route path="/logs" element={<AdminRoute><LogsSistema /></AdminRoute>} />
 
             <Route path="*" element={<Navigate to={user ? "/dashboard" : "/"} />} />

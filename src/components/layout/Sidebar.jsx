@@ -3,9 +3,7 @@
  * Localização: src/components/layout/Sidebar.jsx
  *
  * Menu lateral administrativo.
- * Atualizado com responsividade fluida:
- * - Gaveta deslizável no mobile com backdrop semi-transparente
- * - Barra lateral rígida de tamanho standard no desktop
+ * Atualizado com responsividade fluida e rotas do novo fluxo de Assessoria de Clientes.
  */
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -14,7 +12,8 @@ import {
   LayoutDashboard, Car, UserCheck, Users, 
   Settings, LogOut, CreditCard, ChevronDown, ChevronUp,
   Fuel, Zap, ClipboardList, Inbox, ShieldAlert, Users2,
-  Sparkles, UserPlus, X // ◄ Importado ícone X de fechar para mobile
+  Sparkles, UserPlus, X,
+  BookOpen, Sliders // ◄ Importados ícones para Assessoria e Configuração de Planos
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -46,7 +45,7 @@ const SubMenuItem = ({ icon: Icon, label, to, active }) => (
   </Link>
 );
 
-export default function Sidebar({ aberta, setAberta }) { // ◄ Recebe as props para controlo responsivo
+export default function Sidebar({ aberta, setAberta }) {
   const location = useLocation();
   const navigate = useNavigate();
   const { userData, logout } = useAuth();
@@ -106,7 +105,7 @@ export default function Sidebar({ aberta, setAberta }) { // ◄ Recebe as props 
 
   return (
     <>
-      {/* ◄ ADICIONADO: Backdrop de escurecimento de fundo (Apenas Mobile quando o menu está aberto) */}
+      {/* Backdrop de escurecimento de fundo (Apenas Mobile quando o menu está aberto) */}
       {aberta && (
         <div 
           className="fixed inset-0 z-30 bg-slate-950/60 backdrop-blur-xs lg:hidden"
@@ -114,7 +113,7 @@ export default function Sidebar({ aberta, setAberta }) { // ◄ Recebe as props 
         />
       )}
 
-      {/* ◄ ALTERADO: Classes CSS dinâmicas para ocultação e deslizamento responsivo */}
+      {/* Classes CSS dinâmicas para ocultação e deslizamento responsivo */}
       <aside 
         className={`w-64 h-screen bg-tvde-dark text-white p-3 flex flex-col fixed left-0 top-0 z-40 shadow-2xl transition-transform duration-300 ease-in-out ${
           aberta ? 'translate-x-0' : '-translate-x-full'
@@ -129,7 +128,7 @@ export default function Sidebar({ aberta, setAberta }) { // ◄ Recebe as props 
             <p className="text-[9px] text-slate-500 uppercase tracking-widest font-semibold italic">Operador Portugal</p>
           </div>
 
-          {/* ◄ ADICIONADO: Botão para fechar o menu (Visível apenas em Mobile) */}
+          {/* Botão para fechar o menu (Visível apenas em Mobile) */}
           <button
             type="button"
             onClick={() => setAberta(false)}
@@ -165,6 +164,14 @@ export default function Sidebar({ aberta, setAberta }) { // ◄ Recebe as props 
             label="Gestão de Leads" 
             to="/leads" 
             active={location.pathname === '/leads'} 
+          />
+
+          {/* ◄ ADICIONADO: Canalização operacional de Clientes em Assessoria */}
+          <MenuItem 
+            icon={BookOpen} 
+            label="Clientes Assessoria" 
+            to="/assessorados" 
+            active={location.pathname === '/assessorados'} 
           />
 
           {/* Grupo Administração */}
@@ -239,7 +246,16 @@ export default function Sidebar({ aberta, setAberta }) { // ◄ Recebe as props 
                 label="Gestão de Equipa" 
                 to="/utilizadores" 
                 active={location.pathname === '/utilizadores'} 
-                />
+              />
+
+              {/* ◄ ADICIONADO: Configuração dos Planos/Serviços de Assessoria (Apenas Diretor) */}
+              <MenuItem 
+                icon={Sliders} 
+                label="Planos de Assessoria" 
+                to="/config/servicos" 
+                active={location.pathname === '/config/servicos'} 
+              />
+
               <MenuItem 
                 icon={ShieldAlert} 
                 label="Auditoria Global" 
