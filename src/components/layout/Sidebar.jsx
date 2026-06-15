@@ -4,9 +4,10 @@
  *
  * Menu lateral administrativo.
  * Atualizado com:
- * - Grupo expansível de "Serviços" (Gratuitos, Planos de Assessoria, Serviços Avulsos, Motoristas, Proprietários, Cursos)
- * - Efeito de auto-scroll suave para o novo grupo de Serviços
- * - Responsividade fluida e rotas do novo fluxo de Assessoria de Clientes
+ * - Secção "Administração" a unificar Registos e Serviços.
+ * - Grupo "Serviços" com suporte a sub-abas parametrizadas por categoria (?categoria=...).
+ * - Remoção do item isolado "Planos de Assessoria" da secção de Direção e Finanças.
+ * - Responsividade fluida, auto-scroll inteligente e escuta ativa de query parameters.
  */
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -16,7 +17,7 @@ import {
   Settings, LogOut, CreditCard, ChevronDown, ChevronUp,
   Fuel, Zap, ClipboardList, Inbox, ShieldAlert, Users2,
   Sparkles, UserPlus, X, BookOpen, Sliders,
-  Briefcase, Gift, FileText, GraduationCap // ◄ Importados ícones para o novo menu de Serviços
+  Briefcase, Gift, FileText, GraduationCap
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -62,20 +63,21 @@ export default function Sidebar({ aberta, setAberta }) {
   const [isRegistrosOpen, setIsRegistrosOpen] = useState(true);
   const [isCartoesOpen, setIsCartoesOpen] = useState(false);
 
-  // Mapeamento que identifica se algum sub-serviço está ativo
-  const isServicosActive = [
-    '/servicos-gratuitos', 
-    '/assessorados', 
-    '/servicos-avulsos', 
-    '/motoristas', 
-    '/proprietarios', 
-    '/cursos'
-  ].some(path => location.pathname === path);
+  // Mapeamento que identifica se a rota de configuração de serviços está ativa
+  const isServicosActive = location.pathname === '/config/servicos';
 
   // Mapeamento que identifica se algum sub-registo está ativo
   const isRegistrosActive = ['/motoristas', '/veiculos', '/proprietarios', '/cartoes'].some(path => 
     location.pathname.includes(path)
   );
+
+  // Extração inteligente da categoria ativa através da query string (URL)
+  const getQueryCategoria = () => {
+    const params = new URLSearchParams(location.search);
+    return params.get('categoria');
+  };
+
+  const categoriaAtiva = getQueryCategoria();
 
   /**
    * Efeito de Scroll para Serviços com Salvaguarda de Referência
@@ -198,7 +200,7 @@ export default function Sidebar({ aberta, setAberta }) {
             active={location.pathname === '/leads'} 
           />
 
-          {/* ◄ ADICIONADO: Canalização operacional de Clientes em Assessoria (Standalone link mantido para conveniência) */}
+          {/* Canalização operacional de Clientes em Assessoria */}
           <MenuItem 
             icon={BookOpen} 
             label="Clientes Assessoria" 
@@ -206,80 +208,105 @@ export default function Sidebar({ aberta, setAberta }) {
             active={location.pathname === '/assessorados'} 
           />
 
-          {/* ◄ NOVO GRUPO: Serviços (Comportamento Acordeão idêntico ao Registos) */}
-          <div className="pt-2 space-y-0.5" ref={servicosRef}>
-            <p className="text-[9px] font-black text-slate-600 uppercase px-3 tracking-widest mb-1">Operações</p>
-            
-            <button 
-              onClick={() => setIsServicosOpen(!isServicosOpen)}
-              className={`w-full flex items-center justify-between py-1.5 px-3 rounded-lg transition-all ${
-                isServicosActive ? 'text-white bg-slate-800/30' : 'text-slate-400 hover:bg-slate-800/40 hover:text-white'
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <Briefcase size={18} />
-                <span className="font-medium text-sm">Serviços</span>
-              </div>
-              {isServicosOpen ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
-            </button>
-
-            {isServicosOpen && (
-              <div className="ml-3 pl-3 border-l border-slate-800/50 space-y-0.5 mt-0.5 animate-in slide-in-from-top-1 duration-200">
-                <SubMenuItem icon={Gift} label="Gratuitos" to="/servicos-gratuitos" active={location.pathname === '/servicos-gratuitos'} />
-                <SubMenuItem icon={BookOpen} label="Planos de Assessoria" to="/assessorados" active={location.pathname === '/assessorados'} />
-                <SubMenuItem icon={FileText} label="Serviços Avulsos" to="/servicos-avulsos" active={location.pathname === '/servicos-avulsos'} />
-                <SubMenuItem icon={UserCheck} label="Motoristas" to="/motoristas" active={location.pathname === '/motoristas'} />
-                <SubMenuItem icon={Users} label="Proprietários" to="/proprietarios" active={location.pathname === '/proprietarios'} />
-                <SubMenuItem icon={GraduationCap} label="Cursos" to="/cursos" active={location.pathname === '/cursos'} />
-              </div>
-            )}
-          </div>
-
-          {/* Grupo Administração */}
-          <div className="pt-2 space-y-0.5" ref={registrosRef}>
+          {/* SECCÃO: Administração (Agrupa Registos e Serviços) */}
+          <div className="pt-2 space-y-0.5">
             <p className="text-[9px] font-black text-slate-600 uppercase px-3 tracking-widest mb-1">Administração</p>
             
-            <button 
-              onClick={() => setIsRegistrosOpen(!isRegistrosOpen)}
-              className={`w-full flex items-center justify-between py-1.5 px-3 rounded-lg transition-all ${
-                isRegistrosActive ? 'text-white bg-slate-800/30' : 'text-slate-400 hover:bg-slate-800/40 hover:text-white'
-              }`}
-            >
-              <div className="flex items-center gap-2.5">
-                <ClipboardList size={18} />
-                <span className="font-medium text-sm">Registos</span>
-              </div>
-              {isRegistrosOpen ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
-            </button>
-
-            {isRegistrosOpen && (
-              <div className="ml-3 pl-3 border-l border-slate-800/50 space-y-0.5 mt-0.5 animate-in slide-in-from-top-1 duration-200">
-                <SubMenuItem icon={UserCheck} label="Motoristas" to="/motoristas" active={location.pathname === '/motoristas'} />
-                <SubMenuItem icon={Car} label="Veículos" to="/veiculos" active={location.pathname === '/veiculos'} />
-                <SubMenuItem icon={Users} label="Proprietários" to="/proprietarios" active={location.pathname === '/proprietarios'} />
-
-                {/* Sub-menu Cartões */}
-                <div className="space-y-0.5 pt-0.5" ref={cartoesRef}>
-                  <button 
-                    onClick={() => setIsCartoesOpen(!isCartoesOpen)}
-                    className="w-full flex items-center justify-between py-1 px-2.5 pl-4 text-slate-500 hover:text-white rounded-lg transition-all"
-                  >
-                    <div className="flex items-center gap-2.5">
-                      <CreditCard size={14} />
-                      <span className="font-medium text-xs">Cartões</span>
-                    </div>
-                    {isCartoesOpen ? <ChevronDown size={12} /> : <ChevronUp size={12} />}
-                  </button>
-
-                  {isCartoesOpen && (
-                    <div className="ml-3 space-y-0.5 animate-in fade-in duration-150">
-                      <SubMenuItem icon={Fuel} label="Abastecimento" to="/cartoes/abastecimento" active={location.pathname === '/cartoes/abastecimento'} />
-                      <SubMenuItem icon={Zap} label="Carregamento" to="/cartoes/carregamento" active={location.pathname === '/cartoes/carregamento'} />
-                    </div>
-                  )}
+            {/* Acordeão de Registos */}
+            <div ref={registrosRef}>
+              <button 
+                onClick={() => setIsRegistrosOpen(!isRegistrosOpen)}
+                className={`w-full flex items-center justify-between py-1.5 px-3 rounded-lg transition-all ${
+                  isRegistrosActive ? 'text-white bg-slate-800/30' : 'text-slate-400 hover:bg-slate-800/40 hover:text-white'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <ClipboardList size={18} />
+                  <span className="font-medium text-sm">Registos</span>
                 </div>
-              </div>
-            )}
+                {isRegistrosOpen ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+              </button>
+
+              {isRegistrosOpen && (
+                <div className="ml-3 pl-3 border-l border-slate-800/50 space-y-0.5 mt-0.5 animate-in slide-in-from-top-1 duration-200">
+                  <SubMenuItem icon={UserCheck} label="Motoristas" to="/motoristas" active={location.pathname === '/motoristas'} />
+                  <SubMenuItem icon={Car} label="Veículos" to="/veiculos" active={location.pathname === '/veiculos'} />
+                  <SubMenuItem icon={Users} label="Proprietários" to="/proprietarios" active={location.pathname === '/proprietarios'} />
+
+                  {/* Sub-menu Cartões */}
+                  <div className="space-y-0.5 pt-0.5" ref={cartoesRef}>
+                    <button 
+                      onClick={() => setIsCartoesOpen(!isCartoesOpen)}
+                      className="w-full flex items-center justify-between py-1 px-2.5 pl-4 text-slate-500 hover:text-white rounded-lg transition-all"
+                    >
+                      <div className="flex items-center gap-2.5">
+                        <CreditCard size={14} />
+                        <span className="font-medium text-xs">Cartões</span>
+                      </div>
+                      {isCartoesOpen ? <ChevronDown size={12} /> : <ChevronUp size={12} />}
+                    </button>
+
+                    {isCartoesOpen && (
+                      <div className="ml-3 space-y-0.5 animate-in fade-in duration-150">
+                        <SubMenuItem icon={Fuel} label="Abastecimento" to="/cartoes/abastecimento" active={location.pathname === '/cartoes/abastecimento'} />
+                        <SubMenuItem icon={Zap} label="Carregamento" to="/cartoes/carregamento" active={location.pathname === '/cartoes/carregamento'} />
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            {/* Acordeão de Serviços */}
+            <div ref={servicosRef} className="pt-1">
+              <button 
+                onClick={() => setIsServicosOpen(!isServicosOpen)}
+                className={`w-full flex items-center justify-between py-1.5 px-3 rounded-lg transition-all ${
+                  isServicosActive ? 'text-white bg-slate-800/30' : 'text-slate-400 hover:bg-slate-800/40 hover:text-white'
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <Briefcase size={18} />
+                  <span className="font-medium text-sm">Serviços</span>
+                </div>
+                {isServicosOpen ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+              </button>
+
+              {isServicosOpen && (
+                <div className="ml-3 pl-3 border-l border-slate-800/50 space-y-0.5 mt-0.5 animate-in slide-in-from-top-1 duration-200">
+                  <SubMenuItem 
+                    icon={Gift} 
+                    label="Serviços Gratuitos" 
+                    to="/config/servicos?categoria=gratuitos" 
+                    active={isServicosActive && categoriaAtiva === 'gratuitos'} 
+                  />
+                  <SubMenuItem 
+                    icon={FileText} 
+                    label="Serviços Avulsos" 
+                    to="/config/servicos?categoria=avulsos" 
+                    active={isServicosActive && categoriaAtiva === 'avulsos'} 
+                  />
+                  <SubMenuItem 
+                    icon={UserCheck} 
+                    label="Serviços Motoristas" 
+                    to="/config/servicos?categoria=motoristas" 
+                    active={isServicosActive && categoriaAtiva === 'motoristas'} 
+                  />
+                  <SubMenuItem 
+                    icon={Users} 
+                    label="Serviços Proprietários" 
+                    to="/config/servicos?categoria=proprietarios" 
+                    active={isServicosActive && categoriaAtiva === 'proprietarios'} 
+                  />
+                  <SubMenuItem 
+                    icon={GraduationCap} 
+                    label="Cursos" 
+                    to="/config/servicos?categoria=cursos" 
+                    active={isServicosActive && categoriaAtiva === 'cursos'} 
+                  />
+                </div>
+              )}
+            </div>
           </div>
 
           {/* Secção Segurança e Finanças - EXCLUSIVA ADMIN */}
@@ -307,14 +334,6 @@ export default function Sidebar({ aberta, setAberta }) {
                 label="Gestão de Equipa" 
                 to="/utilizadores" 
                 active={location.pathname === '/utilizadores'} 
-              />
-
-              {/* Configuração dos Planos/Serviços de Assessoria (Apenas Diretor) */}
-              <MenuItem 
-                icon={Sliders} 
-                label="Planos de Assessoria" 
-                to="/config/servicos" 
-                active={location.pathname === '/config/servicos'} 
               />
 
               <MenuItem 

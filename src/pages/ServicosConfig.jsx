@@ -5,9 +5,11 @@
  * Página de parametrização e preços de planos e serviços de assessoria.
  * Reservado exclusivamente para Administradores (Diretores).
  * Totalmente responsiva com suporte a listagem horizontal rolável e modal de edição.
+ * Adaptada para suportar filtragem e criação dinâmica de serviços por Categoria (Gratuitos, Avulsos, Motoristas, Proprietários, Cursos).
  */
 
 import React, { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom'; // ◄ Importado para escutar a query string
 import { Sliders, Plus, Edit, Loader2, Lock, CheckCircle2, DollarSign, Layers } from 'lucide-react';
 import { db } from '../firebase';
 import { doc, setDoc } from 'firebase/firestore';
@@ -18,11 +20,24 @@ import { obterPlanosAssessoria } from '../services/assessoriaService';
 import Button from '../components/ui/Button';
 import Modal from '../components/ui/Modal';
 
+// Mapeamento de nomes amigáveis para as categorias
+const NOMES_CATEGORIAS = {
+  gratuitos: 'Serviços Gratuitos',
+  avulsos: 'Serviços Avulsos',
+  motoristas: 'Serviços Motoristas',
+  proprietarios: 'Serviços Proprietários',
+  cursos: 'Cursos'
+};
+
 export default function ServicosConfig() {
   const { userData, loading: authLoading } = useAuth();
+  const [searchParams] = useSearchParams(); // ◄ Captura o ?categoria= da URL
   const [planos, setPlanos] = useState([]);
   const [loading, setLoading] = useState(true);
   
+  // Deteta a categoria a partir da URL. Se não existir, assume 'gratuitos' por padrão
+  const categoriaAtiva = searchParams.get('categoria') || 'gratuitos';
+
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingPlano, setEditingPlano] = useState(null);
   const [formData, setFormData] = useState({
@@ -31,6 +46,7 @@ export default function ServicosConfig() {
     preco: '',
     descricao: '',
     ativo: true,
+    categoria: 'gratuitos', // ◄ Adicionado campo de categoria
     itens: [] // IDs dos serviços avulsos incluídos (caso seja pacote)
   });
 
@@ -50,7 +66,7 @@ export default function ServicosConfig() {
     if (userData?.role === 'admin') {
       carregarDados();
     }
-  }, [userData]);
+  }, [userData, searchParams]); // Recarrega quando os parâmetros de pesquisa mudam
 
   // BLOQUEIO DE SEGURANÇA: Se não for administrador, barra o acesso
   if (!authLoading && userData?.role !== 'admin') {
@@ -70,6 +86,9 @@ export default function ServicosConfig() {
     );
   }
 
+  // Filtragem dinâmica por categoria baseada na aba ativa na URL (fallback para 'avulsos' se for legado)
+  const planosFiltrados = planos.filter(p => (p.categoria || 'avulsos') === categoriaAtiva);
+
   const handleEditClick = (plano) => {
     setEditingPlano(plano);
     setFormData({
@@ -78,6 +97,7 @@ export default function ServicosConfig() {
       preco: plano.preco || '',
       descricao: plano.descricao || '',
       ativo: plano.ativo ?? true,
+      categoria: plano.categoria || 'avulsos', // Fallback se legado
       itens: plano.itens || [] // Carrega os IDs já associados
     });
     setIsModalOpen(true);
@@ -88,9 +108,10 @@ export default function ServicosConfig() {
     setFormData({
       nome: '',
       tipo: 'avulso',
-      preco: '',
+      preco: categoriaAtiva === 'gratuitos' ? '0' : '', // Se for gratuito, pré-define o valor como zero
       descricao: '',
       ativo: true,
+      categoria: categoriaAtiva, // ◄ Garante que o novo serviço assume a categoria da aba ativa
       itens: []
     });
     setIsModalOpen(true);
@@ -121,7 +142,7 @@ export default function ServicosConfig() {
         operador,
         editingPlano ? 'Edição Preço' : 'Criação Serviço',
         'Configurações',
-        `${editingPlano ? 'Atualizou' : 'Criou'} o serviço/plano: ${formData.nome} para o valor de ${formData.preco}€`,
+        `${editingPlano ? 'Atualizou' : 'Criou'} o serviço/plano: ${formData.nome} na categoria ${NOMES_CATEGORIAS[formData.categoria] || formData.categoria} para o valor de ${formData.preco}€`,
         idDoc
       );
 
@@ -144,15 +165,15 @@ export default function ServicosConfig() {
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-slate-800 flex items-center gap-2 leading-tight">
             <Sliders className="text-tvde-primary shrink-0" size={24} />
-            Planos & Preços de Assessoria
+            {NOMES_CATEGORIAS[categoriaAtiva] || 'Planos & Preços de Assessoria'}
           </h1>
-          <p className="text-slate-500 text-xs sm:text-sm">Parametrização dos pacotes e serviços de apoio documentais.</p>
+          <p className="text-slate-500 text-xs sm:text-sm">Parametrização e preços para publicação na Landing Page pública.</p>
         </div>
         <Button 
           onClick={handleNovoClick}
           className="w-full sm:w-auto justify-center text-xs sm:text-sm h-10"
         >
-          <Plus size={18} /> Novo Serviço / Plano
+          <Plus size={18} /> Novo {NOMES_CATEGORIAS[categoriaAtiva] || 'Serviço'}
         </Button>
       </header>
 
@@ -176,56 +197,64 @@ export default function ServicosConfig() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50 text-xs sm:text-sm text-slate-700">
-              {planos.map((plano) => (
-                <tr key={plano.id} className="hover:bg-slate-50/50 transition-colors">
-                  {/* Nome */}
-                  <td className="p-4 font-bold text-slate-800">{plano.nome}</td>
-                  
-                  {/* Tipo */}
-                  <td className="p-4">
-                    <span className={`inline-block px-2.5 py-1 rounded-lg text-[9px] font-black uppercase border ${
-                      plano.tipo === 'pacote' 
-                        ? 'bg-blue-50 text-blue-600 border-blue-100' 
-                        : 'bg-slate-50 text-slate-500 border-slate-200'
-                    }`}>
-                      {plano.tipo}
-                    </span>
-                  </td>
+              {planosFiltrados.length > 0 ? (
+                planosFiltrados.map((plano) => (
+                  <tr key={plano.id} className="hover:bg-slate-50/50 transition-colors">
+                    {/* Nome */}
+                    <td className="p-4 font-bold text-slate-800">{plano.nome}</td>
+                    
+                    {/* Tipo */}
+                    <td className="p-4">
+                      <span className={`inline-block px-2.5 py-1 rounded-lg text-[9px] font-black uppercase border ${
+                        plano.tipo === 'pacote' 
+                          ? 'bg-blue-50 text-blue-600 border-blue-100' 
+                          : 'bg-slate-50 text-slate-500 border-slate-200'
+                      }`}>
+                        {plano.tipo}
+                      </span>
+                    </td>
 
-                  {/* Descrição */}
-                  <td className="p-4 max-w-[220px] text-slate-400 leading-relaxed truncate" title={plano.descricao}>
-                    {plano.descricao || 'Sem descrição cadastrada.'}
-                  </td>
+                    {/* Descrição */}
+                    <td className="p-4 max-w-[220px] text-slate-400 leading-relaxed truncate" title={plano.descricao}>
+                      {plano.descricao || 'Sem descrição cadastrada.'}
+                    </td>
 
-                  {/* Preço */}
-                  <td className="p-4 text-center font-black text-tvde-primary">
-                    {formatCurrency(plano.preco)}
-                  </td>
+                    {/* Preço */}
+                    <td className="p-4 text-center font-black text-tvde-primary">
+                      {formatCurrency(plano.preco)}
+                    </td>
 
-                  {/* Estado (Ativo/Inativo) */}
-                  <td className="p-4 text-center">
-                    <span className={`inline-block px-2 py-0.5 rounded-md text-[9px] font-bold uppercase ${
-                      plano.ativo !== false 
-                        ? 'bg-green-100 text-green-700' 
-                        : 'bg-red-100 text-red-700'
-                    }`}>
-                      {plano.ativo !== false ? 'Ativo' : 'Inativo'}
-                    </span>
-                  </td>
+                    {/* Estado (Ativo/Inativo) */}
+                    <td className="p-4 text-center">
+                      <span className={`inline-block px-2 py-0.5 rounded-md text-[9px] font-bold uppercase ${
+                        plano.ativo !== false 
+                          ? 'bg-green-100 text-green-700' 
+                          : 'bg-red-100 text-red-700'
+                      }`}>
+                        {plano.ativo !== false ? 'Ativo' : 'Inativo'}
+                      </span>
+                    </td>
 
-                  {/* Ações */}
-                  <td className="p-4 text-right">
-                    <button
-                      type="button"
-                      onClick={() => handleEditClick(plano)}
-                      className="p-2 text-slate-400 hover:text-tvde-primary bg-slate-50 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
-                      title="Editar preço e descrição"
-                    >
-                      <Edit size={16} />
-                    </button>
+                    {/* Ações */}
+                    <td className="p-4 text-right">
+                      <button
+                        type="button"
+                        onClick={() => handleEditClick(plano)}
+                        className="p-2 text-slate-400 hover:text-tvde-primary bg-slate-50 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                        title="Editar preço e descrição"
+                      >
+                        <Edit size={16} />
+                      </button>
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td colSpan="6" className="p-8 text-center text-slate-400 italic">
+                    Nenhum plano ou serviço cadastrado nesta categoria. Clique em "Novo" para adicionar.
                   </td>
                 </tr>
-              ))}
+              )}
             </tbody>
           </table>
         </div>
@@ -235,7 +264,7 @@ export default function ServicosConfig() {
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title={editingPlano ? "Editar Configurações de Serviço" : "Criar Novo Plano / Serviço"}
+        title={editingPlano ? "Editar Configurações de Serviço" : `Criar Novo ${NOMES_CATEGORIAS[categoriaAtiva] || 'Serviço'}`}
       >
         <form onSubmit={handleSave} className="space-y-4 text-left">
           
@@ -244,16 +273,28 @@ export default function ServicosConfig() {
               <label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Nome do Plano ou Serviço *</label>
               <input required className={inputClass} value={formData.nome} onChange={(e) => setFormData({...formData, nome: e.target.value})} />
             </div>
+
+            {/* Categoria do Serviço */}
+            <div>
+              <label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Categoria de Publicação *</label>
+              <select required className={inputClass} value={formData.categoria} onChange={(e) => setFormData({...formData, categoria: e.target.value})}>
+                <option value="gratuitos">🎁 Serviços Gratuitos</option>
+                <option value="avulsos">⚙️ Serviços Avulsos</option>
+                <option value="motoristas">🚗 Serviços Motoristas</option>
+                <option value="proprietarios">💼 Serviços Proprietários</option>
+                <option value="cursos">🎓 Cursos</option>
+              </select>
+            </div>
             
             <div>
               <label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Tipo de Serviço</label>
               <select className={inputClass} value={formData.tipo} onChange={(e) => setFormData({...formData, tipo: e.target.value, itens: []})}>
-                <option value="pacote">📦 Pacote de Assessoria Completo</option>
                 <option value="avulso">⚙️ Serviço Avulso / Individual</option>
+                <option value="pacote">📦 Pacote de Assessoria Completo</option>
               </select>
             </div>
 
-            <div>
+            <div className="col-span-1 md:col-span-2">
               <label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Preço do Plano (€) *</label>
               <div className="relative">
                 <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
@@ -266,7 +307,7 @@ export default function ServicosConfig() {
               <textarea className={`${inputClass} h-20 resize-none`} value={formData.descricao} onChange={(e) => setFormData({...formData, descricao: e.target.value})} placeholder="Escreva aqui os detalhes de cobertura e suporte incluídos neste serviço..." />
             </div>
 
-            {/* ◄ ADICIONADO: Seleção dinâmica de Serviços Avulsos incluídos no pacote */}
+            {/* Seleção dinâmica de Serviços Avulsos incluídos no pacote */}
             {formData.tipo === 'pacote' && (
               <div className="col-span-1 md:col-span-2 border-t border-slate-100 pt-4 mt-2">
                 <label className="block text-[10px] font-black text-slate-500 uppercase mb-2 ml-1">
