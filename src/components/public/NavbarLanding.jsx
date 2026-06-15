@@ -2,11 +2,10 @@
  * NavbarLanding.jsx
  * Localização: src/components/public/NavbarLanding.jsx
  *
- * Menu multinível dinâmico com experiência visual (UX) premium.
- * - Sincronização em tempo real com o Firestore (onSnapshot) [2].
- * - Organização do Dropdown em duas colunas: Motoristas vs Proprietários.
- * - Subdivisões internas por tipo: Gratuitos, Avulsos e Pacotes.
- * - Hover state de alta reatividade com atraso inteligente para evitar flickers.
+ * Menu de navegação pública (Topbar) integrado de forma dinâmica com o Firestore.
+ * - Sincronização em tempo real (onSnapshot) com a coleção 'servicos_assessoria' [2].
+ * - Detecção automática de links especiais / redirecionamentos (ex: /gerador-distico) [2].
+ * - Organização visual premium em duas colunas (Motoristas vs Proprietários) [2].
  * - Suporte mobile completo com listagem tátil hierárquica.
  */
 
@@ -14,7 +13,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { 
   ChevronDown, Menu, X, Printer, Gift, FileText, 
-  BookOpen, Car, GraduationCap, Layers, User, Building2, Shield 
+  BookOpen, Car, GraduationCap, Layers, User, Building2
 } from 'lucide-react';
 import { db } from '../../firebase';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
@@ -41,28 +40,39 @@ export default function NavbarLanding() {
         proprietario: { gratuitos: [], avulsos: [], pacotes: [] }
       };
 
-      // Injeta de forma prioritária o Gerador de Dísticos nos gratuitos do motorista
-      agrupado.motorista.gratuitos.push({
-        id: 'gerador-distico-fixo',
-        nome: 'Gerador de Dísticos',
-        isLinkExterno: true,
-        href: '/gerador-distico'
-      });
+      let temDisticoNaDb = false;
 
       snapshot.forEach(doc => {
         const data = doc.data();
         const dest = data.destinatario || 'motorista'; // Fallback de segurança
+        const item = { id: doc.id, ...data };
+
+        // Verifica se o Gerador de Dísticos já foi criado de forma dinâmica na DB [2]
+        if (item.linkExterno === '/gerador-distico') {
+          temDisticoNaDb = true;
+        }
 
         if (agrupado[dest]) {
           if (data.isGratuito || data.preco === 0) {
-            agrupado[dest].gratuitos.push({ id: doc.id, ...data });
+            agrupado[dest].gratuitos.push(item);
           } else if (data.tipo === 'pacote') {
-            agrupado[dest].pacotes.push({ id: doc.id, ...data });
+            agrupado[dest].pacotes.push(item);
           } else {
-            agrupado[dest].avulsos.push({ id: doc.id, ...data });
+            agrupado[dest].avulsos.push(item);
           }
         }
       });
+
+      // Se ainda não tiver sido criado na base de dados, injetamos o dístico de fallback temporário [2]
+      if (!temDisticoNaDb) {
+        agrupado.motorista.gratuitos.unshift({
+          id: 'gerador-distico-fallback',
+          nome: 'Gerador de Dísticos',
+          isGratuito: true,
+          linkExterno: '/gerador-distico'
+        });
+      }
+
       setServicosAgrupados(agrupado);
     });
     return () => unsubscribe();
@@ -93,6 +103,44 @@ export default function NavbarLanding() {
   const fecharTudo = () => {
     setDropdownAberto(false);
     setMenuMobileAberto(false);
+  };
+
+  /**
+   * Helper para renderizar os links de forma inteligente [2].
+   * Se o serviço possuir a propriedade 'linkExterno', redireciona [2].
+   * Caso contrário, envia para a âncora de serviços da Landing Page [2].
+   */
+  const renderServicoLink = (s) => {
+    const labelStyle = s.linkExterno === '/gerador-distico' || s.isGratuito 
+      ? "block text-xs font-semibold text-emerald-600 hover:underline cursor-pointer" 
+      : "block text-xs font-semibold text-slate-600 hover:text-blue-600 cursor-pointer";
+
+    const content = (
+      <span className={labelStyle}>
+        {s.nome}
+      </span>
+    );
+
+    if (s.linkExterno) {
+      if (s.linkExterno.startsWith('http')) {
+        return (
+          <a key={s.id} href={s.linkExterno} target="_blank" rel="noopener noreferrer" onClick={fecharTudo} className="block py-1">
+            {content}
+          </a>
+        );
+      }
+      return (
+        <Link key={s.id} to={s.linkExterno} onClick={fecharTudo} className="block py-1">
+          {content}
+        </Link>
+      );
+    }
+
+    return (
+      <a key={s.id} href="#servicos" onClick={fecharTudo} className="block py-1">
+        {content}
+      </a>
+    );
   };
 
   return (
@@ -148,17 +196,7 @@ export default function NavbarLanding() {
                           <Gift size={10} /> Gratuitos
                         </p>
                         <div className="space-y-1 pl-2">
-                          {servicosAgrupados.motorista.gratuitos.map(s => (
-                            s.isLinkExterno ? (
-                              <Link key={s.id} to={s.href} onClick={fecharTudo} className="block text-xs font-semibold text-emerald-600 hover:underline">
-                                {s.nome}
-                              </Link>
-                            ) : (
-                              <a key={s.id} href="#servicos" onClick={fecharTudo} className="block text-xs font-medium text-slate-600 hover:text-blue-600">
-                                {s.nome}
-                              </a>
-                            )
-                          ))}
+                          {servicosAgrupados.motorista.gratuitos.map(s => renderServicoLink(s))}
                         </div>
                       </div>
                     )}
@@ -170,11 +208,7 @@ export default function NavbarLanding() {
                           <FileText size={10} /> Serviços Avulsos
                         </p>
                         <div className="space-y-1 pl-2">
-                          {servicosAgrupados.motorista.avulsos.map(s => (
-                            <a key={s.id} href="#servicos" onClick={fecharTudo} className="block text-xs font-medium text-slate-600 hover:text-blue-600">
-                              {s.nome}
-                            </a>
-                          ))}
+                          {servicosAgrupados.motorista.avulsos.map(s => renderServicoLink(s))}
                         </div>
                       </div>
                     )}
@@ -186,11 +220,7 @@ export default function NavbarLanding() {
                           <Layers size={10} /> Pacotes de Assessoria
                         </p>
                         <div className="space-y-1 pl-2">
-                          {servicosAgrupados.motorista.pacotes.map(s => (
-                            <a key={s.id} href="#servicos" onClick={fecharTudo} className="block text-xs font-medium text-slate-600 hover:text-blue-600">
-                              {s.nome}
-                            </a>
-                          ))}
+                          {servicosAgrupados.motorista.pacotes.map(s => renderServicoLink(s))}
                         </div>
                       </div>
                     )}
@@ -213,11 +243,7 @@ export default function NavbarLanding() {
                           <Gift size={10} /> Gratuitos
                         </p>
                         <div className="space-y-1 pl-2">
-                          {servicosAgrupados.proprietario.gratuitos.map(s => (
-                            <a key={s.id} href="#servicos" onClick={fecharTudo} className="block text-xs font-medium text-slate-600 hover:text-blue-600">
-                              {s.nome}
-                            </a>
-                          ))}
+                          {servicosAgrupados.proprietario.gratuitos.map(s => renderServicoLink(s))}
                         </div>
                       </div>
                     )}
@@ -229,11 +255,7 @@ export default function NavbarLanding() {
                           <FileText size={10} /> Serviços Avulsos
                         </p>
                         <div className="space-y-1 pl-2">
-                          {servicosAgrupados.proprietario.avulsos.map(s => (
-                            <a key={s.id} href="#servicos" onClick={fecharTudo} className="block text-xs font-medium text-slate-600 hover:text-blue-600">
-                              {s.nome}
-                            </a>
-                          ))}
+                          {servicosAgrupados.proprietario.avulsos.map(s => renderServicoLink(s))}
                         </div>
                       </div>
                     )}
@@ -245,11 +267,7 @@ export default function NavbarLanding() {
                           <Layers size={10} /> Pacotes de Assessoria
                         </p>
                         <div className="space-y-1 pl-2">
-                          {servicosAgrupados.proprietario.pacotes.map(s => (
-                            <a key={s.id} href="#servicos" onClick={fecharTudo} className="block text-xs font-medium text-slate-600 hover:text-blue-600">
-                              {s.nome}
-                            </a>
-                          ))}
+                          {servicosAgrupados.proprietario.pacotes.map(s => renderServicoLink(s))}
                         </div>
                       </div>
                     )}
@@ -294,29 +312,11 @@ export default function NavbarLanding() {
               </p>
               <div className="space-y-2 pl-3 border-l border-slate-100 ml-1.5">
                 {/* Gratuitos */}
-                {servicosAgrupados.motorista.gratuitos.map(s => (
-                  s.isLinkExterno ? (
-                    <Link key={s.id} to={s.href} onClick={fecharTudo} className="block text-xs font-bold text-emerald-600 py-1">
-                      {s.nome}
-                    </Link>
-                  ) : (
-                    <a key={s.id} href="#servicos" onClick={fecharTudo} className="block text-xs font-medium text-slate-600 py-1">
-                      {s.nome}
-                    </a>
-                  )
-                ))}
+                {servicosAgrupados.motorista.gratuitos.map(s => renderServicoLink(s))}
                 {/* Avulsos */}
-                {servicosAgrupados.motorista.avulsos.map(s => (
-                  <a key={s.id} href="#servicos" onClick={fecharTudo} className="block text-xs font-medium text-slate-600 py-1">
-                    {s.nome}
-                  </a>
-                ))}
+                {servicosAgrupados.motorista.avulsos.map(s => renderServicoLink(s))}
                 {/* Pacotes */}
-                {servicosAgrupados.motorista.pacotes.map(s => (
-                  <a key={s.id} href="#servicos" onClick={fecharTudo} className="block text-xs font-medium text-slate-600 py-1">
-                    {s.nome}
-                  </a>
-                ))}
+                {servicosAgrupados.motorista.pacotes.map(s => renderServicoLink(s))}
               </div>
             </div>
 
@@ -327,23 +327,11 @@ export default function NavbarLanding() {
               </p>
               <div className="space-y-2 pl-3 border-l border-slate-100 ml-1.5">
                 {/* Gratuitos */}
-                {servicosAgrupados.proprietario.gratuitos.map(s => (
-                  <a key={s.id} href="#servicos" onClick={fecharTudo} className="block text-xs font-medium text-slate-600 py-1">
-                    {s.nome}
-                  </a>
-                ))}
+                {servicosAgrupados.proprietario.gratuitos.map(s => renderServicoLink(s))}
                 {/* Avulsos */}
-                {servicosAgrupados.proprietario.avulsos.map(s => (
-                  <a key={s.id} href="#servicos" onClick={fecharTudo} className="block text-xs font-medium text-slate-600 py-1">
-                    {s.nome}
-                  </a>
-                ))}
+                {servicosAgrupados.proprietario.avulsos.map(s => renderServicoLink(s))}
                 {/* Pacotes */}
-                {servicosAgrupados.proprietario.pacotes.map(s => (
-                  <a key={s.id} href="#servicos" onClick={fecharTudo} className="block text-xs font-medium text-slate-600 py-1">
-                    {s.nome}
-                  </a>
-                ))}
+                {servicosAgrupados.proprietario.pacotes.map(s => renderServicoLink(s))}
               </div>
             </div>
 

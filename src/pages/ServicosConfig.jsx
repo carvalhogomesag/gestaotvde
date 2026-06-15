@@ -7,13 +7,14 @@
  * - Listagem com filtros rápidos em tempo real.
  * - Modal "Novo Serviço" estruturado em Wizard de 3 etapas.
  * - Suporte dinâmico para composição de pacotes por associação.
+ * - Suporte a links externos/páginas especiais de redirecionamento (ex: /gerador-distico).
  */
 
 import React, { useState, useEffect } from 'react';
 import { 
   Sliders, Plus, Edit, Loader2, Lock, DollarSign, Layers, 
   User, Building2, FileText, Check, ChevronLeft, ArrowRight, 
-  Gift, GraduationCap, Eye, EyeOff
+  Gift, GraduationCap, Eye, EyeOff, Link2 // ◄ Adicionado Link2 para representação do redirecionamento
 } from 'lucide-react';
 import { db } from '../firebase';
 import { doc, setDoc } from 'firebase/firestore';
@@ -46,6 +47,7 @@ export default function ServicosConfig() {
     descricao: '',
     isGratuito: false,
     isCurso: false,
+    linkExterno: '', // ◄ Adicionado campo de redirecionamento opcional
     ativo: true,
     itens: [] // IDs de serviços avulsos incluídos caso seja pacote
   });
@@ -108,6 +110,7 @@ export default function ServicosConfig() {
       descricao: plano.descricao || '',
       isGratuito: plano.isGratuito || false,
       isCurso: plano.isCurso || false,
+      linkExterno: plano.linkExterno || '', // ◄ Carrega o link externo
       ativo: plano.ativo ?? true,
       itens: plano.itens || []
     });
@@ -125,6 +128,7 @@ export default function ServicosConfig() {
       descricao: '',
       isGratuito: false,
       isCurso: false,
+      linkExterno: '', // ◄ Reinicia o link externo
       ativo: true,
       itens: []
     });
@@ -275,7 +279,12 @@ export default function ServicosConfig() {
                         {plano.isCurso && (
                           <span className="bg-indigo-50 text-indigo-600 border border-indigo-100 px-1.5 py-0.5 rounded text-[8px] font-black uppercase">Curso</span>
                         )}
-                        {!plano.isGratuito && !plano.isCurso && (
+                        {plano.linkExterno && (
+                          <span className="bg-blue-50 text-blue-600 border border-blue-100 px-1.5 py-0.5 rounded text-[8px] font-black uppercase flex items-center gap-0.5">
+                            <Link2 size={8} /> Link
+                          </span>
+                        )}
+                        {!plano.isGratuito && !plano.isCurso && !plano.linkExterno && (
                           <span className="bg-slate-50 text-slate-400 border border-slate-100 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase">Geral</span>
                         )}
                       </div>
@@ -477,6 +486,23 @@ export default function ServicosConfig() {
                 <div className="col-span-1 md:col-span-2">
                   <label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Descrição Comercial</label>
                   <textarea className={`${inputClass} h-20 resize-none`} value={formData.descricao} onChange={(e) => setFormData({...formData, descricao: e.target.value})} placeholder="Descreva de forma clara os benefícios, suporte técnico e acompanhamento regulamentar incluídos neste serviço..." />
+                </div>
+
+                {/* ◄ NOVO: Campo opcional para Link Externo/Redirecionamento */}
+                <div className="col-span-1 md:col-span-2">
+                  <label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Link de Redirecionamento / Página Especial (Opcional)</label>
+                  <div className="relative">
+                    <Link2 className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                    <input 
+                      className={`${inputClass} pl-8`} 
+                      value={formData.linkExterno} 
+                      onChange={(e) => setFormData({...formData, linkExterno: e.target.value})} 
+                      placeholder="Ex: /gerador-distico ou https://link.com (Redireciona em vez de abrir modal de lead)" 
+                    />
+                  </div>
+                  <span className="text-[9px] text-slate-400 ml-1 mt-1 block">
+                    Se preenchido, ao selecionar este serviço na Landing Page o utilizador será enviado diretamente para esta rota em vez de captar lead no modal.
+                  </span>
                 </div>
 
                 {/* Seleção de Itens para Pacotes */}
