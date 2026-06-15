@@ -6,13 +6,16 @@
  * - Primeiro nível: Divisão por Público-Alvo (Motoristas vs Proprietários).
  * - Segundo nível: Divisão por Categoria (Gratuitos, Avulsos, Pacotes).
  * - Filtros precisos de dados e feedback visual de estado.
+ * - CORRIGIDO: Importação em falta de Loader2 adicionada para evitar erro em produção.
  */
 
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { db } from '../../firebase';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
-import { Gift, FileText, Layers, User, Building2, Printer, GraduationCap } from 'lucide-react';
+import { 
+  Gift, FileText, Layers, User, Building2, Printer, GraduationCap, Loader2 
+} from 'lucide-react'; // ◄ Adicionado Loader2 à lista de importações
 import { formatCurrency } from '../../utils/formatters';
 
 const subCategorias = [
@@ -40,7 +43,7 @@ export default function ServicosTabs({ onEscolherPlano }) {
     return () => unsubscribe();
   }, []);
 
-  // Lógica de filtragem refinada por público-alvo e categoria de dados [2]
+  // Lógica de filtragem refinada por público-alvo e categoria de dados
   const servicosFiltrados = servicos.filter(s => {
     // 1. Filtra por Público-Alvo
     const matchesPublico = (s.destinatario || 'motorista') === abaPublico;
@@ -69,7 +72,7 @@ export default function ServicosTabs({ onEscolherPlano }) {
       <div className="text-center space-y-2 max-w-xl mx-auto">
         <h2 className="text-2xl md:text-3xl font-black text-slate-900">Nossos Serviços</h2>
         <p className="text-slate-500 text-xs sm:text-sm">
-          Explore soluções burocráticas, formação de motoristas e assessoria técnica para operadores em Portugal.
+          Explore as soluções de assessoria regulatória, formação de motoristas e assessoria técnica para operadores em Portugal.
         </p>
       </div>
 
