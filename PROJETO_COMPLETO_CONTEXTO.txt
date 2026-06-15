@@ -10590,9 +10590,8 @@ import NavbarLanding from '../components/public/NavbarLanding';
 import PublicChatWidget from '../components/public/PublicChatWidget';
 import CatalogoViaturas from '../components/public/CatalogoViaturas';
 
-// Novos Componentes Isolados Refatorados
+// Novos Componentes Isolados Refatorados (ServicosTabs removido)
 import HeroSection from '../components/public/HeroSection';
-import ServicosTabs from '../components/public/ServicosTabs';
 import PlanosAssessoria from '../components/public/PlanosAssessoria';
 import FormAluguer from '../components/public/FormAluguer';
 import BlogDestaques from '../components/public/BlogDestaques';
@@ -10636,31 +10635,28 @@ export default function LandingPage() {
       {/* 2. Banner Global + Carrossel de Texto + Formulário de eGuia */}
       <HeroSection />
 
-      {/* 3. Seletor de Abas para Serviços (Motoristas / Proprietários) */}
-      <ServicosTabs />
-
-      {/* 4. Pacotes de Assessoria com gatilho para modal de contacto */}
+      {/* 3. Pacotes de Assessoria com Construtor de Pacote Personalizado (Carrinho) */}
       <PlanosAssessoria onEscolherPlano={handleEscolherPlano} />
 
-      {/* 5. Catálogo Interativo de Viaturas de Operadores Parceiros */}
+      {/* 4. Catálogo Interativo de Viaturas de Operadores Parceiros */}
       <CatalogoViaturas />
 
-      {/* 6. Formulário de Matching de Aluguer e Procura de Viaturas */}
+      {/* 5. Formulário de Matching de Aluguer e Procura de Viaturas */}
       <FormAluguer />
 
-      {/* 7. Destaques do Blog para SEO */}
+      {/* 6. Destaques do Blog para SEO */}
       <BlogDestaques />
 
-      {/* 8. Acordeão de Perguntas Frequentes (FAQ) */}
+      {/* 7. Acordeão de Perguntas Frequentes (FAQ) */}
       <FaqAccordion />
 
-      {/* 9. Rodapé Institucional */}
+      {/* 8. Rodapé Institucional */}
       <FooterLanding />
 
-      {/* 10. Chat de IA Autónomo de Apoio Legislativo */}
+      {/* 9. Chat de IA Autónomo de Apoio Legislativo */}
       <PublicChatWidget />
 
-      {/* 11. Modal/Gaveta Lateral de Reservas e Assessoria */}
+      {/* 10. Modal/Gaveta Lateral de Reservas e Assessoria */}
       <PlanoModal 
         isOpen={isPlanoModalOpen} 
         onClose={handleCloseModal} 

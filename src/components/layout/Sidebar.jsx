@@ -3,7 +3,10 @@
  * Localização: src/components/layout/Sidebar.jsx
  *
  * Menu lateral administrativo.
- * Atualizado com responsividade fluida e rotas do novo fluxo de Assessoria de Clientes.
+ * Atualizado com:
+ * - Grupo expansível de "Serviços" (Gratuitos, Planos de Assessoria, Serviços Avulsos, Motoristas, Proprietários, Cursos)
+ * - Efeito de auto-scroll suave para o novo grupo de Serviços
+ * - Responsividade fluida e rotas do novo fluxo de Assessoria de Clientes
  */
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -12,8 +15,8 @@ import {
   LayoutDashboard, Car, UserCheck, Users, 
   Settings, LogOut, CreditCard, ChevronDown, ChevronUp,
   Fuel, Zap, ClipboardList, Inbox, ShieldAlert, Users2,
-  Sparkles, UserPlus, X,
-  BookOpen, Sliders // ◄ Importados ícones para Assessoria e Configuração de Planos
+  Sparkles, UserPlus, X, BookOpen, Sliders,
+  Briefcase, Gift, FileText, GraduationCap // ◄ Importados ícones para o novo menu de Serviços
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -51,16 +54,45 @@ export default function Sidebar({ aberta, setAberta }) {
   const { userData, logout } = useAuth();
   
   // Referências para o scroll automático
+  const servicosRef = useRef(null);
   const registrosRef = useRef(null);
   const cartoesRef = useRef(null);
 
+  const [isServicosOpen, setIsServicosOpen] = useState(false);
   const [isRegistrosOpen, setIsRegistrosOpen] = useState(true);
   const [isCartoesOpen, setIsCartoesOpen] = useState(false);
+
+  // Mapeamento que identifica se algum sub-serviço está ativo
+  const isServicosActive = [
+    '/servicos-gratuitos', 
+    '/assessorados', 
+    '/servicos-avulsos', 
+    '/motoristas', 
+    '/proprietarios', 
+    '/cursos'
+  ].some(path => location.pathname === path);
 
   // Mapeamento que identifica se algum sub-registo está ativo
   const isRegistrosActive = ['/motoristas', '/veiculos', '/proprietarios', '/cartoes'].some(path => 
     location.pathname.includes(path)
   );
+
+  /**
+   * Efeito de Scroll para Serviços com Salvaguarda de Referência
+   */
+  useEffect(() => {
+    if (isServicosOpen && servicosRef.current) {
+      const timer = setTimeout(() => {
+        if (servicosRef.current) {
+          servicosRef.current.scrollIntoView({
+            behavior: 'smooth',
+            block: 'start',
+          });
+        }
+      }, 150);
+      return () => clearTimeout(timer);
+    }
+  }, [isServicosOpen]);
 
   /**
    * Efeito de Scroll para Registos com Salvaguarda de Referência
@@ -166,13 +198,42 @@ export default function Sidebar({ aberta, setAberta }) {
             active={location.pathname === '/leads'} 
           />
 
-          {/* ◄ ADICIONADO: Canalização operacional de Clientes em Assessoria */}
+          {/* ◄ ADICIONADO: Canalização operacional de Clientes em Assessoria (Standalone link mantido para conveniência) */}
           <MenuItem 
             icon={BookOpen} 
             label="Clientes Assessoria" 
             to="/assessorados" 
             active={location.pathname === '/assessorados'} 
           />
+
+          {/* ◄ NOVO GRUPO: Serviços (Comportamento Acordeão idêntico ao Registos) */}
+          <div className="pt-2 space-y-0.5" ref={servicosRef}>
+            <p className="text-[9px] font-black text-slate-600 uppercase px-3 tracking-widest mb-1">Operações</p>
+            
+            <button 
+              onClick={() => setIsServicosOpen(!isServicosOpen)}
+              className={`w-full flex items-center justify-between py-1.5 px-3 rounded-lg transition-all ${
+                isServicosActive ? 'text-white bg-slate-800/30' : 'text-slate-400 hover:bg-slate-800/40 hover:text-white'
+              }`}
+            >
+              <div className="flex items-center gap-2.5">
+                <Briefcase size={18} />
+                <span className="font-medium text-sm">Serviços</span>
+              </div>
+              {isServicosOpen ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
+            </button>
+
+            {isServicosOpen && (
+              <div className="ml-3 pl-3 border-l border-slate-800/50 space-y-0.5 mt-0.5 animate-in slide-in-from-top-1 duration-200">
+                <SubMenuItem icon={Gift} label="Gratuitos" to="/servicos-gratuitos" active={location.pathname === '/servicos-gratuitos'} />
+                <SubMenuItem icon={BookOpen} label="Planos de Assessoria" to="/assessorados" active={location.pathname === '/assessorados'} />
+                <SubMenuItem icon={FileText} label="Serviços Avulsos" to="/servicos-avulsos" active={location.pathname === '/servicos-avulsos'} />
+                <SubMenuItem icon={UserCheck} label="Motoristas" to="/motoristas" active={location.pathname === '/motoristas'} />
+                <SubMenuItem icon={Users} label="Proprietários" to="/proprietarios" active={location.pathname === '/proprietarios'} />
+                <SubMenuItem icon={GraduationCap} label="Cursos" to="/cursos" active={location.pathname === '/cursos'} />
+              </div>
+            )}
+          </div>
 
           {/* Grupo Administração */}
           <div className="pt-2 space-y-0.5" ref={registrosRef}>
@@ -248,7 +309,7 @@ export default function Sidebar({ aberta, setAberta }) {
                 active={location.pathname === '/utilizadores'} 
               />
 
-              {/* ◄ ADICIONADO: Configuração dos Planos/Serviços de Assessoria (Apenas Diretor) */}
+              {/* Configuração dos Planos/Serviços de Assessoria (Apenas Diretor) */}
               <MenuItem 
                 icon={Sliders} 
                 label="Planos de Assessoria" 
