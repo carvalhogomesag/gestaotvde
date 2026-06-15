@@ -4,10 +4,9 @@
  *
  * Menu lateral administrativo.
  * Atualizado com:
- * - Secção "Administração" a unificar Registos e Serviços.
- * - Grupo "Serviços" com suporte a sub-abas parametrizadas por categoria (?categoria=...).
- * - Remoção do item isolado "Planos de Assessoria" da secção de Direção e Finanças.
- * - Responsividade fluida, auto-scroll inteligente e escuta ativa de query parameters.
+ * - Secção "Administração" simplificada, contendo o acordeão "Registos" e o link direto "Serviços".
+ * - Remoção do acordeão complexo e sub-abas parametrizadas de Serviços.
+ * - Responsividade fluida, auto-scroll inteligente para Registos e escuta ativa de rotas.
  */
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -55,11 +54,9 @@ export default function Sidebar({ aberta, setAberta }) {
   const { userData, logout } = useAuth();
   
   // Referências para o scroll automático
-  const servicosRef = useRef(null);
   const registrosRef = useRef(null);
   const cartoesRef = useRef(null);
 
-  const [isServicosOpen, setIsServicosOpen] = useState(false);
   const [isRegistrosOpen, setIsRegistrosOpen] = useState(true);
   const [isCartoesOpen, setIsCartoesOpen] = useState(false);
 
@@ -70,31 +67,6 @@ export default function Sidebar({ aberta, setAberta }) {
   const isRegistrosActive = ['/motoristas', '/veiculos', '/proprietarios', '/cartoes'].some(path => 
     location.pathname.includes(path)
   );
-
-  // Extração inteligente da categoria ativa através da query string (URL)
-  const getQueryCategoria = () => {
-    const params = new URLSearchParams(location.search);
-    return params.get('categoria');
-  };
-
-  const categoriaAtiva = getQueryCategoria();
-
-  /**
-   * Efeito de Scroll para Serviços com Salvaguarda de Referência
-   */
-  useEffect(() => {
-    if (isServicosOpen && servicosRef.current) {
-      const timer = setTimeout(() => {
-        if (servicosRef.current) {
-          servicosRef.current.scrollIntoView({
-            behavior: 'smooth',
-            block: 'start',
-          });
-        }
-      }, 150);
-      return () => clearTimeout(timer);
-    }
-  }, [isServicosOpen]);
 
   /**
    * Efeito de Scroll para Registos com Salvaguarda de Referência
@@ -257,55 +229,14 @@ export default function Sidebar({ aberta, setAberta }) {
               )}
             </div>
 
-            {/* Acordeão de Serviços */}
-            <div ref={servicosRef} className="pt-1">
-              <button 
-                onClick={() => setIsServicosOpen(!isServicosOpen)}
-                className={`w-full flex items-center justify-between py-1.5 px-3 rounded-lg transition-all ${
-                  isServicosActive ? 'text-white bg-slate-800/30' : 'text-slate-400 hover:bg-slate-800/40 hover:text-white'
-                }`}
-              >
-                <div className="flex items-center gap-2.5">
-                  <Briefcase size={18} />
-                  <span className="font-medium text-sm">Serviços</span>
-                </div>
-                {isServicosOpen ? <ChevronDown size={14} /> : <ChevronUp size={14} />}
-              </button>
-
-              {isServicosOpen && (
-                <div className="ml-3 pl-3 border-l border-slate-800/50 space-y-0.5 mt-0.5 animate-in slide-in-from-top-1 duration-200">
-                  <SubMenuItem 
-                    icon={Gift} 
-                    label="Serviços Gratuitos" 
-                    to="/config/servicos?categoria=gratuitos" 
-                    active={isServicosActive && categoriaAtiva === 'gratuitos'} 
-                  />
-                  <SubMenuItem 
-                    icon={FileText} 
-                    label="Serviços Avulsos" 
-                    to="/config/servicos?categoria=avulsos" 
-                    active={isServicosActive && categoriaAtiva === 'avulsos'} 
-                  />
-                  <SubMenuItem 
-                    icon={UserCheck} 
-                    label="Serviços Motoristas" 
-                    to="/config/servicos?categoria=motoristas" 
-                    active={isServicosActive && categoriaAtiva === 'motoristas'} 
-                  />
-                  <SubMenuItem 
-                    icon={Users} 
-                    label="Serviços Proprietários" 
-                    to="/config/servicos?categoria=proprietarios" 
-                    active={isServicosActive && categoriaAtiva === 'proprietarios'} 
-                  />
-                  <SubMenuItem 
-                    icon={GraduationCap} 
-                    label="Cursos" 
-                    to="/config/servicos?categoria=cursos" 
-                    active={isServicosActive && categoriaAtiva === 'cursos'} 
-                  />
-                </div>
-              )}
+            {/* NOVO LINK ÚNICO: Serviços (Substitui o acordeão anterior) */}
+            <div className="pt-1">
+              <MenuItem 
+                icon={Briefcase} 
+                label="Serviços" 
+                to="/config/servicos" 
+                active={isServicosActive} 
+              />
             </div>
           </div>
 

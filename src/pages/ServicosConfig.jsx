@@ -2,15 +2,19 @@
  * ServicosConfig.jsx
  * Localização: src/pages/ServicosConfig.jsx
  *
- * Página de parametrização e preços de planos e serviços de assessoria.
- * Reservado exclusivamente para Administradores (Diretores).
- * Totalmente responsiva com suporte a listagem horizontal rolável e modal de edição.
- * Adaptada para suportar filtragem e criação dinâmica de serviços por Categoria (Gratuitos, Avulsos, Motoristas, Proprietários, Cursos).
+ * Página unificada de parametrização de serviços e pacotes do ecossistema.
+ * Apenas acessível a Administradores (Diretores).
+ * - Listagem com filtros rápidos em tempo real.
+ * - Modal "Novo Serviço" estruturado em Wizard de 3 etapas.
+ * - Suporte dinâmico para composição de pacotes por associação.
  */
 
 import React, { useState, useEffect } from 'react';
-import { useSearchParams } from 'react-router-dom'; // ◄ Importado para escutar a query string
-import { Sliders, Plus, Edit, Loader2, Lock, CheckCircle2, DollarSign, Layers } from 'lucide-react';
+import { 
+  Sliders, Plus, Edit, Loader2, Lock, DollarSign, Layers, 
+  User, Building2, FileText, Check, ChevronLeft, ArrowRight, 
+  Gift, GraduationCap, Eye, EyeOff
+} from 'lucide-react';
 import { db } from '../firebase';
 import { doc, setDoc } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
@@ -20,34 +24,30 @@ import { obterPlanosAssessoria } from '../services/assessoriaService';
 import Button from '../components/ui/Button';
 import Modal from '../components/ui/Modal';
 
-// Mapeamento de nomes amigáveis para as categorias
-const NOMES_CATEGORIAS = {
-  gratuitos: 'Serviços Gratuitos',
-  avulsos: 'Serviços Avulsos',
-  motoristas: 'Serviços Motoristas',
-  proprietarios: 'Serviços Proprietários',
-  cursos: 'Cursos'
-};
-
 export default function ServicosConfig() {
   const { userData, loading: authLoading } = useAuth();
-  const [searchParams] = useSearchParams(); // ◄ Captura o ?categoria= da URL
   const [planos, setPlanos] = useState([]);
   const [loading, setLoading] = useState(true);
   
-  // Deteta a categoria a partir da URL. Se não existir, assume 'gratuitos' por padrão
-  const categoriaAtiva = searchParams.get('categoria') || 'gratuitos';
+  // Filtro de exibição local ativo
+  const [filtroAtivo, setFiltroAtivo] = useState('todos');
 
+  // Controlos do Modal e do Wizard
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [passo, setPasso] = useState(1); // 1: Destinatário | 2: Tipo | 3: Detalhes
   const [editingPlano, setEditingPlano] = useState(null);
+
+  // Schema de dados otimizado
   const [formData, setFormData] = useState({
     nome: '',
-    tipo: 'pacote', // pacote | avulso
+    destinatario: 'motorista', // motorista | proprietario
+    tipo: 'avulso', // avulso | pacote
     preco: '',
     descricao: '',
+    isGratuito: false,
+    isCurso: false,
     ativo: true,
-    categoria: 'gratuitos', // ◄ Adicionado campo de categoria
-    itens: [] // IDs dos serviços avulsos incluídos (caso seja pacote)
+    itens: [] // IDs de serviços avulsos incluídos caso seja pacote
   });
 
   const carregarDados = async () => {
@@ -66,9 +66,9 @@ export default function ServicosConfig() {
     if (userData?.role === 'admin') {
       carregarDados();
     }
-  }, [userData, searchParams]); // Recarrega quando os parâmetros de pesquisa mudam
+  }, [userData]);
 
-  // BLOQUEIO DE SEGURANÇA: Se não for administrador, barra o acesso
+  // BLOQUEIO DE SEGURANÇA
   if (!authLoading && userData?.role !== 'admin') {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] text-center animate-in fade-in duration-500">
@@ -86,20 +86,32 @@ export default function ServicosConfig() {
     );
   }
 
-  // Filtragem dinâmica por categoria baseada na aba ativa na URL (fallback para 'avulsos' se for legado)
-  const planosFiltrados = planos.filter(p => (p.categoria || 'avulsos') === categoriaAtiva);
+  // Filtragem local instantânea baseada nas propriedades de dados
+  const planosFiltrados = planos.filter(p => {
+    if (filtroAtivo === 'todos') return true;
+    if (filtroAtivo === 'motoristas') return p.destinatario === 'motorista';
+    if (filtroAtivo === 'proprietarios') return p.destinatario === 'proprietario';
+    if (filtroAtivo === 'pacotes') return p.tipo === 'pacote';
+    if (filtroAtivo === 'avulsos') return p.tipo === 'avulso' && !p.isGratuito && !p.isCurso;
+    if (filtroAtivo === 'gratuitos') return p.isGratuito === true || p.preco === 0;
+    if (filtroAtivo === 'cursos') return p.isCurso === true;
+    return true;
+  });
 
   const handleEditClick = (plano) => {
     setEditingPlano(plano);
     setFormData({
       nome: plano.nome || '',
-      tipo: plano.tipo || 'pacote',
+      destinatario: plano.destinatario || 'motorista',
+      tipo: plano.tipo || 'avulso',
       preco: plano.preco || '',
       descricao: plano.descricao || '',
+      isGratuito: plano.isGratuito || false,
+      isCurso: plano.isCurso || false,
       ativo: plano.ativo ?? true,
-      categoria: plano.categoria || 'avulsos', // Fallback se legado
-      itens: plano.itens || [] // Carrega os IDs já associados
+      itens: plano.itens || []
     });
+    setPasso(3); // Salta diretamente para o formulário de detalhes
     setIsModalOpen(true);
   };
 
@@ -107,13 +119,16 @@ export default function ServicosConfig() {
     setEditingPlano(null);
     setFormData({
       nome: '',
+      destinatario: 'motorista',
       tipo: 'avulso',
-      preco: categoriaAtiva === 'gratuitos' ? '0' : '', // Se for gratuito, pré-define o valor como zero
+      preco: '',
       descricao: '',
+      isGratuito: false,
+      isCurso: false,
       ativo: true,
-      categoria: categoriaAtiva, // ◄ Garante que o novo serviço assume a categoria da aba ativa
       itens: []
     });
+    setPasso(1); // Inicia o wizard no primeiro passo
     setIsModalOpen(true);
   };
 
@@ -122,16 +137,16 @@ export default function ServicosConfig() {
     setLoading(true);
     try {
       const operador = userData?.nome || 'Diretor';
-      // Se não for edição, cria um ID/slug baseado no nome
       const idDoc = editingPlano 
         ? editingPlano.id 
         : 's-' + formData.nome.toLowerCase().replace(/\s+/g, '-').replace(/[^a-z0-9-]/g, '');
 
+      const precoFinal = formData.isGratuito ? 0 : Number(formData.preco || 0);
+
       const dadosParaGravar = {
         ...formData,
-        preco: Number(formData.preco || 0),
+        preco: precoFinal,
         id: idDoc,
-        // Só salva itens associados se for efetivamente um pacote composto
         itens: formData.tipo === 'pacote' ? (formData.itens || []) : [],
         atualizadoEm: new Date().toISOString()
       };
@@ -140,17 +155,17 @@ export default function ServicosConfig() {
 
       await logAcaoGlobal(
         operador,
-        editingPlano ? 'Edição Preço' : 'Criação Serviço',
+        editingPlano ? 'Edição Serviço' : 'Criação Serviço',
         'Configurações',
-        `${editingPlano ? 'Atualizou' : 'Criou'} o serviço/plano: ${formData.nome} na categoria ${NOMES_CATEGORIAS[formData.categoria] || formData.categoria} para o valor de ${formData.preco}€`,
+        `${editingPlano ? 'Atualizou' : 'Criou'} o serviço: ${formData.nome} (${formData.destinatario} | ${formData.tipo}) por ${precoFinal}€`,
         idDoc
       );
 
       setIsModalOpen(false);
       await carregarDados();
     } catch (error) {
-      console.error('[ServicosConfig] Erro ao gravar plano:', error);
-      alert('Erro ao gravar o serviço de assessoria.');
+      console.error('[ServicosConfig] Erro ao gravar serviço:', error);
+      alert('Erro ao gravar o serviço.');
     } finally {
       setLoading(false);
     }
@@ -165,32 +180,58 @@ export default function ServicosConfig() {
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-slate-800 flex items-center gap-2 leading-tight">
             <Sliders className="text-tvde-primary shrink-0" size={24} />
-            {NOMES_CATEGORIAS[categoriaAtiva] || 'Planos & Preços de Assessoria'}
+            Gestão Integrada de Serviços
           </h1>
-          <p className="text-slate-500 text-xs sm:text-sm">Parametrização e preços para publicação na Landing Page pública.</p>
+          <p className="text-slate-500 text-xs sm:text-sm">Parametrize serviços, preços e pacotes dinâmicos do ecossistema TVDE.</p>
         </div>
         <Button 
           onClick={handleNovoClick}
           className="w-full sm:w-auto justify-center text-xs sm:text-sm h-10"
         >
-          <Plus size={18} /> Novo {NOMES_CATEGORIAS[categoriaAtiva] || 'Serviço'}
+          <Plus size={18} /> Novo Serviço / Pacote
         </Button>
       </header>
 
-      {/* Tabela de Gestão de Preços */}
+      {/* Filtros Rápidos (UX Premium de Abas Interativas) */}
+      <div className="flex flex-wrap gap-1.5 bg-slate-100 p-1 rounded-xl w-fit">
+        {[
+          { id: 'todos', label: 'Todos' },
+          { id: 'motoristas', label: 'Motoristas' },
+          { id: 'proprietarios', label: 'Proprietários' },
+          { id: 'pacotes', label: 'Pacotes' },
+          { id: 'avulsos', label: 'Avulsos' },
+          { id: 'gratuitos', label: 'Gratuitos' },
+          { id: 'cursos', label: 'Cursos' }
+        ].map(tab => (
+          <button
+            key={tab.id}
+            onClick={() => setFiltroAtivo(tab.id)}
+            className={`px-3.5 py-1.5 text-xs font-bold rounded-lg transition-all cursor-pointer ${
+              filtroAtivo === tab.id 
+                ? 'bg-white text-slate-900 shadow-sm' 
+                : 'text-slate-500 hover:text-slate-800'
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tabela de Gestão */}
       {loading && planos.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-20 text-slate-400">
           <Loader2 className="animate-spin mb-2 text-tvde-primary" size={36} />
-          <p className="text-xs sm:text-sm font-semibold">A carregar tabela de preços...</p>
+          <p className="text-xs sm:text-sm font-semibold">A carregar serviços registados...</p>
         </div>
       ) : (
         <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-x-auto w-full custom-scrollbar">
-          <table className="w-full text-left border-collapse min-w-[650px]">
+          <table className="w-full text-left border-collapse min-w-[750px]">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                <th className="p-4">Nome do Serviço / Pacote</th>
+                <th className="p-4">Nome do Serviço</th>
+                <th className="p-4">Destinatário</th>
                 <th className="p-4">Tipo</th>
-                <th className="p-4">Descrição</th>
+                <th className="p-4">Caraterísticas</th>
                 <th className="p-4 text-center">Preço</th>
                 <th className="p-4 text-center">Estado</th>
                 <th className="p-4 text-right">Ações</th>
@@ -200,38 +241,64 @@ export default function ServicosConfig() {
               {planosFiltrados.length > 0 ? (
                 planosFiltrados.map((plano) => (
                   <tr key={plano.id} className="hover:bg-slate-50/50 transition-colors">
-                    {/* Nome */}
                     <td className="p-4 font-bold text-slate-800">{plano.nome}</td>
                     
+                    {/* Destinatário */}
+                    <td className="p-4">
+                      <span className={`inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[9px] font-black uppercase border ${
+                        plano.destinatario === 'proprietario'
+                          ? 'bg-purple-50 text-purple-600 border-purple-100'
+                          : 'bg-blue-50 text-blue-600 border-blue-100'
+                      }`}>
+                        {plano.destinatario === 'proprietario' ? <Building2 size={10} /> : <User size={10} />}
+                        {plano.destinatario}
+                      </span>
+                    </td>
+
                     {/* Tipo */}
                     <td className="p-4">
-                      <span className={`inline-block px-2.5 py-1 rounded-lg text-[9px] font-black uppercase border ${
+                      <span className={`inline-block px-2 py-0.5 rounded-md text-[9px] font-bold uppercase ${
                         plano.tipo === 'pacote' 
-                          ? 'bg-blue-50 text-blue-600 border-blue-100' 
-                          : 'bg-slate-50 text-slate-500 border-slate-200'
+                          ? 'bg-amber-100 text-amber-700' 
+                          : 'bg-slate-100 text-slate-600'
                       }`}>
                         {plano.tipo}
                       </span>
                     </td>
 
-                    {/* Descrição */}
-                    <td className="p-4 max-w-[220px] text-slate-400 leading-relaxed truncate" title={plano.descricao}>
-                      {plano.descricao || 'Sem descrição cadastrada.'}
+                    {/* Tags / Caraterísticas */}
+                    <td className="p-4">
+                      <div className="flex flex-wrap gap-1">
+                        {plano.isGratuito && (
+                          <span className="bg-emerald-50 text-emerald-600 border border-emerald-100 px-1.5 py-0.5 rounded text-[8px] font-black uppercase">Gratuito</span>
+                        )}
+                        {plano.isCurso && (
+                          <span className="bg-indigo-50 text-indigo-600 border border-indigo-100 px-1.5 py-0.5 rounded text-[8px] font-black uppercase">Curso</span>
+                        )}
+                        {!plano.isGratuito && !plano.isCurso && (
+                          <span className="bg-slate-50 text-slate-400 border border-slate-100 px-1.5 py-0.5 rounded text-[8px] font-bold uppercase">Geral</span>
+                        )}
+                      </div>
                     </td>
 
                     {/* Preço */}
-                    <td className="p-4 text-center font-black text-tvde-primary">
-                      {formatCurrency(plano.preco)}
+                    <td className="p-4 text-center font-black text-slate-800">
+                      {plano.isGratuito || plano.preco === 0 ? (
+                        <span className="text-emerald-600 font-extrabold uppercase text-[10px]">Grátis</span>
+                      ) : (
+                        formatCurrency(plano.preco)
+                      )}
                     </td>
 
-                    {/* Estado (Ativo/Inativo) */}
+                    {/* Estado */}
                     <td className="p-4 text-center">
-                      <span className={`inline-block px-2 py-0.5 rounded-md text-[9px] font-bold uppercase ${
+                      <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[9px] font-bold uppercase ${
                         plano.ativo !== false 
                           ? 'bg-green-100 text-green-700' 
                           : 'bg-red-100 text-red-700'
                       }`}>
-                        {plano.ativo !== false ? 'Ativo' : 'Inativo'}
+                        {plano.ativo !== false ? <Eye size={10} /> : <EyeOff size={10} />}
+                        {plano.ativo !== false ? 'Ativo' : 'Pausado'}
                       </span>
                     </td>
 
@@ -241,7 +308,6 @@ export default function ServicosConfig() {
                         type="button"
                         onClick={() => handleEditClick(plano)}
                         className="p-2 text-slate-400 hover:text-tvde-primary bg-slate-50 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
-                        title="Editar preço e descrição"
                       >
                         <Edit size={16} />
                       </button>
@@ -250,8 +316,8 @@ export default function ServicosConfig() {
                 ))
               ) : (
                 <tr>
-                  <td colSpan="6" className="p-8 text-center text-slate-400 italic">
-                    Nenhum plano ou serviço cadastrado nesta categoria. Clique em "Novo" para adicionar.
+                  <td colSpan="7" className="p-8 text-center text-slate-400 italic">
+                    Nenhum serviço ou plano encontrado para este filtro.
                   </td>
                 </tr>
               )}
@@ -260,119 +326,234 @@ export default function ServicosConfig() {
         </div>
       )}
 
-      {/* Modal responsivo de Edição/Criação */}
+      {/* Modal Wizard Interativo */}
       <Modal
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
-        title={editingPlano ? "Editar Configurações de Serviço" : `Criar Novo ${NOMES_CATEGORIAS[categoriaAtiva] || 'Serviço'}`}
+        title={editingPlano ? "Editar Configurações do Serviço" : `Criar Novo Serviço - Etapa ${passo} de 3`}
       >
-        <form onSubmit={handleSave} className="space-y-4 text-left">
+        <div className="space-y-4 text-left">
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-            <div className="col-span-1 md:col-span-2">
-              <label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Nome do Plano ou Serviço *</label>
-              <input required className={inputClass} value={formData.nome} onChange={(e) => setFormData({...formData, nome: e.target.value})} />
-            </div>
+          {/* PASSO 1: Destinatário */}
+          {passo === 1 && (
+            <div className="space-y-4 py-4 animate-in fade-in duration-200">
+              <h3 className="text-sm font-black text-slate-700 uppercase tracking-wider text-center">A quem se destina este serviço?</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFormData({ ...formData, destinatario: 'motorista' });
+                    setPasso(2);
+                  }}
+                  className="p-6 border border-slate-200 hover:border-tvde-primary hover:bg-blue-50/30 rounded-2xl flex flex-col items-center justify-center gap-3 transition-all cursor-pointer group"
+                >
+                  <div className="w-12 h-12 rounded-full bg-blue-50 text-tvde-primary flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <User size={24} />
+                  </div>
+                  <span className="font-bold text-sm text-slate-800">🙋‍♂️ Motorista</span>
+                  <span className="text-[10px] text-slate-400 text-center leading-relaxed">Legalização, cursos, dísticos e ativação de contas.</span>
+                </button>
 
-            {/* Categoria do Serviço */}
-            <div>
-              <label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Categoria de Publicação *</label>
-              <select required className={inputClass} value={formData.categoria} onChange={(e) => setFormData({...formData, categoria: e.target.value})}>
-                <option value="gratuitos">🎁 Serviços Gratuitos</option>
-                <option value="avulsos">⚙️ Serviços Avulsos</option>
-                <option value="motoristas">🚗 Serviços Motoristas</option>
-                <option value="proprietarios">💼 Serviços Proprietários</option>
-                <option value="cursos">🎓 Cursos</option>
-              </select>
-            </div>
-            
-            <div>
-              <label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Tipo de Serviço</label>
-              <select className={inputClass} value={formData.tipo} onChange={(e) => setFormData({...formData, tipo: e.target.value, itens: []})}>
-                <option value="avulso">⚙️ Serviço Avulso / Individual</option>
-                <option value="pacote">📦 Pacote de Assessoria Completo</option>
-              </select>
-            </div>
-
-            <div className="col-span-1 md:col-span-2">
-              <label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Preço do Plano (€) *</label>
-              <div className="relative">
-                <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
-                <input required type="number" step="0.01" className={`${inputClass} pl-6`} value={formData.preco} onChange={(e) => setFormData({...formData, preco: e.target.value})} />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFormData({ ...formData, destinatario: 'proprietario' });
+                    setPasso(2);
+                  }}
+                  className="p-6 border border-slate-200 hover:border-tvde-primary hover:bg-purple-50/30 rounded-2xl flex flex-col items-center justify-center gap-3 transition-all cursor-pointer group"
+                >
+                  <div className="w-12 h-12 rounded-full bg-purple-50 text-purple-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <Building2 size={24} />
+                  </div>
+                  <span className="font-bold text-sm text-slate-800">🏢 Proprietário</span>
+                  <span className="text-[10px] text-slate-400 text-center leading-relaxed">Licenciamento de viaturas e consultoria de frotas.</span>
+                </button>
               </div>
             </div>
+          )}
 
-            <div className="col-span-1 md:col-span-2">
-              <label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Descrição Explicativa</label>
-              <textarea className={`${inputClass} h-20 resize-none`} value={formData.descricao} onChange={(e) => setFormData({...formData, descricao: e.target.value})} placeholder="Escreva aqui os detalhes de cobertura e suporte incluídos neste serviço..." />
+          {/* PASSO 2: Tipo de Serviço */}
+          {passo === 2 && (
+            <div className="space-y-4 py-4 animate-in fade-in duration-200">
+              <h3 className="text-sm font-black text-slate-700 uppercase tracking-wider text-center">Qual o formato do serviço?</h3>
+              <div className="grid grid-cols-2 gap-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFormData({ ...formData, tipo: 'avulso' });
+                    setPasso(3);
+                  }}
+                  className="p-6 border border-slate-200 hover:border-tvde-primary hover:bg-slate-50 rounded-2xl flex flex-col items-center justify-center gap-3 transition-all cursor-pointer group"
+                >
+                  <div className="w-12 h-12 rounded-full bg-slate-50 text-slate-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <FileText size={24} />
+                  </div>
+                  <span className="font-bold text-sm text-slate-800">⚙️ Serviço Avulso</span>
+                  <span className="text-[10px] text-slate-400 text-center leading-relaxed">Ação pontual, formulário único ou submissão isolada.</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setFormData({ ...formData, tipo: 'pacote' });
+                    setPasso(3);
+                  }}
+                  className="p-6 border border-slate-200 hover:border-tvde-primary hover:bg-amber-50/30 rounded-2xl flex flex-col items-center justify-center gap-3 transition-all cursor-pointer group"
+                >
+                  <div className="w-12 h-12 rounded-full bg-amber-50 text-amber-600 flex items-center justify-center group-hover:scale-110 transition-transform">
+                    <Layers size={24} />
+                  </div>
+                  <span className="font-bold text-sm text-slate-800">📦 Pacote Completo</span>
+                  <span className="text-[10px] text-slate-400 text-center leading-relaxed">Agrupamento composto de vários serviços individuais.</span>
+                </button>
+              </div>
+              <button 
+                type="button" 
+                onClick={() => setPasso(1)} 
+                className="text-xs font-bold text-slate-400 hover:text-slate-600 flex items-center gap-1 mx-auto mt-4 cursor-pointer"
+              >
+                <ChevronLeft size={16} /> Voltar ao destinatário
+              </button>
             </div>
+          )}
 
-            {/* Seleção dinâmica de Serviços Avulsos incluídos no pacote */}
-            {formData.tipo === 'pacote' && (
-              <div className="col-span-1 md:col-span-2 border-t border-slate-100 pt-4 mt-2">
-                <label className="block text-[10px] font-black text-slate-500 uppercase mb-2 ml-1">
-                  Selecionar Serviços Avulsos Incluídos no Pacote:
-                </label>
-                {planos.filter(p => p.tipo === 'avulso').length === 0 ? (
-                  <p className="text-xs text-slate-400 italic ml-1">Nenhum serviço avulso ativo cadastrado.</p>
-                ) : (
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[140px] overflow-y-auto p-1.5 border border-slate-100 rounded-xl bg-slate-50/50 custom-scrollbar">
-                    {planos
-                      .filter(p => p.tipo === 'avulso')
-                      .map((avulso) => {
-                        const isChecked = formData.itens?.includes(avulso.id) || false;
-                        return (
-                          <label 
-                            key={avulso.id} 
-                            className={`flex items-center gap-2.5 p-2 rounded-lg border cursor-pointer transition-colors text-xs font-semibold select-none ${
-                              isChecked 
-                                ? 'border-blue-200 bg-blue-50/50 text-blue-700 font-bold' 
-                                : 'border-slate-200 bg-white hover:border-slate-300 text-slate-600'
-                            }`}
-                          >
-                            <input 
-                              type="checkbox" 
-                              checked={isChecked}
-                              className="accent-blue-600 shrink-0 w-3.5 h-3.5"
-                              onChange={(e) => {
-                                const currentItens = formData.itens || [];
-                                const nextItens = e.target.checked
-                                  ? [...currentItens, avulso.id]
-                                  : currentItens.filter(id => id !== avulso.id);
-                                setFormData({ ...formData, itens: nextItens });
-                              }}
-                            />
-                            <span className="truncate flex-1 text-left">{avulso.nome}</span>
-                            <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-md shrink-0">
-                              {formatCurrency(avulso.preco)}
-                            </span>
-                          </label>
-                        );
-                      })}
+          {/* PASSO 3: Formulário Geral */}
+          {passo === 3 && (
+            <form onSubmit={handleSave} className="space-y-4 animate-in fade-in duration-200">
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                <div className="col-span-1 md:col-span-2">
+                  <label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Nome do Serviço / Pacote *</label>
+                  <input required className={inputClass} value={formData.nome} onChange={(e) => setFormData({...formData, nome: e.target.value})} placeholder="Ex: Chave na Mão, Registo de Atividade..." />
+                </div>
+
+                {/* Tags de Classificação Auxiliares */}
+                <div className="flex items-center gap-4 py-2 col-span-1 md:col-span-2 border-b border-slate-50">
+                  <label className="flex items-center gap-2 text-xs font-bold text-slate-600 select-none cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      className="accent-tvde-primary w-4 h-4" 
+                      checked={formData.isGratuito} 
+                      onChange={(e) => setFormData({ ...formData, isGratuito: e.target.checked, preco: e.target.checked ? '0' : formData.preco })} 
+                    />
+                    🎁 É gratuito?
+                  </label>
+
+                  <label className="flex items-center gap-2 text-xs font-bold text-slate-600 select-none cursor-pointer">
+                    <input 
+                      type="checkbox" 
+                      className="accent-tvde-primary w-4 h-4" 
+                      checked={formData.isCurso} 
+                      onChange={(e) => setFormData({ ...formData, isCurso: e.target.checked })} 
+                    />
+                    🎓 É um Curso/Formação?
+                  </label>
+                </div>
+
+                <div>
+                  <label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Público-Alvo</label>
+                  <select className={inputClass} value={formData.destinatario} onChange={(e) => setFormData({...formData, destinatario: e.target.value})}>
+                    <option value="motorista">🙋‍♂️ Motorista</option>
+                    <option value="proprietario">🏢 Proprietário</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Preço do Serviço (€) *</label>
+                  <div className="relative">
+                    <DollarSign className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" size={14} />
+                    <input 
+                      required 
+                      disabled={formData.isGratuito}
+                      type="number" 
+                      step="0.01" 
+                      className={`${inputClass} pl-6 disabled:bg-slate-50 disabled:text-slate-400`} 
+                      value={formData.isGratuito ? '0' : formData.preco} 
+                      onChange={(e) => setFormData({...formData, preco: e.target.value})} 
+                    />
+                  </div>
+                </div>
+
+                <div className="col-span-1 md:col-span-2">
+                  <label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Descrição Comercial</label>
+                  <textarea className={`${inputClass} h-20 resize-none`} value={formData.descricao} onChange={(e) => setFormData({...formData, descricao: e.target.value})} placeholder="Descreva de forma clara os benefícios, suporte técnico e acompanhamento regulamentar incluídos neste serviço..." />
+                </div>
+
+                {/* Seleção de Itens para Pacotes */}
+                {formData.tipo === 'pacote' && (
+                  <div className="col-span-1 md:col-span-2 border-t border-slate-100 pt-3">
+                    <label className="block text-[10px] font-black text-slate-500 uppercase mb-2 ml-1">
+                      Serviços Avulsos Associados ao Pacote:
+                    </label>
+                    {planos.filter(p => p.tipo === 'avulso').length === 0 ? (
+                      <p className="text-xs text-slate-400 italic ml-1">Nenhum serviço avulso ativo para associar.</p>
+                    ) : (
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-[130px] overflow-y-auto p-2 border border-slate-100 rounded-xl bg-slate-50/50 custom-scrollbar">
+                        {planos
+                          .filter(p => p.tipo === 'avulso')
+                          .map((avulso) => {
+                            const isChecked = formData.itens?.includes(avulso.id) || false;
+                            return (
+                              <label 
+                                key={avulso.id} 
+                                className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-colors text-xs font-semibold select-none ${
+                                  isChecked 
+                                    ? 'border-blue-200 bg-blue-50/50 text-blue-700 font-bold' 
+                                    : 'border-slate-200 bg-white hover:border-slate-300 text-slate-600'
+                                }`}
+                              >
+                                <input 
+                                  type="checkbox" 
+                                  checked={isChecked}
+                                  className="accent-blue-600 shrink-0 w-3.5 h-3.5"
+                                  onChange={(e) => {
+                                    const currentItens = formData.itens || [];
+                                    const nextItens = e.target.checked
+                                      ? [...currentItens, avulso.id]
+                                      : currentItens.filter(id => id !== avulso.id);
+                                    setFormData({ ...formData, itens: nextItens });
+                                  }}
+                                />
+                                <span className="truncate flex-1 text-left">{avulso.nome}</span>
+                                <span className="text-[10px] font-bold text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded-md shrink-0">
+                                  {avulso.isGratuito ? '0€' : formatCurrency(avulso.preco)}
+                                </span>
+                              </label>
+                            );
+                          })}
+                      </div>
+                    )}
                   </div>
                 )}
+
+                <div>
+                  <label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Publicação na Landing Page</label>
+                  <select className={inputClass} value={formData.ativo} onChange={(e) => setFormData({...formData, ativo: e.target.value === 'true'})}>
+                    <option value="true">Visível (Ativo)</option>
+                    <option value="false">Oculto (Inativo)</option>
+                  </select>
+                </div>
               </div>
-            )}
 
-            <div>
-              <label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Estado de Venda</label>
-              <select className={inputClass} value={formData.ativo} onChange={(e) => setFormData({...formData, ativo: e.target.value === 'true'})}>
-                <option value="true">Disponível para venda (Ativo)</option>
-                <option value="false">Pausado (Inativo)</option>
-              </select>
-            </div>
-          </div>
+              {/* Botões de Ação do Passo 3 */}
+              <div className="flex gap-3 mt-6 pt-4 border-t border-slate-100">
+                {!editingPlano && (
+                  <Button variant="secondary" className="h-10 text-xs w-fit" onClick={() => setPasso(2)}>
+                    <ChevronLeft size={16} /> Voltar ao Tipo
+                  </Button>
+                )}
+                <Button variant="secondary" className="flex-1 h-10 text-xs" onClick={() => setIsModalOpen(false)}>
+                  Cancelar
+                </Button>
+                <Button type="submit" className="flex-1 h-10 text-xs shadow-md">
+                  Guardar Definições
+                </Button>
+              </div>
 
-          <div className="flex gap-3 mt-6 pt-4 border-t border-slate-100">
-            <Button variant="secondary" className="flex-1 h-10 text-xs" onClick={() => setIsModalOpen(false)}>
-              Cancelar
-            </Button>
-            <Button type="submit" className="flex-1 h-10 text-xs shadow-md">
-              Guardar Definições
-            </Button>
-          </div>
+            </form>
+          )}
 
-        </form>
+        </div>
       </Modal>
     </div>
   );
