@@ -7,16 +7,18 @@
  * - Organização em duas colunas com divisores subtis para leitura imediata [2].
  * - Hover state de alta reatividade com atraso inteligente para evitar flickers involuntários [2].
  * - Suporte mobile completo (Accordion visual integrado).
+ * - CORREÇÃO: "Planos de Assessoria" agora são uma categoria de topo independente, não aninhada em "Serviços Avulsos".
  */
 
 import React, { useState, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ChevronDown, Menu, X, Printer, Gift, FileText, BookOpen, Car, GraduationCap } from 'lucide-react';
+import { ChevronDown, Menu, X, Printer, Gift, FileText, BookOpen, Car, GraduationCap, Shield, Layers } from 'lucide-react'; // Importei Layers para Planos
 import { db } from '../../firebase';
 import { collection, onSnapshot, query, where } from 'firebase/firestore';
 
 const CATEGORIAS_CONFIG = [
   { id: 'gratuitos', label: 'Serviços Gratuitos', icon: Gift },
+  { id: 'planos_assessoria', label: 'Planos de Assessoria', icon: Layers }, // Nova categoria de topo
   { id: 'avulsos', label: 'Serviços Avulsos', icon: FileText },
   { id: 'motoristas', label: 'Serviços Motoristas', icon: BookOpen },
   { id: 'proprietarios', label: 'Serviços Proprietários', icon: Car },
@@ -37,9 +39,15 @@ export default function NavbarLanding() {
       const agrupado = {};
       snapshot.forEach(doc => {
         const data = doc.data();
-        const cat = data.categoria || 'avulsos';
-        if (!agrupado[cat]) agrupado[cat] = [];
-        agrupado[cat].push({ id: doc.id, ...data });
+        let targetCat = data.categoria || 'avulsos'; // Categoria padrão ou fallback
+
+        // LÓGICA CORRIGIDA: Se o tipo for 'pacote', agrupa em 'planos_assessoria'
+        if (data.tipo === 'pacote') {
+          targetCat = 'planos_assessoria';
+        }
+
+        if (!agrupado[targetCat]) agrupado[targetCat] = [];
+        agrupado[targetCat].push({ id: doc.id, ...data });
       });
       setServicosPorCategoria(agrupado);
     });
