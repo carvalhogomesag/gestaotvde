@@ -8,13 +8,14 @@
  * - Modal "Novo Serviço" estruturado em Wizard de 3 etapas.
  * - Suporte dinâmico para composição de pacotes por associação.
  * - Suporte a links externos/páginas especiais de redirecionamento (ex: /gerador-distico).
+ * - Auto-Sementeira (Seeding) automática para Gerador de Dísticos e eGuia no Firestore [2].
  */
 
 import React, { useState, useEffect } from 'react';
 import { 
   Sliders, Plus, Edit, Loader2, Lock, DollarSign, Layers, 
   User, Building2, FileText, Check, ChevronLeft, ArrowRight, 
-  Gift, GraduationCap, Eye, EyeOff, Link2 // ◄ Adicionado Link2 para representação do redirecionamento
+  Gift, GraduationCap, Eye, EyeOff, Link2
 } from 'lucide-react';
 import { db } from '../firebase';
 import { doc, setDoc } from 'firebase/firestore';
@@ -47,7 +48,7 @@ export default function ServicosConfig() {
     descricao: '',
     isGratuito: false,
     isCurso: false,
-    linkExterno: '', // ◄ Adicionado campo de redirecionamento opcional
+    linkExterno: '', // Campo opcional para redirecionamento
     ativo: true,
     itens: [] // IDs de serviços avulsos incluídos caso seja pacote
   });
@@ -56,9 +57,61 @@ export default function ServicosConfig() {
     setLoading(true);
     try {
       const dados = await obterPlanosAssessoria(db);
-      setPlanos(dados);
+      
+      // ◄ AUTO-SEEMENTEIRA (SEEDING): Verifica se os recursos nativos de sistema existem no Firestore [2]
+      const idsExistentes = dados.map(d => d.id);
+      let houveAlteracao = false;
+
+      const disticoDefault = {
+        id: 's-gerador-de-disticos-tvde',
+        nome: 'Gerador de Dísticos TVDE',
+        destinatario: 'motorista',
+        tipo: 'avulso',
+        preco: 0,
+        isGratuito: true,
+        isCurso: false,
+        linkExterno: '/gerador-distico',
+        descricao: 'Gere e descarregue o PDF regulamentar das placas TVDE para impressão direta na sua viatura, de forma gratuita.',
+        ativo: true,
+        atualizadoEm: new Date().toISOString()
+      };
+
+      const eGuiaDefault = {
+        id: 's-guia-de-onboarding-e-legalizacao',
+        nome: 'Guia de Onboarding e Legalização',
+        destinatario: 'motorista',
+        tipo: 'avulso',
+        preco: 0,
+        isGratuito: true,
+        isCurso: false,
+        linkExterno: '/guia-onboarding',
+        descricao: 'O guia regulamentar e prático para quem está a iniciar o processo de legalização como motorista TVDE em Portugal.',
+        ativo: true,
+        atualizadoEm: new Date().toISOString()
+      };
+
+      // Se o Dístico regulamentar não existir na base de dados, cria-o automaticamente [2]
+      if (!idsExistentes.includes(disticoDefault.id)) {
+        await setDoc(doc(db, 'servicos_assessoria', disticoDefault.id), disticoDefault);
+        houveAlteracao = true;
+      }
+
+      // Se o eGuia regulamentar não existir na base de dados, cria-o automaticamente [2]
+      if (!idsExistentes.includes(eGuiaDefault.id)) {
+        await setDoc(doc(db, 'servicos_assessoria', eGuiaDefault.id), eGuiaDefault);
+        houveAlteracao = true;
+      }
+
+      if (houveAlteracao) {
+        // Se alguma sementeira ocorreu, recarrega os dados atualizados de imediato [2]
+        const dadosAtualizados = await obterPlanosAssessoria(db);
+        setPlanos(dadosAtualizados);
+      } else {
+        setPlanos(dados);
+      }
+
     } catch (error) {
-      console.error('[ServicosConfig] Erro ao carregar planos:', error);
+      console.error('[ServicosConfig] Erro ao carregar/seedar planos:', error);
     } finally {
       setLoading(false);
     }
@@ -110,7 +163,7 @@ export default function ServicosConfig() {
       descricao: plano.descricao || '',
       isGratuito: plano.isGratuito || false,
       isCurso: plano.isCurso || false,
-      linkExterno: plano.linkExterno || '', // ◄ Carrega o link externo
+      linkExterno: plano.linkExterno || '',
       ativo: plano.ativo ?? true,
       itens: plano.itens || []
     });
@@ -128,7 +181,7 @@ export default function ServicosConfig() {
       descricao: '',
       isGratuito: false,
       isCurso: false,
-      linkExterno: '', // ◄ Reinicia o link externo
+      linkExterno: '',
       ativo: true,
       itens: []
     });
@@ -488,7 +541,7 @@ export default function ServicosConfig() {
                   <textarea className={`${inputClass} h-20 resize-none`} value={formData.descricao} onChange={(e) => setFormData({...formData, descricao: e.target.value})} placeholder="Descreva de forma clara os benefícios, suporte técnico e acompanhamento regulamentar incluídos neste serviço..." />
                 </div>
 
-                {/* ◄ NOVO: Campo opcional para Link Externo/Redirecionamento */}
+                {/* Campo opcional para Link Externo/Redirecionamento */}
                 <div className="col-span-1 md:col-span-2">
                   <label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Link de Redirecionamento / Página Especial (Opcional)</label>
                   <div className="relative">
