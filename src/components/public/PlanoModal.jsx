@@ -3,12 +3,14 @@
  * Localização: src/components/public/PlanoModal.jsx
  *
  * Gaveta/Modal de checkout de assessoria TVDE adaptado para suportar carrinhos de compras.
+ * Integrado com rastreio de captação de leads de conversão do Google Analytics 4 [4].
  */
 
 import React, { useState, useEffect } from 'react';
 import { X, ArrowRight, Loader2, CheckCircle2, AlertCircle } from 'lucide-react';
 import { registarLeadPública } from '../../services/leadService';
 import { formatCurrency } from '../../utils/formatters';
+import ReactGA from 'react-ga4'; // ◄ Importado o motor de análise
 
 export default function PlanoModal({ isOpen, onClose, plano, dadosCarrinho }) {
   const [leadPlano, setLeadPlano] = useState({ 
@@ -19,6 +21,12 @@ export default function PlanoModal({ isOpen, onClose, plano, dadosCarrinho }) {
   });
   const [loadingPlano, setLoadingPlano] = useState(false);
   const [feedbackPlano, setFeedbackPlano] = useState(null);
+
+  // Detecção de ambiente de desenvolvimento local (Localhost) [4]
+  const isLocalhost = typeof window !== 'undefined' && (
+    window.location.hostname === 'localhost' || 
+    window.location.hostname === '127.0.0.1'
+  );
 
   // Preenche a mensagem padrão dinamicamente sempre que o plano selecionado muda ou o modal abre
   useEffect(() => {
@@ -56,15 +64,43 @@ export default function PlanoModal({ isOpen, onClose, plano, dadosCarrinho }) {
 
       setFeedbackPlano(res);
       if (res.sucesso) {
+        // ◄ ADICIONADO: Envia evento de lead com sucesso ao GA4 [4]
+        if (!isLocalhost) {
+          ReactGA.event({
+            category: 'Lead Generation',
+            action: 'Submit_Lead_Assessoria_Sucesso',
+            label: `Plano: ${plano}`
+          });
+        }
+
         setLeadPlano({ nome: '', email: '', telemovel: '', mensagem: '' });
+        
         // Fecha o modal suavemente após 2.2 segundos para dar tempo ao feedback de sucesso
         setTimeout(() => {
           onClose();
         }, 2200);
+      } else {
+        // Envia falha de preenchimento ou validação [4]
+        if (!isLocalhost) {
+          ReactGA.event({
+            category: 'Lead Generation',
+            action: 'Submit_Lead_Assessoria_Erro',
+            label: res.msg || 'Erro de validação de dados'
+          });
+        }
       }
     } catch (err) {
       console.error('[PlanoModal] Erro ao submeter lead de assessoria:', err);
       setFeedbackPlano({ sucesso: false, msg: "Erro técnico de rede. Tente de novo." });
+
+      // Envia erro crítico de rede [4]
+      if (!isLocalhost) {
+        ReactGA.event({
+          category: 'Lead Generation',
+          action: 'Submit_Lead_Assessoria_Exception',
+          label: err.message || 'Erro de rede ou servidor'
+        });
+      }
     } finally {
       setLoadingPlano(false);
     }

@@ -4,6 +4,7 @@
  *
  * Secção de captação de leads para aluguer operativo de viaturas TVDE.
  * Contém o escutador de eventos para cliques efetuados no Catálogo de Viaturas.
+ * Integrado com rastreio de captação de leads de conversão do Google Analytics 4 [4].
  */
 
 import React, { useState, useEffect } from 'react';
@@ -12,6 +13,7 @@ import {
   CheckCircle2, AlertCircle 
 } from 'lucide-react';
 import { registarLeadPública } from '../../services/leadService';
+import ReactGA from 'react-ga4'; // ◄ Importado o motor de análise
 
 export default function FormAluguer() {
   const [leadCarro, setLeadCarro] = useState({ 
@@ -23,6 +25,12 @@ export default function FormAluguer() {
   });
   const [loadingCarro, setLoadingCarro] = useState(false);
   const [feedbackCarro, setFeedbackCarro] = useState(null);
+
+  // Detecção de ambiente de desenvolvimento local (Localhost) [4]
+  const isLocalhost = typeof window !== 'undefined' && (
+    window.location.hostname === 'localhost' || 
+    window.location.hostname === '127.0.0.1'
+  );
 
   // Escuta cliques efetuados no catálogo de veículos para preencher automaticamente o formulário
   useEffect(() => {
@@ -64,6 +72,15 @@ export default function FormAluguer() {
 
       setFeedbackCarro(res);
       if (res.sucesso) {
+        // ◄ ADICIONADO: Envia evento de lead com sucesso ao GA4 [4]
+        if (!isLocalhost) {
+          ReactGA.event({
+            category: 'Lead Generation',
+            action: 'Submit_Form_Aluguer_Sucesso',
+            label: `Região: ${leadCarro.regiao}`
+          });
+        }
+
         setLeadCarro({ 
           nome: '', 
           email: '', 
@@ -71,10 +88,28 @@ export default function FormAluguer() {
           regiao: 'Lisboa', 
           mensagem: '' 
         });
+      } else {
+        // Envia falha de preenchimento ou validação [4]
+        if (!isLocalhost) {
+          ReactGA.event({
+            category: 'Lead Generation',
+            action: 'Submit_Form_Aluguer_Erro',
+            label: res.msg || 'Erro de validação de dados'
+          });
+        }
       }
     } catch (err) {
       console.error(err);
       setFeedbackCarro({ sucesso: false, msg: "Erro técnico de rede. Tente de novo." });
+
+      // Envia erro crítico de rede [4]
+      if (!isLocalhost) {
+        ReactGA.event({
+          category: 'Lead Generation',
+          action: 'Submit_Form_Aluguer_Exception',
+          label: err.message || 'Erro de rede ou servidor'
+        });
+      }
     } finally {
       setLoadingCarro(false);
     }
@@ -92,7 +127,7 @@ export default function FormAluguer() {
           </div>
           <h2 className="text-2xl md:text-3xl font-black leading-tight">Procura uma viatura para trabalhar?</h2>
           <p className="text-slate-300 text-xs sm:text-sm leading-relaxed max-w-xl">
-            Asseguramos contacto com operadores licenciados que disponibilizam viaturas em conformidade regulatória nas plataformas, equipadas com seguros TVDE específicos (responsabilidade civil e passageiros), Via Verde e cartões de desconto de combustível.
+            Asseguramos contacto com operadores licenciados que disponibilizam viaturas em conformidade regulatória nas plataformas, equipadas com seguros TVDE específicos (responsabilidade civil e passageiros), Via Verde e cartões de desconto de combustível [2].
           </p>
           <div className="space-y-3 text-xs font-semibold text-slate-200">
             <p className="flex items-center gap-2">

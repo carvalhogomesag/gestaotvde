@@ -4,9 +4,9 @@
  *
  * Ponto de entrada da aplicação.
  * Atualizado com:
- * - Vistas internas (ServicosGratuitos, ServicosAvulsos e Cursos) sincronizadas em tempo real com o Firestore.
- * - Eliminação definitiva de inconsistências de dados no ecossistema de Serviços do ERP.
- * - Preservação estrita de todos os fluxos de autenticação, Firebase, Google Analytics 4 e rotas.
+ * - Vistas internas (ServicosGratuitos, ServicosAvulsos e Cursos) sincronizadas em tempo real com o Firestore [2].
+ * - Filtros do Google Analytics 4 (GA4) para bloquear localhost e excluir visualizações de páginas privadas do ERP [4].
+ * - Preservação estrita de todos os fluxos de autenticação, Firebase e rotas existentes.
  */
 
 import { useEffect, useState } from 'react';
@@ -44,7 +44,15 @@ import { db } from './firebase';
 import { collection, query, where, onSnapshot } from 'firebase/firestore';
 
 const GA_MEASUREMENT_ID = import.meta.env.VITE_GA_MEASUREMENT_ID;
-if (GA_MEASUREMENT_ID) {
+
+// Detecção de ambiente de desenvolvimento local (Localhost) [4]
+const isLocalhost = typeof window !== 'undefined' && (
+  window.location.hostname === 'localhost' || 
+  window.location.hostname === '127.0.0.1'
+);
+
+// Apenas inicializa o GA4 se houver ID configurado e não for ambiente de testes local [4]
+if (GA_MEASUREMENT_ID && !isLocalhost) {
   ReactGA.initialize(GA_MEASUREMENT_ID);
 }
 
@@ -243,9 +251,27 @@ function AppContent() {
   const [sidebarAberta, setSidebarAberta] = useState(false);
 
   useEffect(() => {
-    if (GA_MEASUREMENT_ID) {
-      ReactGA.send({ hitType: "pageview", page: location.pathname });
+    // Apenas dispara o Pageview para marketing se não for localhost e for rota pública [4]
+    if (GA_MEASUREMENT_ID && !isLocalhost) {
+      const rotasPublicas = [
+        '/',
+        '/login',
+        '/guia-onboarding',
+        '/gerador-distico',
+        '/blog'
+      ];
+      
+      const isPublicPath = rotasPublicas.some(path => 
+        location.pathname === path || 
+        location.pathname.startsWith('/blog/') || 
+        location.pathname.startsWith('/onboarding/')
+      );
+
+      if (isPublicPath) {
+        ReactGA.send({ hitType: "pageview", page: location.pathname });
+      }
     }
+    
     // Fecha o menu lateral automaticamente ao navegar entre páginas no telemóvel
     setSidebarAberta(false);
   }, [location]);

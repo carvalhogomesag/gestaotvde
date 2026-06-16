@@ -3,10 +3,12 @@
  * Localização: src/components/public/FaqAccordion.jsx
  *
  * Secção de Perguntas Frequentes (FAQ) interativa com acordeão responsivo.
+ * Integrada com rastreio de cliques do Google Analytics 4 (GA4).
  */
 
 import React, { useState } from 'react';
 import { HelpCircle, ChevronDown, ChevronUp } from 'lucide-react';
+import ReactGA from 'react-ga4'; // ◄ Importado o motor de análise
 
 export default function FaqAccordion() {
   const [faqAtiva, setFaqAtiva] = useState(null);
@@ -25,7 +27,7 @@ export default function FaqAccordion() {
     {
       id: 3,
       pergunta: "O que fazem na organização de documentos nos órgãos governamentais (IMT)?",
-      resposta: "Garantimos a organização estruturada de todo o seu dossiê de candidatura e tratamos de todo o processo de submissão do pedido de certificado de motorista diretamente junto do portal oficial do IMT online, acompanhando quaisquer exigências e garantindo a correta atribuição de taxas."
+      resposta: "Garantimos a organização estruturada de todo o seu dossiê de candidatura e tratamos de todo o processo de submissão del pedido de certificado de motorista diretamente junto do portal oficial do IMT online, acompanhando quaisquer exigências e garantindo a correta atribuição de taxas."
     },
     {
       id: 4,
@@ -38,6 +40,26 @@ export default function FaqAccordion() {
       resposta: "Não diretamente. Em Portugal, a Uber e a Bolt exigem que o motorista esteja vinculado a uma empresa licenciada com frota (um Operador TVDE). Como assessoria, ajudamos a selecionar e a vinculá-lo de forma segura a operadores idóneos com frotas em conformidade legal."
     }
   ];
+
+  /**
+   * Controla a alternância visual das FAQs e dispara eventos inteligentes para o GA4 [4]
+   */
+  const handleToggle = (faq) => {
+    const estaAberta = faqAtiva === faq.id;
+    setFaqAtiva(estaAberta ? null : faq.id);
+
+    // Envia evento de interação apenas ao abrir (e bloqueia se for localhost) [4]
+    if (!estaAberta) {
+      const isLocalhost = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+      if (!isLocalhost) {
+        ReactGA.event({
+          category: 'FAQ Interactions',
+          action: 'Open FAQ',
+          label: faq.pergunta
+        });
+      }
+    }
+  };
 
   return (
     <section id="faq" className="py-16 md:py-20 px-4 sm:px-6 max-w-4xl mx-auto space-y-12 border-t border-slate-200">
@@ -60,7 +82,7 @@ export default function FaqAccordion() {
             >
               <button
                 type="button"
-                onClick={() => setFaqAtiva(estaAberta ? null : faq.id)}
+                onClick={() => handleToggle(faq)} // ◄ Chamada da nova função orquestradora
                 className="w-full px-5 py-4 flex items-center justify-between gap-4 text-left font-bold text-slate-800 text-xs sm:text-sm hover:text-blue-600 transition-colors cursor-pointer"
               >
                 <span>{faq.pergunta}</span>

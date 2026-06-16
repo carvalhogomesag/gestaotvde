@@ -4,13 +4,42 @@
  *
  * Secção de SEO que destaca artigos informativos e legislação do setor TVDE em Portugal.
  * Otimizado com cores de marca oficiais para Tailwind v4.
+ * Integrado com rastreio de cliques do Google Analytics 4 (GA4).
  */
 
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { BookOpen, Clock, ChevronRight, ArrowRight } from 'lucide-react';
+import ReactGA from 'react-ga4'; // ◄ Importado o motor de análise
 
 export default function BlogDestaques() {
+
+  // Bloqueio de rastreio em desenvolvimento local
+  const isLocalhost = typeof window !== 'undefined' && (
+    window.location.hostname === 'localhost' || 
+    window.location.hostname === '127.0.0.1'
+  );
+
+  const handleArticleClick = (title) => {
+    if (!isLocalhost) {
+      ReactGA.event({
+        category: 'Blog Interactions',
+        action: 'Read Article Click',
+        label: title
+      });
+    }
+  };
+
+  const handleAccessBlogClick = () => {
+    if (!isLocalhost) {
+      ReactGA.event({
+        category: 'Blog Interactions',
+        action: 'View All Blog Click',
+        label: 'Aceder ao Blog Completo'
+      });
+    }
+  };
+
   return (
     <section id="blog-destaques" className="py-16 md:py-20 px-4 sm:px-6 max-w-6xl mx-auto space-y-10 border-t border-slate-200">
       <div className="text-center space-y-2 max-w-xl mx-auto">
@@ -22,7 +51,7 @@ export default function BlogDestaques() {
           Mantenha-se informado sobre as regras do setor
         </h2>
         <p className="text-slate-500 text-xs sm:text-sm leading-relaxed">
-          Esclareça as dúvidas mais comuns sobre CAE, contabilidade, dísticos obrigatórios e processos de regularização junto do IMT.
+          Esclareça as dúvidas mais comuns sobre CAE, contabilidade, dísticos obrigatórios e processos de regularização junto do IMT [2].
         </p>
       </div>
 
@@ -48,6 +77,7 @@ export default function BlogDestaques() {
             </span>
             <Link 
               to="/blog/cae-correto-tvde-isencao-iva-artigo-53" 
+              onClick={() => handleArticleClick("Qual o CAE correto para TVDE e Isenção IVA (Artigo 53)")} // ◄ Evento GA4
               className="font-black text-blue-600 hover:text-blue-700 transition-colors flex items-center gap-1"
             >
               Ler Artigo <ChevronRight size={14} />
@@ -74,6 +104,7 @@ export default function BlogDestaques() {
             </span>
             <Link 
               to="/blog/requisitos-licenca-imt-codigo-997" 
+              onClick={() => handleArticleClick("Como obter Certificado Motorista TVDE e averbar Codigo 997")} // ◄ Evento GA4
               className="font-black text-blue-600 hover:text-blue-700 transition-colors flex items-center gap-1"
             >
               Ler Artigo <ChevronRight size={14} />
@@ -100,6 +131,7 @@ export default function BlogDestaques() {
             </span>
             <Link 
               to="/blog/aima-atrasos-documentais-motoristas-tvde" 
+              onClick={() => handleArticleClick("AIMA e TVDE: Gerir atrasos documentais de residencia no IMT")} // ◄ Evento GA4
               className="font-black text-blue-600 hover:text-blue-700 transition-colors flex items-center gap-1"
             >
               Ler Artigo <ChevronRight size={14} />
@@ -113,6 +145,7 @@ export default function BlogDestaques() {
       <div className="pt-4">
         <Link 
           to="/blog"
+          onClick={handleAccessBlogClick} // ◄ Evento GA4
           className="inline-flex items-center gap-2 px-6 py-3 bg-tvde-dark hover:bg-tvde-primary text-white font-black text-xs rounded-xl transition-all shadow-md cursor-pointer"
         >
           Aceder ao Blog Completo <ArrowRight size={14} />

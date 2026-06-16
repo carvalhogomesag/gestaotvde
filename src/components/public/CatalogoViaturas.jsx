@@ -7,12 +7,12 @@
  * - Carrossel de rolagem suave (Smooth Scroll) controlado por Refs
  * - Cores vibrantes forçadas (Verde para Disponível, Vermelho para Indisponível)
  * - Matrículas protegidas/ocultas por motivos de privacidade (RGPD)
- * - Integração com Google Analytics 4 para rastreio de cliques (CRO)
+ * - Integração com Google Analytics 4 para rastreio de cliques (CRO) com proteção contra localhost [4].
  */
 
 import React, { useState, useRef, useEffect } from 'react';
 import { ChevronLeft, ChevronRight, Gauge, Users, Settings, Loader2 } from 'lucide-react';
-import ReactGA from 'react-ga4'; // ◄ Importação do Google Analytics adicionada [App.jsx]
+import ReactGA from 'react-ga4';
 
 // Importações do Firebase e do Service do ERP
 import { db } from '../../firebase';
@@ -33,6 +33,12 @@ export default function CatalogoViaturas() {
   const [viaturasFiltradas, setViaturasFiltradas] = useState([]);
   const [loading, setLoading] = useState(true);
   const carrosselRef = useRef(null);
+
+  // Detecção de ambiente de desenvolvimento local (Localhost) [4]
+  const isLocalhost = typeof window !== 'undefined' && (
+    window.location.hostname === 'localhost' || 
+    window.location.hostname === '127.0.0.1'
+  );
 
   // 1. Carrega todas as viaturas dinamicamente da base de dados (Firestore)
   useEffect(() => {
@@ -80,6 +86,20 @@ export default function CatalogoViaturas() {
     }
   };
 
+  /**
+   * Monitoriza qual a categoria que os utilizadores clicam mais para fins estatísticos [4]
+   */
+  const handleCategoriaClick = (catId) => {
+    setCategoriaAtiva(catId);
+    if (!isLocalhost) {
+      ReactGA.event({
+        category: 'Filtros Catálogo',
+        action: 'Selecionar Categoria',
+        label: catId
+      });
+    }
+  };
+
   return (
     <section id="catalogo" className="py-16 bg-slate-50 border-t border-slate-100 overflow-hidden">
       <div className="max-w-6xl mx-auto px-4 sm:px-6">
@@ -102,8 +122,8 @@ export default function CatalogoViaturas() {
           {CATEGORIAS.map((cat) => (
             <button
               key={cat.id}
-              onClick={() => setCategoriaAtiva(cat.id)}
-              className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all ${
+              onClick={() => handleCategoriaClick(cat.id)} // ◄ Rastreio dinâmico no clique
+              className={`px-4 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
                 categoriaAtiva === cat.id
                   ? 'bg-blue-600 text-white shadow-md shadow-blue-100'
                   : 'bg-white text-slate-600 hover:bg-slate-100 border border-slate-200/80'
@@ -211,7 +231,6 @@ export default function CatalogoViaturas() {
                               {viatura.ano}
                             </span>
                           </div>
-                          {/* Linha da matrícula removida inteiramente para conformidade de privacidade */}
                         </div>
 
                         {/* Ficha Técnica */}
@@ -245,19 +264,20 @@ export default function CatalogoViaturas() {
                             </div>
                           </div>
                           
-                          {/* Botões de WhatsApp Ativos e Vibrantes — Mapeados via ID em vez de Matrícula */}
+                          {/* Botões de WhatsApp Ativos — Mapeados via ID e protegidos contra localhost */}
                           {isDisponivel ? (
                             <a
                               href={`https://wa.me/351900000000?text=Olá! Vi no vosso catálogo que a viatura ${viatura.marca} ${viatura.modelo} (Ref: ${viatura.id}) está disponível para aluguer. Gostaria de demonstrar o meu interesse e obter mais informações.`}
                               target="_blank"
                               rel="noopener noreferrer"
                               onClick={() => {
-                                // ◄ ADICIONADO: Envia evento ao GA4 quando clicam para alugar
-                                ReactGA.event({
-                                  category: 'Conversão Catálogo',
-                                  action: 'Click_WhatsApp_Disponivel',
-                                  label: `${viatura.marca} ${viatura.modelo} (Ref: ${viatura.id})`
-                                });
+                                if (!isLocalhost) {
+                                  ReactGA.event({
+                                    category: 'Conversão Catálogo',
+                                    action: 'Click_WhatsApp_Disponivel',
+                                    label: `${viatura.marca} ${viatura.modelo} (Ref: ${viatura.id})`
+                                  });
+                                }
                               }}
                               className="px-3.5 py-2.5 rounded-xl text-xs font-black transition-all shadow-md flex items-center justify-center text-center shrink-0 min-w-[120px] hover:opacity-90 uppercase"
                               style={{ 
@@ -273,12 +293,13 @@ export default function CatalogoViaturas() {
                               target="_blank"
                               rel="noopener noreferrer"
                               onClick={() => {
-                                // ◄ ADICIONADO: Envia evento ao GA4 quando demonstram interesse numa indisponível
-                                ReactGA.event({
-                                  category: 'Conversão Catálogo',
-                                  action: 'Click_WhatsApp_Indisponivel',
-                                  label: `${viatura.marca} ${viatura.modelo} (Ref: ${viatura.id})`
-                                });
+                                if (!isLocalhost) {
+                                  ReactGA.event({
+                                    category: 'Conversão Catálogo',
+                                    action: 'Click_WhatsApp_Indisponivel',
+                                    label: `${viatura.marca} ${viatura.modelo} (Ref: ${viatura.id})`
+                                  });
+                                }
                               }}
                               className="px-2.5 py-2.5 rounded-xl text-[9.5px] font-black transition-all shadow-md flex items-center justify-center text-center shrink-0 min-w-[160px] hover:opacity-90 uppercase tracking-tight"
                               style={{ 
