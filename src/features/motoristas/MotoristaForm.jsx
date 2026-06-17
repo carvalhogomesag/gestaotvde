@@ -7,6 +7,7 @@
  * - Redução de ruído visual: campos secundários movidos para sub-modais dedicados [2].
  * - Botões táteis com ícones e legendas para navegação rápida de ecrã [2].
  * - Remoção do bloco redundante de Conta Corrente (já contido no ModalFinanceiro) [2].
+ * - ◄ NOVO: Compactação extrema de paddings, margins, gaps e inputs para evitar scroll no desktop [2].
  * - Preservação estrita das integrações do Firestore, IA Vision, alertas e conformidade regulamentar [2].
  */
 
@@ -106,6 +107,18 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
     }));
   }, [initialData]);
 
+  useEffect(() => {
+    if (initialData.id) {
+      const q = query(
+        collection(db, "movimentos_financeiros"), 
+        where("entidadeId", "==", initialData.id), 
+        where("pagoNoFechoId", "==", "")
+      );
+      const unsubscribe = onSnapshot(q, (snapshot) => { setMovimentos(snapshot.docs.map(d => ({ id: d.id, ...d.data() }))); });
+      return () => unsubscribe();
+    }
+  }, [initialData.id]);
+
   useEffect(() => { if (formData.nifMesmoMotorista) { setFormData(prev => ({ ...prev, nifPagamento: prev.nif })); } }, [formData.nif, formData.nifMesmoMotorista]);
 
   const validarCampoIA = async (campo) => {
@@ -132,7 +145,8 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
 
   const handleRemoveFile = (field) => { if (window.confirm("Deseja remover este documento?")) { setFormData(prev => ({ ...prev, [field]: '' })); } };
 
-  const inputClass = `w-full p-2 border border-slate-200 rounded-xl outline-none transition-all ${isReadOnly ? 'bg-slate-50/50 border-transparent font-semibold text-slate-700' : 'bg-white focus:ring-2 focus:ring-tvde-primary/20 hover:border-slate-300'}`;
+  // ◄ ALTERADO: py-1.5 px-3 e rounded-lg no inputClass para economizar espaço de ecrã [2]
+  const inputClass = `w-full py-1.5 px-2.5 border border-slate-200 rounded-lg outline-none transition-all text-xs ${isReadOnly ? 'bg-slate-50/50 border-transparent font-semibold text-slate-700' : 'bg-white focus:ring-2 focus:ring-tvde-primary/20 hover:border-slate-300'}`;
 
   // Suporte a parâmetro forceReadOnly para bloquear campos autogeridos
   const renderInputIA = (label, field, required = false, forceReadOnly = false) => {
@@ -140,15 +154,15 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
     const docUrl = fieldToDocMap[field];
 
     return (
-      <div className="relative group">
-        <label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1 flex justify-between items-center">
+      <div className="relative group text-left">
+        <label className="block text-[8.5px] font-black text-slate-400 uppercase mb-0.5 ml-1 flex justify-between items-center">
           <span>{label} {required && '*'}</span>
-          {isAIFilled && <span className="text-blue-500 flex items-center gap-1 animate-pulse"><Sparkles size={10} /> IA</span>}
+          {isAIFilled && <span className="text-blue-500 flex items-center gap-1 animate-pulse"><Sparkles size={9} /> IA</span>}
         </label>
         <div className="relative flex items-center">
           <input 
             required={required} readOnly={isReadOnly || forceReadOnly} 
-            className={`${inputClass} ${isAIFilled ? 'border-blue-300 bg-blue-50/30 ring-2 ring-blue-100 pr-16' : ''} ${forceReadOnly ? 'bg-slate-100 text-slate-400 font-medium cursor-not-allowed' : ''}`} 
+            className={`${inputClass} ${isAIFilled ? 'border-blue-300 bg-blue-50/20 ring-1 ring-blue-100 pr-14' : ''} ${forceReadOnly ? 'bg-slate-100 text-slate-400 font-medium cursor-not-allowed' : ''}`} 
             value={formData[field] || ''} 
             onChange={(e) => {
               setFormData({...formData, [field]: e.target.value});
@@ -156,15 +170,15 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
             }} 
           />
           
-          <div className="absolute right-2 flex items-center gap-1">
+          <div className="absolute right-1.5 flex items-center gap-0.5">
             {docUrl && (
-              <button type="button" onClick={() => abrirDocumentoPopup(docUrl)} className="p-1.5 text-slate-400 hover:text-tvde-primary hover:bg-blue-50 rounded-lg transition-all" title="Ver documento de origem">
-                <Eye size={14} />
+              <button type="button" onClick={() => abrirDocumentoPopup(docUrl)} className="p-1 text-slate-400 hover:text-tvde-primary hover:bg-blue-50 rounded transition-all" title="Ver documento de origem">
+                <Eye size={12} />
               </button>
             )}
             {isAIFilled && !isReadOnly && (
-              <button type="button" onClick={() => validarCampoIA(field)} className="p-1.5 bg-blue-500 text-white rounded-lg hover:bg-blue-600 shadow-sm transition-all" title="Confirmar dado lido pela IA">
-                <ShieldCheck size={14} />
+              <button type="button" onClick={() => validarCampoIA(field)} className="p-1 bg-blue-500 text-white rounded hover:bg-blue-600 shadow-sm transition-all" title="Confirmar dado lido pela IA">
+                <ShieldCheck size={12} />
               </button>
             )}
           </div>
@@ -219,7 +233,7 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
   };
 
   const DocumentCard = ({ title, slots, dateField, infoIA }) => (
-    <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm flex flex-col h-full relative">
+    <div className="bg-white p-3 rounded-2xl border border-slate-200 shadow-sm flex flex-col h-full relative text-left">
       <div className="flex items-center gap-2 mb-3 border-b border-slate-50 pb-2">
         <div className="p-1.5 bg-blue-50 text-tvde-primary rounded-lg"><ImageIcon size={14} /></div>
         <span className="text-[10px] font-black text-slate-700 uppercase tracking-tight">{title}</span>
@@ -257,41 +271,41 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
   };
 
   return (
-    <form onSubmit={(e) => e.preventDefault()} className="space-y-1 max-h-[75vh] overflow-y-auto pr-4 custom-scrollbar">
+    <form onSubmit={(e) => e.preventDefault()} className="space-y-1 max-h-[75vh] overflow-y-auto pr-3.5 custom-scrollbar">
       
-      {/* Quadro horizontal de Onboarding Digital */}
+      {/* Quadro horizontal de Onboarding Digital (Padding otimizado para economizar espaço) [2] */}
       {initialData.id && !isReadOnly && (
-        <div className="flex flex-col sm:flex-row items-center justify-between p-3.5 bg-blue-50/50 border border-blue-100 rounded-2xl mb-5 gap-3.5 text-left animate-in fade-in duration-200">
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-blue-100 text-blue-600 rounded-xl shrink-0">
-              <Share2 size={16} />
+        <div className="flex flex-col sm:flex-row items-center justify-between p-2.5 bg-blue-50/50 border border-blue-100 rounded-2xl mb-3 gap-2 text-left animate-in fade-in duration-200">
+          <div className="flex items-center gap-2.5">
+            <div className="p-2 bg-blue-100 text-blue-600 rounded-xl shrink-0">
+              <Share2 size={14} />
             </div>
             <div>
               <p className="text-xs font-bold text-slate-800">Onboarding Digital</p>
-              <p className="text-[10px] text-slate-400">Reenvie o link de recolha de documentação e registo para o telemóvel do motorista [2].</p>
+              <p className="text-[9.5px] text-slate-400">Reenvie o link de recolha de documentação e registo para o telemóvel do motorista [2].</p>
             </div>
           </div>
           <button 
             type="button" 
             onClick={() => handleEnviarLinkExistente('whatsapp')} 
-            className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-sm hover:shadow active:scale-95 cursor-pointer shrink-0"
+            className="flex items-center gap-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[9px] font-black uppercase tracking-wider transition-all shadow-sm hover:shadow active:scale-95 cursor-pointer shrink-0"
           >
-            <MessageSquare size={13} /> Reenviar WhatsApp
+            <MessageSquare size={12} /> Reenviar WhatsApp
           </button>
         </div>
       )}
 
       {/* BLOCO DE ALERTAS IA (REVISÃO E INCONSISTÊNCIA) */}
       {(Object.keys(initialData).some(k => k.startsWith('ai_filled_') && initialData[k] === true) || formData.alerta_inconsistencia) && (
-        <div className="space-y-3 mb-4">
+        <div className="space-y-2 mb-3">
           {/* Alerta de Inconsistência (Crítico) */}
           {formData.alerta_inconsistencia && (
-            <div className="bg-orange-50 border border-orange-200 p-4 rounded-2xl shadow-sm animate-in fade-in slide-in-from-top-2">
+            <div className="bg-orange-50 border border-orange-200 p-3 rounded-2xl shadow-sm animate-in fade-in slide-in-from-top-2 text-left">
               <div className="flex items-start gap-3 text-orange-600">
-                <AlertTriangle size={20} className="animate-pulse mt-0.5" />
+                <AlertTriangle size={18} className="animate-pulse mt-0.5 shrink-0" />
                 <div>
                   <p className="text-xs font-bold uppercase tracking-tight">Alerta de Inconsistência!</p>
-                  <p className="text-[10px] bg-white/50 p-2 rounded-lg mt-2 border border-orange-100 italic">
+                  <p className="text-[10px] bg-white/50 p-1.5 rounded-lg mt-1 border border-orange-100 italic">
                     {formData.motivo_inconsistencia || "A IA detetou dados divergentes entre os documentos carregados."}
                   </p>
                 </div>
@@ -301,12 +315,12 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
 
           {/* Aviso de Preenchimento Automático */}
           {Object.keys(initialData).some(k => k.startsWith('ai_filled_') && initialData[k] === true) && (
-            <div className="bg-blue-50 border border-blue-200 p-4 rounded-2xl shadow-sm animate-in fade-in slide-in-from-top-2">
+            <div className="bg-blue-50 border border-blue-200 p-3 rounded-2xl shadow-sm animate-in fade-in slide-in-from-top-2 text-left">
               <div className="flex items-start gap-3 text-blue-600">
-                <Sparkles size={20} className="animate-pulse mt-0.5" />
+                <Sparkles size={18} className="animate-pulse mt-0.5 shrink-0" />
                 <div>
                   <p className="text-xs font-bold">A IA preencheu dados automaticamente!</p>
-                  {formData.observacoes_ia && <p className="text-[10px] bg-white/50 p-2 rounded-lg mt-2 border border-blue-100 italic"><strong>Nota da IA:</strong> {formData.observacoes_ia}</p>}
+                  {formData.observacoes_ia && <p className="text-[10px] bg-white/50 p-1.5 rounded-lg mt-1 border border-blue-100 italic"><strong>Nota da IA:</strong> {formData.observacoes_ia}</p>}
                 </div>
               </div>
             </div>
@@ -314,13 +328,13 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
         </div>
       )}
 
-      {/* DADOS VITAIS E DE IDENTIFICAÇÃO (Ecrã Principal) */}
-      <div className="flex flex-col md:flex-row gap-6 items-center bg-slate-50 p-5 rounded-[2rem] border border-slate-100 mb-6">
+      {/* DADOS VITAIS E DE IDENTIFICAÇÃO (Padding e margem otimizados de p-5 para p-3.5) [2] */}
+      <div className="flex flex-col md:flex-row gap-4 items-center bg-slate-50 p-3.5 rounded-2xl border border-slate-100 mb-3">
         <div className="relative">
-          <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-white shadow-lg bg-white flex items-center justify-center">{formData.fotoPerfil ? <img src={formData.fotoPerfil} alt="Perfil" className="w-full h-full object-cover" /> : <User size={32} className="text-slate-200" />}</div>
-          {!isReadOnly && <FileUpload mode="minimal" label={<div className="p-1.5 bg-tvde-primary text-white rounded-full shadow-md cursor-pointer border-2 border-white"><Camera size={12}/></div>} folder="motoristas/fotos" onUploadComplete={(url) => setFormData({...formData, fotoPerfil: url})} />}
+          <div className="w-20 h-20 rounded-full overflow-hidden border-4 border-white shadow-lg bg-white flex items-center justify-center shrink-0">{formData.fotoPerfil ? <img src={formData.fotoPerfil} alt="Perfil" className="w-full h-full object-cover" /> : <User size={28} className="text-slate-200" />}</div>
+          {!isReadOnly && <FileUpload mode="minimal" label={<div className="p-1 bg-tvde-primary text-white rounded-full shadow-md cursor-pointer border-2 border-white"><Camera size={10}/></div>} folder="motoristas/fotos" onUploadComplete={(url) => setFormData({...formData, fotoPerfil: url})} />}
         </div>
-        <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-3 w-full">
+        <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-2 w-full">
           <div className="md:col-span-3">{renderInputIA("Nome Completo", "nome", true)}</div>
           <div><DatePicker label="Nascimento" value={formData.dataNascimento} onChange={(val) => { setFormData({...formData, dataNascimento: val}); if (initialData.ai_filled_dataNascimento) validarCampoIA('dataNascimento'); }} isReadOnly={isReadOnly} /></div>
           <div>{renderInputIA("NIF", "nif")}</div>
@@ -330,68 +344,68 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
         </div>
       </div>
 
-      {/* ◄ NOVO: Grelha de botões de navegação para sub-modais de UX [2] */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 my-6">
+      {/* Grelha de botões de navegação para sub-modais de UX (Padding otimizado de p-4 para p-2.5 e my-3) [2] */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 my-3">
         {/* Botão 1: Contacto e Morada */}
         <button
           type="button"
           onClick={() => setModalMoradaAberto(true)}
-          className="p-4 bg-slate-50 hover:bg-blue-50/50 border border-slate-200/80 rounded-2xl flex items-center justify-between transition-all cursor-pointer group text-left"
+          className="p-2.5 bg-slate-50 hover:bg-blue-50/50 border border-slate-200/80 rounded-xl flex items-center justify-between transition-all cursor-pointer group text-left"
         >
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-blue-100 text-blue-600 rounded-xl group-hover:scale-105 transition-transform shrink-0">
-              <MapPin size={18} />
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="p-2 bg-blue-100 text-blue-600 rounded-lg group-hover:scale-105 transition-transform shrink-0">
+              <MapPin size={16} />
             </div>
-            <div>
+            <div className="truncate">
               <p className="text-xs font-black text-slate-800">Contacto & Morada</p>
-              <p className="text-[10px] text-slate-400">Telemóvel, e-mail e morada fiscal [2].</p>
+              <p className="text-[9.5px] text-slate-400 truncate">Telemóvel, e-mail e morada fiscal [2].</p>
             </div>
           </div>
-          <ArrowRight size={14} className="text-slate-300 group-hover:text-tvde-primary transition-colors shrink-0" />
+          <ArrowRight size={12} className="text-slate-300 group-hover:text-tvde-primary transition-colors shrink-0" />
         </button>
 
         {/* Botão 2: Dados Financeiros */}
         <button
           type="button"
           onClick={() => setModalFaturacaoAberto(true)}
-          className="p-4 bg-slate-50 hover:bg-purple-50/50 border border-slate-200/80 rounded-2xl flex items-center justify-between transition-all cursor-pointer group text-left"
+          className="p-2.5 bg-slate-50 hover:bg-purple-50/50 border border-slate-200/80 rounded-xl flex items-center justify-between transition-all cursor-pointer group text-left"
         >
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-purple-100 text-purple-600 rounded-xl group-hover:scale-105 transition-transform shrink-0">
-              <Wallet size={18} />
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="p-2 bg-purple-100 text-purple-600 rounded-lg group-hover:scale-105 transition-transform shrink-0">
+              <Wallet size={16} />
             </div>
-            <div>
+            <div className="truncate">
               <p className="text-xs font-black text-slate-800">Dados Financeiros</p>
-              <p className="text-[10px] text-slate-400">IBAN, NIF e payout de faturamento [2].</p>
+              <p className="text-[9.5px] text-slate-400 truncate">IBAN, NIF e payout de faturamento [2].</p>
             </div>
           </div>
-          <ArrowRight size={14} className="text-slate-300 group-hover:text-tvde-primary transition-colors shrink-0" />
+          <ArrowRight size={12} className="text-slate-300 group-hover:text-tvde-primary transition-colors shrink-0" />
         </button>
 
         {/* Botão 3: Documentação Digital */}
         <button
           type="button"
           onClick={() => setModalDocumentosAberto(true)}
-          className="p-4 bg-slate-50 hover:bg-amber-50/50 border border-slate-200/80 rounded-2xl flex items-center justify-between transition-all cursor-pointer group text-left"
+          className="p-2.5 bg-slate-50 hover:bg-amber-50/50 border border-slate-200/80 rounded-xl flex items-center justify-between transition-all cursor-pointer group text-left"
         >
-          <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-amber-100 text-amber-600 rounded-xl group-hover:scale-105 transition-transform shrink-0">
-              <BadgeCheck size={18} />
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="p-2 bg-amber-100 text-amber-600 rounded-lg group-hover:scale-105 transition-transform shrink-0">
+              <BadgeCheck size={16} />
             </div>
-            <div>
+            <div className="truncate">
               <p className="text-xs font-black text-slate-800">Documentação</p>
-              <p className="text-[10px] text-slate-400">Validação, fotos e histórico de IA [2].</p>
+              <p className="text-[9.5px] text-slate-400 truncate">Validação, fotos e histórico de IA [2].</p>
             </div>
           </div>
-          <ArrowRight size={14} className="text-slate-300 group-hover:text-tvde-primary transition-colors shrink-0" />
+          <ArrowRight size={12} className="text-slate-300 group-hover:text-tvde-primary transition-colors shrink-0" />
         </button>
       </div>
 
       {initialData.historico && initialData.historico.length > 0 && (
         <CollapsibleSection title="Histórico de Edições" icon={History} iconColor="text-slate-400" defaultOpen={false}>
-          <div className="space-y-2">
+          <div className="space-y-1.5">
             {[...initialData.historico].reverse().map((log, index) => (
-              <div key={index} className="flex gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100 text-[10px]">
+              <div key={index} className="flex gap-3 p-2 bg-slate-50 rounded-xl border border-slate-100 text-[10px]">
                 <div className="flex-1">
                   <div className="flex justify-between font-bold text-slate-700 mb-1"><span>{log.usuario}</span><span>{new Date(log.data).toLocaleDateString('pt-PT')}</span></div>
                   <p className="text-slate-500 italic">"{log.descricao}"</p>
@@ -402,7 +416,7 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
         </CollapsibleSection>
       )}
 
-      {/* SUB-MODAL 1: Contacto e Morada [2] */}
+      {/* SUB-MODAL 1: Contacto e Morada */}
       {modalMoradaAberto && (
         <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
           <div className="absolute inset-0" onClick={() => setModalMoradaAberto(false)} />
@@ -429,7 +443,7 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
         </div>
       )}
 
-      {/* SUB-MODAL 2: Dados Financeiros e Faturação [2] */}
+      {/* SUB-MODAL 2: Dados Financeiros e Faturação */}
       {modalFaturacaoAberto && (
         <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
           <div className="absolute inset-0" onClick={() => setModalFaturacaoAberto(false)} />
@@ -483,26 +497,25 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
         </div>
       )}
 
-      {/* SUB-MODAL 3: Documentação Digital [2] */}
+      {/* SUB-MODAL 3: Documentação Digital */}
       {modalDocumentosAberto && (
         <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
           <div className="absolute inset-0" onClick={() => setModalDocumentosAberto(false)} />
           <div className="relative bg-white rounded-t-[2.5rem] sm:rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden p-6 sm:p-8 animate-in slide-in-from-bottom sm:zoom-in-95 duration-200 text-left">
             <button type="button" onClick={() => setModalDocumentosAberto(false)} className="absolute top-4 right-4 p-1.5 text-slate-400 hover:bg-slate-50 hover:text-slate-600 rounded-full transition-all cursor-pointer"><X size={18} /></button>
             <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-2 mb-4 border-b border-slate-100 pb-3 select-none">
-              <BadgeCheck size={18} className="text-amber-500" /> Dossier Documental e Conformidade Digital
+              <BadgeCheck size={18} className="text-blue-500" /> Documentação Digital
             </h3>
-            
-            {/* Scroll do dossier de documentos */}
-            <div className="space-y-4 overflow-y-auto pr-2 custom-scrollbar flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 pb-4">
-              <DocumentCard title="Documento de Identificação" dateField="validadeID" slots={[{ label: "Frente", fileUrl: formData.docIDFront, uploadField: "docIDFront", folder: "motoristas/id" }, { label: "Verso", fileUrl: formData.docIDBack, uploadField: "docIDBack", folder: "motoristas/id" }]} />
-              <DocumentCard title="Carta de Condução" dateField="validadeCarta" infoIA="A IA procurou validades profissionais (997/Pesados) no verso." slots={[{ label: "Frente", fileUrl: formData.docCartaFront, uploadField: "docCartaFront", folder: "motoristas/cartas" }, { label: "Verso", fileUrl: formData.docCartaBack, uploadField: "docCartaBack", folder: "motoristas/cartas" }]} />
-              <DocumentCard title="Certificado TVDE" dateField="validadeTVDE" slots={[{ label: "Ficheiro", fileUrl: formData.docCertificadoTVDE, uploadField: "docCertificadoTVDE", folder: "motoristas/tvde" }]} />
-              <DocumentCard title="Registo Criminal" dateField="validadeCriminal" slots={[{ label: "Ficheiro", fileUrl: formData.docRegistoCriminal, uploadField: "docRegistoCriminal", folder: "motoristas/criminal" }]} />
-              <DocumentCard title="Comprovativo IBAN" slots={[{ label: "Ficheiro", fileUrl: formData.docIBAN, uploadField: "docIBAN", folder: "motoristas/iban" }]} />
-              <DocumentCard title="Comprovativo Morada" slots={[{ label: "Ficheiro", fileUrl: formData.docMorada, uploadField: "docMorada", folder: "motoristas/morada" }]} />
+            <div className="space-y-4 overflow-y-auto pr-2 custom-scrollbar">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <DocumentCard title="Documento de Identificação" dateField="validadeID" slots={[{ label: "Frente", fileUrl: formData.docIDFront, uploadField: "docIDFront", folder: "motoristas/id" }, { label: "Verso", fileUrl: formData.docIDBack, uploadField: "docIDBack", folder: "motoristas/id" }]} />
+                <DocumentCard title="Carta de Condução" dateField="validadeCarta" infoIA="A IA procurou validades profissionais (997/Pesados) no verso." slots={[{ label: "Frente", fileUrl: formData.docCartaFront, uploadField: "docCartaFront", folder: "motoristas/cartas" }, { label: "Verso", fileUrl: formData.docCartaBack, uploadField: "docCartaBack", folder: "motoristas/cartas" }]} />
+                <DocumentCard title="Certificado TVDE" dateField="validadeTVDE" slots={[{ label: "Ficheiro", fileUrl: formData.docCertificadoTVDE, uploadField: "docCertificadoTVDE", folder: "motoristas/tvde" }]} />
+                <DocumentCard title="Registo Criminal" dateField="validadeCriminal" slots={[{ label: "Ficheiro", fileUrl: formData.docRegistoCriminal, uploadField: "docRegistoCriminal", folder: "motoristas/criminal" }]} />
+                <DocumentCard title="Comprovativo IBAN" slots={[{ label: "Ficheiro", fileUrl: formData.docIBAN, uploadField: "docIBAN", folder: "motoristas/iban" }]} />
+                <DocumentCard title="Comprovativo Morada" slots={[{ label: "Ficheiro", fileUrl: formData.docMorada, uploadField: "docMorada", folder: "motoristas/morada" }]} />
+              </div>
             </div>
-
             <div className="mt-4 pt-4 border-t border-slate-100 flex justify-end shrink-0">
               <Button type="button" onClick={() => setModalDocumentosAberto(false)} className="px-6 h-10 text-xs shadow-md">Confirmar e Fechar</Button>
             </div>
@@ -510,14 +523,14 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
         </div>
       )}
 
-      {/* BOTÕES FIXOS NO RODAPÉ */}
-      <div className="flex flex-col md:flex-row gap-3 mt-6 sticky bottom-0 bg-white pt-4 border-t border-slate-50">
-        <Button variant="secondary" className="flex-1 h-12 text-xs" onClick={onCancel}>{isReadOnly ? 'Fechar' : 'Cancelar'}</Button>
+      {/* BOTÕES FIXOS NO RODAPÉ (mt-3.5 pt-3 e h-10 para manter scroll zero no desktop) [2] */}
+      <div className="flex flex-col md:flex-row gap-2 mt-3.5 sticky bottom-0 bg-white pt-3 border-t border-slate-100">
+        <Button variant="secondary" className="flex-1 h-10 text-xs" onClick={onCancel}>{isReadOnly ? 'Fechar' : 'Cancelar'}</Button>
         {initialData.id && (
           <Button
             type="button"
             variant="outline"
-            className="flex-1 h-12 text-xs border-emerald-500 text-emerald-600 hover:bg-emerald-50"
+            className="flex-1 h-10 text-xs border-emerald-500 text-emerald-600 hover:bg-emerald-50"
             onClick={() => setModalFinanceiroAberto(true)}
           >
             💰 Gestão Financeira
@@ -525,8 +538,8 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
         )}
         {!isReadOnly && (
           <>
-            <Button type="button" variant="outline" className="flex-1 h-12 text-xs border-tvde-primary text-tvde-primary hover:bg-blue-50" onClick={() => handleFinalSubmit(true)}><MessageSquare size={16} /> Guardar e Enviar Link</Button>
-            <Button type="button" className="flex-1 h-12 text-xs shadow-md" onClick={() => handleFinalSubmit(false)}>Guardar Registo</Button>
+            <Button type="button" variant="outline" className="flex-1 h-10 text-xs border-tvde-primary text-tvde-primary hover:bg-blue-50" onClick={() => handleFinalSubmit(true)}><MessageSquare size={14} /> Guardar e Enviar Link</Button>
+            <Button type="button" className="flex-1 h-10 text-xs shadow-md" onClick={() => handleFinalSubmit(false)}>Guardar Registo</Button>
           </>
         )}
       </div>
