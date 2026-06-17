@@ -1,3 +1,14 @@
+/**
+ * geminiService.js
+ * Localização: src/services/geminiService.js
+ *
+ * Agente de Chat Inteligente e Motor de IA (Gemini).
+ * Atualizado com:
+ * - Parâmetros 'categoria' e 'origem' na ferramenta lancarAjusteFinanceiro [2].
+ * - Instruções de sistema refinadas para classificar combustíveis e portagens [2].
+ * - Preservação estrita das diretrizes fiscais portuguesas e do loop agêntico original.
+ */
+
 import { genAI, AI_SETTINGS, calcularCustoReal } from "../config/aiConfig";
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -26,7 +37,7 @@ O teu objetivo é esclarecer de forma rigorosa, didática, profissional e objeti
 2. ENQUADRAMENTO FISCAL E CONTABILIDADE (Portugal):
    - Código de Atividade Económica (CAE): O CAE obrigatório para motoristas independentes ou sociedades operadoras de TVDE é o 49320 (Transporte ocasional de passageiros em veículos ligeiros).
    - Isenção de IVA (Artigo 53.º do CIVA): Motoristas independentes (ENI - Empresário em Nome Individual) estão isentos de cobrança de IVA se o seu faturamento anual previsto ou real for inferior a 15.000 € (limite atual em vigor para 2026).
-   - Regime Normal de IVA: Se ultrapassar o volume de negócios anual de 15.000 € (ou se optar livremente pelo regime geral), passa a faturar com IVA à taxa normal de 23% sobre a atividade.
+   - Regime Normal de IVA: Se ultrapassar o volume de negócios anual de 15.000 € (or se optar livremente pelo regime geral), passa a faturar com IVA à taxa normal de 23% sobre a atividade.
    - Estrutura Empresarial: O motorista independente pode abrir atividade como ENI (regime simplificado, sem necessidade de Contabilista Certificado até 200.000 € de faturação, desde que não tenha contabilidade organizada por opção), ou constituir uma sociedade por quotas (Unipessoal Lda ou Lda) para proteger o património pessoal e ter contabilidade organizada (obrigatória para sociedades).
    - Autofaturação: As plataformas eletrónicas (Uber e Bolt) emitem faturas em nome dos operadores ou parceiros de frota através de acordos de autofaturação com base no registo das viagens semanais.
 
@@ -60,7 +71,7 @@ export const analisarDocumentoComIA = async (file, tipoDoc, dadosAtuais = {}) =>
       reader.readAsDataURL(file);
     });
 
-    const prompt = `Age como perito de conformidade TVDE em Portugal.
+    const prompt = `Age como perito de conformidade TVDE in Portugal.
 DADOS ATUAIS NA FICHA: Nome: ${dadosAtuais.nome || "Vazio"}, NIF: ${dadosAtuais.nif || "Vazio"}.
 DOCUMENTO A ANALISAR: ${tipoDoc}.
 
@@ -274,10 +285,10 @@ const TODAS_AS_FERRAMENTAS = [
         }
       },
 
-      // ── FINANCEIRO ──────────────────────────────────────────────────────────
+      // ── FINANCEIRO (ATUALIZADO COM CATEGORIA E ORIGEM PARA DESPESAS FIXAS) ──
       {
         name: "lancarAjusteFinanceiro",
-        description: "Lança um débito ou crédito na conta corrente de um motorista ou veículo. Usa SEMPRE o entidadeId do Firestore.",
+        description: "Lança um débito ou crédito na conta corrente de um motorista ou veículo. Usa SEMPRE o entidadeId do Firestore. Permite categorizar despesas específicas como combustível e portagens [2].",
         parameters: {
           type: "object",
           properties: {
@@ -286,6 +297,8 @@ const TODAS_AS_FERRAMENTAS = [
             tipo:         { type: "string", enum: ["debito", "credito"] },
             valor:        { type: "number", description: "Valor em euros." },
             descricao:    { type: "string", description: "Motivo do lançamento." },
+            categoria:    { type: "string", enum: ["abastecimento", "portagens", "debito_geral", "credito_geral"], description: "Categoria do movimento. Usa 'abastecimento' para despesas de combustível/energia ou 'portagens' para via verde para as colocar nos campos fixos dedicados [2]." },
+            origem:       { type: "string", enum: ["manual", "ia", "relatorio"], description: "Origem do lançamento. Define como 'ia' se fores tu (o agente de IA) a calcular e a lançar a despesa automaticamente [2]." },
             data:         { type: "string", description: "Data em AAAA-MM-DD. Se omitida, usa hoje." }
           },
           required: ["entidadeId", "tipoEntidade", "tipo", "valor", "descricao"]
@@ -364,9 +377,14 @@ Tens acesso total ao sistema e podes executar qualquer operação solicitada pel
 - Veículos: registar, editar e remover viaturas
 - Proprietários: gerir parceiros e proprietários de viaturas
 - Cartões: gerir cartões de combustível ("combustivel") e eléctricos ("eletrico")
-- Financeiro: lançar, editar e eliminar débitos e créditos na conta corrente
+- Financeiro: lançar, editar e eliminar débitos e créditos na conta corrente [2]
 - Tarefas: criar e atribuir tickets a funcionários
 - Suporte Público: ler e analisar as dúvidas e conversas mais frequentes obtidas na Landing Page
+
+⚠️ REGRAS OPERACIONAIS FINANCEIRAS (MUITO IMPORTANTES) [2]:
+1. Se o utilizador te pedir para lançar despesas de combustível faturadas, carregamentos elétricos ou abastecimentos de um motorista, deves usar obrigatoriamente a ferramenta "lancarAjusteFinanceiro" com o tipo "debito" e a categoria "abastecimento". Sela a origem como "ia" para que apareça de forma especial no ecrã [2].
+2. Se te pedirem para lançar custos de Via Verde ou portagens, usa a ferramenta "lancarAjusteFinanceiro" com o tipo "debito" e a categoria "portagens". Sela a origem como "ia" [2].
+3. Todos os restantes débitos gerais devem usar o fluxo genérico ("debito_geral") [2].
 
 ⚠️ REGRAS DE SEGURANÇA (OBRIGATÓRIAS):
 1. Para ELIMINAR ou EXCLUIR qualquer registo (motorista, veículo, cartão, lançamento), NUNCA chames a ferramenta de imediato. Pede sempre confirmação explícita ao utilizador citando o nome/descrição do item antes de avançar.

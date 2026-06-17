@@ -2,10 +2,8 @@
  * FechoSemanal.jsx
  * Localização: src/pages/FechoSemanal.jsx
  *
- * Processador de fecho financeiro semanal (Uplod de CSVs e Geração de SEPA/PDF).
- * Atualizado com suporte responsivo:
- * - Tabela auto-rolável horizontalmente (min-w-750px)
- * - Bloco de rodapé global empilhável e botões fluidos em mobile
+ * Processador de fecho financeiro semanal (Upload de CSVs e Geração de SEPA/PDF).
+ * Atualizado com suporte responsivo e integração das despesas fixas (Abastecimento e Portagens) [2].
  */
 
 import React, { useState, useEffect } from 'react';
@@ -107,7 +105,7 @@ export default function FechoSemanal() {
       const combustivelData = files.combustivel ? parseCartoesConsumoCSV(files.combustivel) : {};
       const eletricoData = files.eletrico ? parseCartoesConsumoCSV(files.eletrico) : {};
 
-      // CORREÇÃO CRÍTICA: Busca por pagoNoFechoId: "" (string vazia) em vez de null
+      // Busca movimentos financeiros pendentes no Firestore [2]
       const qMov = query(collection(db, "movimentos_financeiros"), where("pagoNoFechoId", "==", ""));
       const movSnap = await getDocs(qMov);
       const todosMovimentos = movSnap.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -116,32 +114,44 @@ export default function FechoSemanal() {
         const u = uberData[m.nome] || { bruto: 0, liquido: 0, gorjetas: 0, portagens: 0 };
         const b = boltData[m.nome] || { bruto: 0, liquido: 0 };
         const veiculo = veiculosDB.find(v => v.motoristaId === m.id);
-        const vvCusto = veiculo ? (viaVerdeData[veiculo.matricula.replace(/-/g, '')] || 0) : 0;
+        
+        // 1. Processamento de Portagens / Via Verde [2]
+        const vvCustoCSV = veiculo ? (viaVerdeData[veiculo.matricula.replace(/-/g, '')] || 0) : 0;
 
-        let totalCombustivel = 0;
-        let totalEletrico = 0;
+        // 2. Processamento de Combustível / Energia via Cartões (CSV) [2]
+        let totalCombustivelCSV = 0;
+        let totalEletricoCSV = 0;
         cartoesDB.filter(c => c.veiculoId === veiculo?.id).forEach(c => {
-          if (c.tipo === 'combustivel') totalCombustivel += (combustivelData[c.numero] || 0);
-          if (c.tipo === 'eletrico') totalEletrico += (eletricoData[c.numero] || 0);
+          if (c.tipo === 'combustivel') totalCombustivelCSV += (combustivelData[c.numero] || 0);
+          if (c.tipo === 'eletrico') totalEletricoCSV += (eletricoData[c.numero] || 0);
         });
 
         const movsEntidade = todosMovimentos.filter(mov => 
           mov.entidadeId === m.id || (veiculo && mov.entidadeId === veiculo.id)
         );
 
+        // Identifica se existem despesas fixas registadas na base de dados (Manual ou IA) [2]
+        const movPortagemDB = movsEntidade.find(mov => mov.categoria === 'portagens');
+        const movAbastecimentoDB = movsEntidade.find(mov => mov.categoria === 'abastecimento');
+
+        // LÓGICA DE PRECEDÊNCIA: Lançamentos dedicados na DB sobrepõem os CSVs [2]
+        const portagemFinal = movPortagemDB ? movPortagemDB.valor : vvCustoCSV;
+        const abastecimentoFinal = movAbastecimentoDB ? movAbastecimentoDB.valor : (totalCombustivelCSV + totalEletricoCSV);
+
         const totalCreditosManuais = movsEntidade
           .filter(mov => mov.tipoMovimento === 'credito')
           .reduce((acc, curr) => acc + curr.valor, 0);
 
+        // EXCLUSÃO CRÍTICA: Remove as categorias dedicadas da soma genérica de débitos para evitar dupla dedução [2]
         const totalDebitosManuais = movsEntidade
-          .filter(mov => mov.tipoMovimento === 'debito')
+          .filter(mov => mov.tipoMovimento === 'debito' && mov.categoria !== 'abastecimento' && mov.categoria !== 'portagens')
           .reduce((acc, curr) => acc + curr.valor, 0);
 
         const liqPlataformas = u.liquido + b.liquido;
-        const custosFixos = 125.00; 
+        const custosFixos = 125.00; // Taxa operacional semanal padrão
 
         const ganhosTotais = liqPlataformas + u.portagens + totalCreditosManuais;
-        const despesasTotais = vvCusto + totalCombustivel + totalEletrico + custosFixos + totalDebitosManuais;
+        const despesasTotais = portagemFinal + abastecimentoFinal + custosFixos + totalDebitosManuais;
 
         return {
           motoristaId: m.id,
@@ -151,7 +161,13 @@ export default function FechoSemanal() {
           bolt: b,
           movimentosIds: movsEntidade.map(mov => mov.id),
           contaCorrente: { creditos: totalCreditosManuais, debitos: totalDebitosManuais },
-          despesas: { viaVerde: vvCusto, combustivel: totalCombustivel, eletrico: totalEletrico, custosFixos: custosFixos },
+          // Consolida as despesas calculadas com base nas regras de precedência [2]
+          despesas: { 
+            viaVerde: portagemFinal, 
+            combustivel: abastecimentoFinal, 
+            eletrico: 0, // Consolidado sob abastecimento para compatibilidade visual do PDF
+            custosFixos: custosFixos 
+          },
           ajustes: 0,
           saldoFinal: ganhosTotais - despesasTotais
         };
@@ -239,7 +255,6 @@ export default function FechoSemanal() {
 
       {step === 2 && (
         <div className="space-y-6 animate-in fade-in zoom-in-95">
-          {/* ◄ ALTERADO: Contentor auto-rolável e largura mínima estipulada para a tabela financeira */}
           <div className="bg-white rounded-[2rem] sm:rounded-[2.5rem] border border-slate-200 shadow-sm overflow-x-auto w-full custom-scrollbar">
             <table className="w-full text-left border-collapse min-w-[750px]">
               <thead className="bg-slate-50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
@@ -271,7 +286,7 @@ export default function FechoSemanal() {
                       </span>
                     </td>
                     <td className="p-5 text-center text-slate-500 font-medium">
-                      -{formatCurrency(d.despesas.combustivel + d.despesas.eletrico + d.despesas.viaVerde + d.despesas.custosFixos)}
+                      -{formatCurrency(d.despesas.combustivel + d.despesas.viaVerde + d.despesas.custosFixos)}
                     </td>
                     <td className="p-5 text-right">
                       <span className={`px-4 py-2 rounded-xl font-black text-sm ${d.saldoFinal >= 0 ? 'bg-slate-800 text-white' : 'bg-red-100 text-red-600'}`}>
@@ -284,7 +299,6 @@ export default function FechoSemanal() {
             </table>
           </div>
 
-          {/* ◄ ALTERADO: Rodapé de fecho empilhável em telemóvel e botões 100% fluídos */}
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-tvde-dark p-6 sm:p-8 rounded-[2rem] sm:rounded-[2.5rem] text-white shadow-2xl gap-6">
             <div>
               <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Global a Pagar</p>
@@ -332,10 +346,7 @@ const UploadBox = ({ title, icon: Icon, color, onChange, ready }) => (
     <div className={`w-11 h-11 rounded-xl flex items-center justify-center mb-3 ${ready ? 'bg-green-500 text-white' : `bg-${color}-50 text-${color}-500`}`}>
       {ready ? <CheckCircle2 size={20} /> : <Icon size={20} />}
     </div>
-    <h3 className="font-bold text-slate-800 text-xs">{title}</h3>
-    <input type="file" className="hidden" id={title} onChange={onChange} />
-    <label htmlFor={title} className="mt-4 cursor-pointer bg-slate-800 text-white px-4 py-2 rounded-lg text-[9px] font-black uppercase hover:bg-tvde-primary transition-all">
-      {ready ? 'Substituir' : 'Selecionar'}
-    </label>
+    <h4 className="text-xs font-bold text-slate-700">{cat?.label || 'Dístico'}</h4>
+    <p className="text-[10px] text-slate-400 mt-1 leading-snug">Formatos suportados: PDF, XLS, CSV.</p>
   </div>
 );
