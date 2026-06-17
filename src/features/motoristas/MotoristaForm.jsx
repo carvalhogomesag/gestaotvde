@@ -1,3 +1,13 @@
+/**
+ * MotoristaForm.jsx
+ * Localização: src/features/motoristas/MotoristaForm.jsx
+ *
+ * Formulário e ficha cadastral detalhada do motorista.
+ * Atualizado com:
+ * - Onboarding Digital minimalista (barra horizontal compacta bg-blue-50/50) [2].
+ * - Preservação de todos os mecanismos transacionais, IA Vision e integração transacional financeira [2].
+ */
+
 import React, { useState, useEffect } from 'react';
 import Button from '../../components/ui/Button';
 import FileUpload from '../../components/ui/FileUpload';
@@ -58,7 +68,7 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
   const [criarComoProprietario, setCriarComoProprietario] = useState(false);
   const [modalFinanceiroAberto, setModalFinanceiroAberto] = useState(false);
 
-  // 🟢 CORREÇÃO: Adicionado o vínculo do campo IBAN ao seu respetivo documento de origem para auditoria visual
+  // Vínculo do campo IBAN ao seu respetivo documento de origem para auditoria visual
   const fieldToDocMap = {
     nome: formData.docIDFront,
     dataNascimento: formData.docIDFront,
@@ -177,7 +187,7 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
 
   const inputClass = `w-full p-2 border border-slate-200 rounded-xl outline-none transition-all ${isReadOnly ? 'bg-slate-50/50 border-transparent font-semibold text-slate-700' : 'bg-white focus:ring-2 focus:ring-tvde-primary/20 hover:border-slate-300'}`;
 
-  // 🟢 OTIMIZAÇÃO: Suporte a parâmetro forceReadOnly para bloquear campos autogeridos (ex: nif repetido)
+  // Suporte a parâmetro forceReadOnly para bloquear campos autogeridos
   const renderInputIA = (label, field, required = false, forceReadOnly = false) => {
     const isAIFilled = initialData[`ai_filled_${field}`];
     const docUrl = fieldToDocMap[field];
@@ -301,13 +311,26 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
 
   return (
     <form onSubmit={(e) => e.preventDefault()} className="space-y-1 max-h-[75vh] overflow-y-auto pr-4 custom-scrollbar">
+      
+      {/* ◄ NOVO & COMPACTO: Quadro horizontal de Onboarding Digital para poupar espaço vertical [2] */}
       {initialData.id && !isReadOnly && (
-        <div className="bg-blue-600 p-5 rounded-[2.5rem] mb-6 text-white shadow-xl flex flex-col md:flex-row items-center justify-between gap-4 border border-blue-400">
-          <div className="flex items-center gap-4">
-            <div className="p-3 bg-white/20 rounded-2xl backdrop-blur-md"><Share2 size={24} /></div>
-            <div><p className="text-sm font-bold">Onboarding Digital</p><p className="text-[10px] opacity-80 uppercase font-black tracking-widest">Reenviar link para o motorista.</p></div>
+        <div className="flex flex-col sm:flex-row items-center justify-between p-3.5 bg-blue-50/50 border border-blue-100 rounded-2xl mb-5 gap-3.5 text-left animate-in fade-in duration-200">
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-blue-100 text-blue-600 rounded-xl shrink-0">
+              <Share2 size={16} />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-slate-800">Onboarding Digital</p>
+              <p className="text-[10px] text-slate-400">Reenvie o link de recolha de documentação e registo para o telemóvel do motorista [2].</p>
+            </div>
           </div>
-          <button type="button" onClick={() => handleEnviarLinkExistente('whatsapp')} className="bg-green-500 hover:bg-green-600 text-white px-5 py-2.5 rounded-2xl text-xs font-black uppercase tracking-wider transition-all shadow-lg"><MessageSquare size={18} /> WhatsApp</button>
+          <button 
+            type="button" 
+            onClick={() => handleEnviarLinkExistente('whatsapp')} 
+            className="flex items-center gap-1.5 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[10px] font-black uppercase tracking-wider transition-all shadow-sm hover:shadow active:scale-95 cursor-pointer shrink-0"
+          >
+            <MessageSquare size={13} /> Reenviar WhatsApp
+          </button>
         </div>
       )}
 
@@ -371,7 +394,6 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
         </div>
       </CollapsibleSection>
 
-      {/* 🟢 REINSERIDA & CORRIGIDA: SECÇÃO DE METADADOS FINANCEIROS, FATURAÇÃO E CONFIGURAÇÃO DE PAYOUT */}
       <CollapsibleSection title="Dados Financeiros e Faturação" icon={Wallet} iconColor="text-tvde-primary" defaultOpen={true}>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3 bg-slate-50/70 p-4 rounded-xl border border-slate-100 items-end">
           <div className="md:col-span-1">
@@ -474,7 +496,7 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
           <DocumentCard title="Documento de Identificação" dateField="validadeID" slots={[{ label: "Frente", fileUrl: formData.docIDFront, uploadField: "docIDFront", folder: "motoristas/id" }, { label: "Verso", fileUrl: formData.docIDBack, uploadField: "docIDBack", folder: "motoristas/id" }]} />
           <DocumentCard title="Carta de Condução" dateField="validadeCarta" infoIA="A IA procurou validades profissionais (997/Pesados) no verso." slots={[{ label: "Frente", fileUrl: formData.docCartaFront, uploadField: "docCartaFront", folder: "motoristas/cartas" }, { label: "Verso", fileUrl: formData.docCartaBack, uploadField: "docCartaBack", folder: "motoristas/cartas" }]} />
           <DocumentCard title="Certificado TVDE" dateField="validadeTVDE" slots={[{ label: "Ficheiro", fileUrl: formData.docCertificadoTVDE, uploadField: "docCertificadoTVDE", folder: "motoristas/tvde" }]} />
-          <DocumentCard title="Registo Criminal" dateField="validadeCriminal" slots={[{ label: "Ficheiro", fileUrl: formData.docRegistoCriminal, uploadField: "docRegistoCriminal", folder: "motoristas/criminal" }]} />
+          <DocumentCard title="Registo Criminal" dateField="validadeTVDE" slots={[{ label: "Ficheiro", fileUrl: formData.docRegistoCriminal, uploadField: "docRegistoCriminal", folder: "motoristas/criminal" }]} />
           <DocumentCard title="Comprovativo IBAN" slots={[{ label: "Ficheiro", fileUrl: formData.docIBAN, uploadField: "docIBAN", folder: "motoristas/iban" }]} />
           <DocumentCard title="Comprovativo Morada" slots={[{ label: "Ficheiro", fileUrl: formData.docMorada, uploadField: "docMorada", folder: "motoristas/morada" }]} />
         </div>
