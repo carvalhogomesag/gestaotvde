@@ -2,10 +2,12 @@
  * MotoristaForm.jsx
  * Localização: src/features/motoristas/MotoristaForm.jsx
  *
- * Formulário e ficha cadastral detalhada do motorista.
- * Atualizado com:
- * - Onboarding Digital minimalista (barra horizontal compacta bg-blue-50/50) [2].
- * - Preservação de todos os mecanismos transacionais, IA Vision e integração transacional financeira [2].
+ * Formulário e ficha cadastral otimizada do motorista.
+ * Otimizado com:
+ * - Redução de ruído visual: campos secundários movidos para sub-modais dedicados [2].
+ * - Botões táteis com ícones e legendas para navegação rápida de ecrã [2].
+ * - Remoção do bloco redundante de Conta Corrente (já contido no ModalFinanceiro) [2].
+ * - Preservação estrita das integrações do Firestore, IA Vision, alertas e conformidade regulamentar [2].
  */
 
 import React, { useState, useEffect } from 'react';
@@ -17,7 +19,7 @@ import {
   CheckSquare, Square, Camera, Eye, Trash2, 
   CheckCircle2, AlertCircle, History, Wallet, Plus, Minus, 
   Euro, ChevronDown, ChevronUp, FileCheck, Image as ImageIcon, Info,
-  MessageSquare, Share2, Send, Sparkles, ShieldCheck, AlertTriangle
+  MessageSquare, Share2, Send, Sparkles, ShieldCheck, AlertTriangle, ArrowRight, X
 } from 'lucide-react';
 import { db } from '../../firebase';
 import { doc, updateDoc, addDoc, collection, query, where, onSnapshot, deleteDoc } from 'firebase/firestore';
@@ -26,26 +28,10 @@ import { logAcaoGlobal } from '../../utils/logger';
 import { formatCurrency } from '../../utils/formatters';
 import ModalFinanceiro from '../financeiro/ModalFinanceiro';
 
-/**
- * Componente Auxiliar: Secção Colapsável Compacta
- */
-const CollapsibleSection = ({ title, icon: Icon, iconColor, defaultOpen = false, children }) => {
-  const [isOpen, setIsOpen] = useState(defaultOpen);
-  return (
-    <div className="border-b border-slate-100/50 last:border-0">
-      <button type="button" onClick={() => setIsOpen(!isOpen)} className="w-full flex items-center justify-between group cursor-pointer hover:bg-slate-50 rounded-lg px-2 -mx-2 transition-all py-2">
-        <h4 className={`text-[11px] font-black uppercase tracking-wider flex items-center gap-2 ${iconColor}`}><Icon size={14} /> {title}</h4>
-        <div className="text-slate-300 group-hover:text-slate-500 transition-colors">{isOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</div>
-      </button>
-      <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isOpen ? 'max-h-[2000px] opacity-100 mt-2 mb-4' : 'max-h-0 opacity-0'}`}>{children}</div>
-    </div>
-  );
-};
-
 export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, isReadOnly = false, onCriarProprietario }) {
   const { userData } = useAuth();
   
-  // ESTADO DO FORMULÁRIO
+  // ESTADO CENTRAL DO FORMULÁRIO
   const [formData, setFormData] = useState({
     nome: initialData.nome || '', email: initialData.email || '', telemovel: initialData.telemovel || '', nif: initialData.nif || '',
     nifPagamento: initialData.nifPagamento || '', nifMesmoMotorista: initialData.nifMesmoMotorista || false, 
@@ -63,12 +49,15 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
     motivo_inconsistencia: initialData.motivo_inconsistencia || ''
   });
 
-  const [movimentos, setMovimentos] = useState([]);
-  const [novoMovimento, setNovoMovimento] = useState({ tipo: 'debito', valor: '', descricao: '', data: new Date().toISOString().split('T')[0] });
   const [criarComoProprietario, setCriarComoProprietario] = useState(false);
+  
+  // Estados para abertura dos sub-modais de UX [2]
+  const [modalMoradaAberto, setModalMoradaAberto] = useState(false);
+  const [modalFaturacaoAberto, setModalFaturacaoAberto] = useState(false);
+  const [modalDocumentosAberto, setModalDocumentosAberto] = useState(false);
   const [modalFinanceiroAberto, setModalFinanceiroAberto] = useState(false);
 
-  // Vínculo do campo IBAN ao seu respetivo documento de origem para auditoria visual
+  // Vínculo do campo ao seu respetivo documento de origem para auditoria visual
   const fieldToDocMap = {
     nome: formData.docIDFront,
     dataNascimento: formData.docIDFront,
@@ -117,18 +106,6 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
     }));
   }, [initialData]);
 
-  useEffect(() => {
-    if (initialData.id) {
-      const q = query(
-        collection(db, "movimentos_financeiros"), 
-        where("entidadeId", "==", initialData.id), 
-        where("pagoNoFechoId", "==", "")
-      );
-      const unsubscribe = onSnapshot(q, (snapshot) => { setMovimentos(snapshot.docs.map(d => ({ id: d.id, ...d.data() }))); });
-      return () => unsubscribe();
-    }
-  }, [initialData.id]);
-
   useEffect(() => { if (formData.nifMesmoMotorista) { setFormData(prev => ({ ...prev, nifPagamento: prev.nif })); } }, [formData.nif, formData.nifMesmoMotorista]);
 
   const validarCampoIA = async (campo) => {
@@ -139,36 +116,6 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
       await updateDoc(motoristaRef, { [`ai_filled_${campo}`]: false });
     } catch (error) {
       console.error("Erro ao validar campo:", error);
-    }
-  };
-
-  const handleAddMovimento = async () => {
-    if (!novoMovimento.valor || !novoMovimento.descricao) {
-      alert("Por favor, preencha o valor e a descrição do lançamento.");
-      return;
-    }
-    try {
-      const valorNum = parseFloat(novoMovimento.valor);
-      const docRef = await addDoc(collection(db, "movimentos_financeiros"), {
-        tipoEntidade: 'motorista', 
-        entidadeId: initialData.id, 
-        tipoMovimento: novoMovimento.tipo, 
-        valor: valorNum,
-        descricao: novoMovimento.descricao, 
-        dataLancamento: novoMovimento.data, 
-        pagoNoFechoId: "", 
-        criadoPor: userData.nome, 
-        dataCriacao: new Date().toISOString()
-      });
-      await logAcaoGlobal(userData.nome, "Lançamento Financeiro", "Conta Corrente", `${novoMovimento.tipo.toUpperCase()}: ${novoMovimento.descricao}`, docRef.id);
-      setNovoMovimento({ tipo: 'debito', valor: '', descricao: '', data: new Date().toISOString().split('T')[0] });
-    } catch (error) { alert("Erro ao lançar movimento."); }
-  };
-
-  const handleDeleteMovimento = async (m) => {
-    if (window.confirm("Eliminar este lançamento financeiro?")) {
-      await deleteDoc(doc(db, "movimentos_financeiros", m.id));
-      await logAcaoGlobal(userData.nome, "Eliminação Financeira", "Conta Corrente", m.descricao, m.id);
     }
   };
 
@@ -312,7 +259,7 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
   return (
     <form onSubmit={(e) => e.preventDefault()} className="space-y-1 max-h-[75vh] overflow-y-auto pr-4 custom-scrollbar">
       
-      {/* ◄ NOVO & COMPACTO: Quadro horizontal de Onboarding Digital para poupar espaço vertical [2] */}
+      {/* Quadro horizontal de Onboarding Digital */}
       {initialData.id && !isReadOnly && (
         <div className="flex flex-col sm:flex-row items-center justify-between p-3.5 bg-blue-50/50 border border-blue-100 rounded-2xl mb-5 gap-3.5 text-left animate-in fade-in duration-200">
           <div className="flex items-center gap-3">
@@ -367,7 +314,8 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
         </div>
       )}
 
-      <div className="flex flex-col md:flex-row gap-6 items-center bg-slate-50 p-5 rounded-[2rem] border border-slate-100 mb-4">
+      {/* DADOS VITAIS E DE IDENTIFICAÇÃO (Ecrã Principal) */}
+      <div className="flex flex-col md:flex-row gap-6 items-center bg-slate-50 p-5 rounded-[2rem] border border-slate-100 mb-6">
         <div className="relative">
           <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-white shadow-lg bg-white flex items-center justify-center">{formData.fotoPerfil ? <img src={formData.fotoPerfil} alt="Perfil" className="w-full h-full object-cover" /> : <User size={32} className="text-slate-200" />}</div>
           {!isReadOnly && <FileUpload mode="minimal" label={<div className="p-1.5 bg-tvde-primary text-white rounded-full shadow-md cursor-pointer border-2 border-white"><Camera size={12}/></div>} folder="motoristas/fotos" onUploadComplete={(url) => setFormData({...formData, fotoPerfil: url})} />}
@@ -382,128 +330,65 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
         </div>
       </div>
 
-      <CollapsibleSection title="Contacto e Morada" icon={MapPin} iconColor="text-tvde-primary" defaultOpen={true}>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <div><label className="block text-xs font-medium text-slate-700 mb-1">Email *</label><input type="email" required readOnly={isReadOnly} className={inputClass} value={formData.email || ''} onChange={(e) => setFormData({...formData, email: e.target.value})} /></div>
-          <div><label className="block text-xs font-medium text-slate-700 mb-1">Telemóvel *</label><div className="flex"><span className="inline-flex items-center px-2 rounded-l-xl border border-r-0 border-slate-200 bg-slate-100 text-slate-500 font-bold text-[10px]">+351</span><input required readOnly={isReadOnly} className={`${inputClass} rounded-l-none font-mono`} value={formData.telemovel || ''} onChange={(e) => setFormData({...formData, telemovel: e.target.value.replace(/\D/g, '').substring(0,9)})} /></div></div>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-3 mt-3">
-          <div className="md:col-span-2">{renderInputIA("Rua / Avenida", "moradaRua")}</div>
-          <div>{renderInputIA("Cód. Postal", "codigoPostal")}</div>
-          <div>{renderInputIA("Localidade", "localidade")}</div>
-        </div>
-      </CollapsibleSection>
-
-      <CollapsibleSection title="Dados Financeiros e Faturação" icon={Wallet} iconColor="text-tvde-primary" defaultOpen={true}>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3 bg-slate-50/70 p-4 rounded-xl border border-slate-100 items-end">
-          <div className="md:col-span-1">
-            {renderInputIA("IBAN para Recebimentos", "iban", true)}
-          </div>
-          <div className="md:col-span-1 flex items-center h-[38px] pb-1">
-            <label className="flex items-center gap-2 text-xs font-semibold text-slate-600 cursor-pointer select-none">
-              <input 
-                type="checkbox" 
-                disabled={isReadOnly}
-                checked={formData.nifMesmoMotorista} 
-                onChange={(e) => setFormData(prev => ({ ...prev, nifMesmoMotorista: e.target.checked }))}
-                className="rounded border-slate-300 text-tvde-primary focus:ring-tvde-primary w-4 h-4"
-              />
-              <span>NIF Faturação igual ao do Motorista</span>
-            </label>
-          </div>
-          <div className="md:col-span-1">
-            {renderInputIA("NIF para Faturação / Payout", "nifPagamento", !formData.nifMesmoMotorista, formData.nifMesmoMotorista)}
-          </div>
-
-          {/* Opção para duplicar registo como Proprietário/Parceiro em lote (Apenas visível na criação) */}
-          {!initialData.id && onCriarProprietario && (
-            <div className="md:col-span-3 pt-3 border-t border-slate-200/60 mt-2">
-              <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer select-none">
-                <input 
-                  type="checkbox" 
-                  checked={criarComoProprietario} 
-                  onChange={(e) => setCriarComoProprietario(e.target.checked)}
-                  className="rounded border-slate-300 text-tvde-primary focus:ring-tvde-primary w-4 h-4"
-                />
-                <span className="text-tvde-primary font-black uppercase tracking-wider text-[9px] flex items-center gap-1">
-                  <Plus size={12} /> Ativar Criação Simultânea como Proprietário / Operador
-                </span>
-              </label>
+      {/* ◄ NOVO: Grelha de botões de navegação para sub-modais de UX [2] */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 my-6">
+        {/* Botão 1: Contacto e Morada */}
+        <button
+          type="button"
+          onClick={() => setModalMoradaAberto(true)}
+          className="p-4 bg-slate-50 hover:bg-blue-50/50 border border-slate-200/80 rounded-2xl flex items-center justify-between transition-all cursor-pointer group text-left"
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-blue-100 text-blue-600 rounded-xl group-hover:scale-105 transition-transform shrink-0">
+              <MapPin size={18} />
             </div>
-          )}
-        </div>
-      </CollapsibleSection>
-
-      {/* CONTA CORRENTE / AJUSTES FINANCEIROS OPERACIONAIS (Exclusivo para motoristas registados) */}
-      {initialData.id && (
-        <CollapsibleSection title="Conta Corrente / Ajustes Semanais" icon={History} iconColor="text-tvde-primary" defaultOpen={false}>
-          <div className="space-y-3">
-            {!isReadOnly && (
-              <div className="grid grid-cols-1 md:grid-cols-6 gap-2 items-end bg-slate-50 p-3 rounded-xl border border-slate-100">
-                <div className="md:col-span-1">
-                  <select className={inputClass} value={novoMovimento.tipo} onChange={(e) => setNovoMovimento({...novoMovimento, tipo: e.target.value})}>
-                    <option value="debito">🔴 Débito</option>
-                    <option value="credito">🟢 Crédito</option>
-                  </select>
-                </div>
-                <div className="md:col-span-1 relative">
-                  <Euro className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" size={12} />
-                  <input type="number" className={`${inputClass} pl-6`} placeholder="0.00" value={novoMovimento.valor} onChange={(e) => setNovoMovimento({...novoMovimento, valor: e.target.value})} />
-                </div>
-                <div className="md:col-span-2">
-                  <input className={inputClass} placeholder="Descrição do motivo..." value={novoMovimento.descricao} onChange={(e) => setNovoMovimento({...novoMovimento, descricao: e.target.value})} />
-                </div>
-                <div className="md:col-span-1">
-                  <DatePicker value={novoMovimento.data} onChange={(val) => setNovoMovimento({...novoMovimento, data: val})} />
-                </div>
-                <div className="md:col-span-1">
-                  <Button onClick={handleAddMovimento} className="h-[38px] w-full text-xs active:scale-95"><Plus size={14} /> Lançar</Button>
-                </div>
-              </div>
-            )}
-            <div className="bg-white rounded-xl border border-slate-100 overflow-hidden">
-              <table className="w-full text-left text-[10px]">
-                <thead className="bg-slate-50 border-b border-slate-100 font-black text-slate-400 uppercase">
-                  <tr>
-                    <th className="p-2">Data</th>
-                    <th className="p-2">Descrição</th>
-                    <th className="p-2 text-center">Tipo</th>
-                    <th className="p-2 text-right">Valor</th>
-                    {!isReadOnly && <th className="p-2"></th>}
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-50">
-                  {movimentos.length > 0 ? movimentos.map(m => (
-                    <tr key={m.id}>
-                      <td className="p-2">{new Date(m.dataLancamento).toLocaleDateString('pt-PT')}</td>
-                      <td className="p-2 font-bold">{m.descricao}</td>
-                      <td className="p-2 text-center uppercase font-black text-[8px]">{m.tipoMovimento}</td>
-                      <td className={`p-2 text-right font-black ${m.tipoMovimento === 'credito' ? 'text-tvde-accent' : 'text-tvde-danger'}`}>{formatCurrency(m.valor)}</td>
-                      {!isReadOnly && <td className="p-2 text-right"><button type="button" onClick={() => handleDeleteMovimento(m)} className="text-slate-300 hover:text-red-500"><Trash2 size={12} /></button></td>}
-                    </tr>
-                  )) : (
-                    <tr><td colSpan="5" className="p-4 text-center text-slate-400 italic">Sem ajustes pendentes.</td></tr>
-                  )}
-                </tbody>
-              </table>
+            <div>
+              <p className="text-xs font-black text-slate-800">Contacto & Morada</p>
+              <p className="text-[10px] text-slate-400">Telemóvel, e-mail e morada fiscal [2].</p>
             </div>
           </div>
-        </CollapsibleSection>
-      )}
+          <ArrowRight size={14} className="text-slate-300 group-hover:text-tvde-primary transition-colors shrink-0" />
+        </button>
 
-      <CollapsibleSection title="Documentação Digital" icon={BadgeCheck} iconColor="text-tvde-primary" defaultOpen={!!initialData.id}>
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <DocumentCard title="Documento de Identificação" dateField="validadeID" slots={[{ label: "Frente", fileUrl: formData.docIDFront, uploadField: "docIDFront", folder: "motoristas/id" }, { label: "Verso", fileUrl: formData.docIDBack, uploadField: "docIDBack", folder: "motoristas/id" }]} />
-          <DocumentCard title="Carta de Condução" dateField="validadeCarta" infoIA="A IA procurou validades profissionais (997/Pesados) no verso." slots={[{ label: "Frente", fileUrl: formData.docCartaFront, uploadField: "docCartaFront", folder: "motoristas/cartas" }, { label: "Verso", fileUrl: formData.docCartaBack, uploadField: "docCartaBack", folder: "motoristas/cartas" }]} />
-          <DocumentCard title="Certificado TVDE" dateField="validadeTVDE" slots={[{ label: "Ficheiro", fileUrl: formData.docCertificadoTVDE, uploadField: "docCertificadoTVDE", folder: "motoristas/tvde" }]} />
-          <DocumentCard title="Registo Criminal" dateField="validadeTVDE" slots={[{ label: "Ficheiro", fileUrl: formData.docRegistoCriminal, uploadField: "docRegistoCriminal", folder: "motoristas/criminal" }]} />
-          <DocumentCard title="Comprovativo IBAN" slots={[{ label: "Ficheiro", fileUrl: formData.docIBAN, uploadField: "docIBAN", folder: "motoristas/iban" }]} />
-          <DocumentCard title="Comprovativo Morada" slots={[{ label: "Ficheiro", fileUrl: formData.docMorada, uploadField: "docMorada", folder: "motoristas/morada" }]} />
-        </div>
-      </CollapsibleSection>
+        {/* Botão 2: Dados Financeiros */}
+        <button
+          type="button"
+          onClick={() => setModalFaturacaoAberto(true)}
+          className="p-4 bg-slate-50 hover:bg-purple-50/50 border border-slate-200/80 rounded-2xl flex items-center justify-between transition-all cursor-pointer group text-left"
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-purple-100 text-purple-600 rounded-xl group-hover:scale-105 transition-transform shrink-0">
+              <Wallet size={18} />
+            </div>
+            <div>
+              <p className="text-xs font-black text-slate-800">Dados Financeiros</p>
+              <p className="text-[10px] text-slate-400">IBAN, NIF e payout de faturamento [2].</p>
+            </div>
+          </div>
+          <ArrowRight size={14} className="text-slate-300 group-hover:text-tvde-primary transition-colors shrink-0" />
+        </button>
+
+        {/* Botão 3: Documentação Digital */}
+        <button
+          type="button"
+          onClick={() => setModalDocumentosAberto(true)}
+          className="p-4 bg-slate-50 hover:bg-amber-50/50 border border-slate-200/80 rounded-2xl flex items-center justify-between transition-all cursor-pointer group text-left"
+        >
+          <div className="flex items-center gap-3">
+            <div className="p-2.5 bg-amber-100 text-amber-600 rounded-xl group-hover:scale-105 transition-transform shrink-0">
+              <BadgeCheck size={18} />
+            </div>
+            <div>
+              <p className="text-xs font-black text-slate-800">Documentação</p>
+              <p className="text-[10px] text-slate-400">Validação, fotos e histórico de IA [2].</p>
+            </div>
+          </div>
+          <ArrowRight size={14} className="text-slate-300 group-hover:text-tvde-primary transition-colors shrink-0" />
+        </button>
+      </div>
 
       {initialData.historico && initialData.historico.length > 0 && (
-        <CollapsibleSection title="Histórico" icon={History} iconColor="text-slate-400" defaultOpen={false}>
+        <CollapsibleSection title="Histórico de Edições" icon={History} iconColor="text-slate-400" defaultOpen={false}>
           <div className="space-y-2">
             {[...initialData.historico].reverse().map((log, index) => (
               <div key={index} className="flex gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100 text-[10px]">
@@ -515,6 +400,114 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
             ))}
           </div>
         </CollapsibleSection>
+      )}
+
+      {/* SUB-MODAL 1: Contacto e Morada [2] */}
+      {modalMoradaAberto && (
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="absolute inset-0" onClick={() => setModalMoradaAberto(false)} />
+          <div className="relative bg-white rounded-t-[2.5rem] sm:rounded-3xl shadow-2xl w-full max-w-lg max-h-[90vh] flex flex-col overflow-hidden p-6 sm:p-8 animate-in slide-in-from-bottom sm:zoom-in-95 duration-200 text-left">
+            <button type="button" onClick={() => setModalMoradaAberto(false)} className="absolute top-4 right-4 p-1.5 text-slate-400 hover:bg-slate-50 hover:text-slate-600 rounded-full transition-all cursor-pointer"><X size={18} /></button>
+            <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-2 mb-4 border-b border-slate-100 pb-3 select-none">
+              <MapPin size={18} className="text-blue-500" /> Contacto e Morada Fiscal
+            </h3>
+            <div className="space-y-4 overflow-y-auto pr-2 custom-scrollbar">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                <div><label className="block text-xs font-medium text-slate-700 mb-1">Email *</label><input type="email" required readOnly={isReadOnly} className={inputClass} value={formData.email || ''} onChange={(e) => setFormData({...formData, email: e.target.value})} /></div>
+                <div><label className="block text-xs font-medium text-slate-700 mb-1">Telemóvel *</label><div className="flex"><span className="inline-flex items-center px-2 rounded-l-xl border border-r-0 border-slate-200 bg-slate-100 text-slate-500 font-bold text-[10px]">+351</span><input required readOnly={isReadOnly} className={`${inputClass} rounded-l-none font-mono`} value={formData.telemovel || ''} onChange={(e) => setFormData({...formData, telemovel: e.target.value.replace(/\D/g, '').substring(0,9)})} /></div></div>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-4 gap-3.5 pt-2">
+                <div className="sm:col-span-2">{renderInputIA("Rua / Avenida", "moradaRua")}</div>
+                <div>{renderInputIA("Cód. Postal", "codigoPostal")}</div>
+                <div>{renderInputIA("Localidade", "localidade")}</div>
+              </div>
+            </div>
+            <div className="mt-6 pt-4 border-t border-slate-100 flex justify-end">
+              <Button type="button" onClick={() => setModalMoradaAberto(false)} className="px-6 h-10 text-xs">Confirmar e Fechar</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SUB-MODAL 2: Dados Financeiros e Faturação [2] */}
+      {modalFaturacaoAberto && (
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="absolute inset-0" onClick={() => setModalFaturacaoAberto(false)} />
+          <div className="relative bg-white rounded-t-[2.5rem] sm:rounded-3xl shadow-2xl w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden p-6 sm:p-8 animate-in slide-in-from-bottom sm:zoom-in-95 duration-200 text-left">
+            <button type="button" onClick={() => setModalFaturacaoAberto(false)} className="absolute top-4 right-4 p-1.5 text-slate-400 hover:bg-slate-50 hover:text-slate-600 rounded-full transition-all cursor-pointer"><X size={18} /></button>
+            <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-2 mb-4 border-b border-slate-100 pb-3 select-none">
+              <Wallet size={18} className="text-purple-600" /> Configuração Financeira & Faturação
+            </h3>
+            <div className="space-y-4 overflow-y-auto pr-2 custom-scrollbar">
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3.5 bg-slate-50/70 p-4 rounded-xl border border-slate-100 items-end">
+                <div className="sm:col-span-3">
+                  {renderInputIA("IBAN para Recebimentos", "iban", true)}
+                </div>
+                <div className="sm:col-span-3 flex items-center h-[38px] pb-1 border-t border-slate-200/50 pt-2">
+                  <label className="flex items-center gap-2 text-xs font-semibold text-slate-600 cursor-pointer select-none">
+                    <input 
+                      type="checkbox" 
+                      disabled={isReadOnly}
+                      checked={formData.nifMesmoMotorista} 
+                      onChange={(e) => setFormData(prev => ({ ...prev, nifMesmoMotorista: e.target.checked }))}
+                      className="rounded border-slate-300 text-tvde-primary focus:ring-tvde-primary w-4 h-4"
+                    />
+                    <span>NIF Faturação igual ao do Motorista</span>
+                  </label>
+                </div>
+                <div className="sm:col-span-3">
+                  {renderInputIA("NIF para Faturação / Payout", "nifPagamento", !formData.nifMesmoMotorista, formData.nifMesmoMotorista)}
+                </div>
+
+                {!initialData.id && onCriarProprietario && (
+                  <div className="sm:col-span-3 pt-3 border-t border-slate-200/60 mt-2">
+                    <label className="flex items-center gap-2 text-xs font-bold text-slate-700 cursor-pointer select-none">
+                      <input 
+                        type="checkbox" 
+                        checked={criarComoProprietario} 
+                        onChange={(e) => setCriarComoProprietario(e.target.checked)}
+                        className="rounded border-slate-300 text-tvde-primary focus:ring-tvde-primary w-4 h-4"
+                      />
+                      <span className="text-tvde-primary font-black uppercase tracking-wider text-[9px] flex items-center gap-1">
+                        <Plus size={12} /> Ativar Criação Simultânea como Proprietário / Operador
+                      </span>
+                    </label>
+                  </div>
+                )}
+              </div>
+            </div>
+            <div className="mt-6 pt-4 border-t border-slate-100 flex justify-end">
+              <Button type="button" onClick={() => setModalFaturacaoAberto(false)} className="px-6 h-10 text-xs">Confirmar e Fechar</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SUB-MODAL 3: Documentação Digital [2] */}
+      {modalDocumentosAberto && (
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="absolute inset-0" onClick={() => setModalDocumentosAberto(false)} />
+          <div className="relative bg-white rounded-t-[2.5rem] sm:rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden p-6 sm:p-8 animate-in slide-in-from-bottom sm:zoom-in-95 duration-200 text-left">
+            <button type="button" onClick={() => setModalDocumentosAberto(false)} className="absolute top-4 right-4 p-1.5 text-slate-400 hover:bg-slate-50 hover:text-slate-600 rounded-full transition-all cursor-pointer"><X size={18} /></button>
+            <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-2 mb-4 border-b border-slate-100 pb-3 select-none">
+              <BadgeCheck size={18} className="text-amber-500" /> Dossier Documental e Conformidade Digital
+            </h3>
+            
+            {/* Scroll do dossier de documentos */}
+            <div className="space-y-4 overflow-y-auto pr-2 custom-scrollbar flex-1 grid grid-cols-1 md:grid-cols-2 gap-4 pb-4">
+              <DocumentCard title="Documento de Identificação" dateField="validadeID" slots={[{ label: "Frente", fileUrl: formData.docIDFront, uploadField: "docIDFront", folder: "motoristas/id" }, { label: "Verso", fileUrl: formData.docIDBack, uploadField: "docIDBack", folder: "motoristas/id" }]} />
+              <DocumentCard title="Carta de Condução" dateField="validadeCarta" infoIA="A IA procurou validades profissionais (997/Pesados) no verso." slots={[{ label: "Frente", fileUrl: formData.docCartaFront, uploadField: "docCartaFront", folder: "motoristas/cartas" }, { label: "Verso", fileUrl: formData.docCartaBack, uploadField: "docCartaBack", folder: "motoristas/cartas" }]} />
+              <DocumentCard title="Certificado TVDE" dateField="validadeTVDE" slots={[{ label: "Ficheiro", fileUrl: formData.docCertificadoTVDE, uploadField: "docCertificadoTVDE", folder: "motoristas/tvde" }]} />
+              <DocumentCard title="Registo Criminal" dateField="validadeCriminal" slots={[{ label: "Ficheiro", fileUrl: formData.docRegistoCriminal, uploadField: "docRegistoCriminal", folder: "motoristas/criminal" }]} />
+              <DocumentCard title="Comprovativo IBAN" slots={[{ label: "Ficheiro", fileUrl: formData.docIBAN, uploadField: "docIBAN", folder: "motoristas/iban" }]} />
+              <DocumentCard title="Comprovativo Morada" slots={[{ label: "Ficheiro", fileUrl: formData.docMorada, uploadField: "docMorada", folder: "motoristas/morada" }]} />
+            </div>
+
+            <div className="mt-4 pt-4 border-t border-slate-100 flex justify-end shrink-0">
+              <Button type="button" onClick={() => setModalDocumentosAberto(false)} className="px-6 h-10 text-xs shadow-md">Confirmar e Fechar</Button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* BOTÕES FIXOS NO RODAPÉ */}
