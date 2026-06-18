@@ -69,6 +69,11 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
   const [criarComoProprietario, setCriarComoProprietario] = useState(false);
   const [modalFinanceiroAberto, setModalFinanceiroAberto] = useState(false);
 
+  // ◄ ADICIONADO: Estados em falta para controlar os sub-modais de UX
+  const [modalMoradaAberto, setModalMoradaAberto] = useState(false);
+  const [modalFaturacaoAberto, setModalFaturacaoAberto] = useState(false);
+  const [modalDocumentosAberto, setModalDocumentosAberto] = useState(false);
+
   // Vínculo do campo IBAN ao seu respetivo documento de origem para auditoria visual
   const fieldToDocMap = {
     nome: formData.docIDFront,
