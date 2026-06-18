@@ -52,6 +52,7 @@ export default function ContaCorrenteTab({
   ibanEntidade = '---',
   dadosCaucao = null,          
   empresa = {},               
+  userData = null, // ◄ CORRIGIDO: Declarado como prop para evitar "ReferenceError: userData is not defined"
   onLancar,
   onEliminar,
   onAtualizarDados            
