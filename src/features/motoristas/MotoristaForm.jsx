@@ -6,8 +6,8 @@
  * Otimizado com:
  * - Redução de ruído visual: campos secundários movidos para sub-modais dedicados [2].
  * - Botões táteis com ícones e legendas para navegação rápida de ecrã [2].
- * - Remoção do bloco redundante de Conta Corrente (já contido no ModalFinanceiro) [2].
- * - ◄ NOVO: Compactação extrema de paddings, margins, gaps e inputs para evitar scroll no desktop [2].
+ * - ◄ CORRIGIDO: Remoção definitiva e purga da Conta Corrente órfã e do useEffect setMovimentos [2].
+ * - Compactação extrema de paddings, margins, gaps e inputs para evitar scroll no desktop [2].
  * - Preservação estrita das integrações do Firestore, IA Vision, alertas e conformidade regulamentar [2].
  */
 
@@ -28,6 +28,22 @@ import { useAuth } from '../../context/AuthContext';
 import { logAcaoGlobal } from '../../utils/logger';
 import { formatCurrency } from '../../utils/formatters';
 import ModalFinanceiro from '../financeiro/ModalFinanceiro';
+
+/**
+ * Componente Auxiliar: Secção Colapsável Compacta
+ */
+const CollapsibleSection = ({ title, icon: Icon, iconColor, defaultOpen = false, children }) => {
+  const [isOpen, setIsOpen] = useState(defaultOpen);
+  return (
+    <div className="border-b border-slate-100/50 last:border-0">
+      <button type="button" onClick={() => setIsOpen(!isOpen)} className="w-full flex items-center justify-between group cursor-pointer hover:bg-slate-50 rounded-lg px-2 -mx-2 transition-all py-2">
+        <h4 className={`text-[11px] font-black uppercase tracking-wider flex items-center gap-2 ${iconColor}`}><Icon size={14} /> {title}</h4>
+        <div className="text-slate-300 group-hover:text-slate-500 transition-colors">{isOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</div>
+      </button>
+      <div className={`overflow-hidden transition-all duration-300 ease-in-out ${isOpen ? 'max-h-[2000px] opacity-100 mt-2 mb-4' : 'max-h-0 opacity-0'}`}>{children}</div>
+    </div>
+  );
+};
 
 export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, isReadOnly = false, onCriarProprietario }) {
   const { userData } = useAuth();
@@ -51,14 +67,9 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
   });
 
   const [criarComoProprietario, setCriarComoProprietario] = useState(false);
-  
-  // Estados para abertura dos sub-modais de UX [2]
-  const [modalMoradaAberto, setModalMoradaAberto] = useState(false);
-  const [modalFaturacaoAberto, setModalFaturacaoAberto] = useState(false);
-  const [modalDocumentosAberto, setModalDocumentosAberto] = useState(false);
   const [modalFinanceiroAberto, setModalFinanceiroAberto] = useState(false);
 
-  // Vínculo do campo ao seu respetivo documento de origem para auditoria visual
+  // Vínculo do campo IBAN ao seu respetivo documento de origem para auditoria visual
   const fieldToDocMap = {
     nome: formData.docIDFront,
     dataNascimento: formData.docIDFront,
@@ -107,18 +118,6 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
     }));
   }, [initialData]);
 
-  useEffect(() => {
-    if (initialData.id) {
-      const q = query(
-        collection(db, "movimentos_financeiros"), 
-        where("entidadeId", "==", initialData.id), 
-        where("pagoNoFechoId", "==", "")
-      );
-      const unsubscribe = onSnapshot(q, (snapshot) => { setMovimentos(snapshot.docs.map(d => ({ id: d.id, ...d.data() }))); });
-      return () => unsubscribe();
-    }
-  }, [initialData.id]);
-
   useEffect(() => { if (formData.nifMesmoMotorista) { setFormData(prev => ({ ...prev, nifPagamento: prev.nif })); } }, [formData.nif, formData.nifMesmoMotorista]);
 
   const validarCampoIA = async (campo) => {
@@ -145,7 +144,7 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
 
   const handleRemoveFile = (field) => { if (window.confirm("Deseja remover este documento?")) { setFormData(prev => ({ ...prev, [field]: '' })); } };
 
-  // ◄ ALTERADO: py-1.5 px-3 e rounded-lg no inputClass para economizar espaço de ecrã [2]
+  // py-1.5 px-3 e rounded-lg no inputClass para economizar espaço de ecrã [2]
   const inputClass = `w-full py-1.5 px-2.5 border border-slate-200 rounded-lg outline-none transition-all text-xs ${isReadOnly ? 'bg-slate-50/50 border-transparent font-semibold text-slate-700' : 'bg-white focus:ring-2 focus:ring-tvde-primary/20 hover:border-slate-300'}`;
 
   // Suporte a parâmetro forceReadOnly para bloquear campos autogeridos

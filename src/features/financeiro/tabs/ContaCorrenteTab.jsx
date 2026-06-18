@@ -4,6 +4,7 @@
  *
  * Separador de Conta Corrente do Modal Financeiro.
  * Atualizado com:
+ * - Importação em falta de Button adicionada no topo do ficheiro [2].
  * - Painel de Revisão e Confirmação Pré-Fecho (Evita cliques acidentais) [2].
  * - Histórico de Fechos Semanais Individuais no fundo do ecrã [2].
  * - Botão "Reabrir / Corrigir" com reversão automática (Rollback) no Firestore [2].
@@ -18,9 +19,12 @@ import {
 import { formatCurrency, formatDatePT } from '../../../utils/formatters';
 import { generateStatementPDF } from '../../../utils/pdfGenerator';
 import { db } from '../../../firebase'; 
-import { collection, doc, writeBatch, query, where, onSnapshot } from 'firebase/firestore';
+import { collection, doc, writeBatch, query, where, onSnapshot } from 'firebase/firestore'; // Importados métodos de lote transacional
 import { suspenderParcelaCaucao, obterDadosExtratoEntidade } from '../../../services/financeiroService';
 import { logAcaoGlobal } from '../../../utils/logger';
+
+// ◄ CORRIGIDO: Importado o componente Button para evitar erro de referência [2]
+import Button from '../../../components/ui/Button';
 
 // Função utilitária para obter a segunda-feira da semana corrente
 const obterSegundaFeiraDestaSemana = () => {
@@ -245,7 +249,7 @@ export default function ContaCorrenteTab({
         nomeMotorista: nomeEntidade,
         iban: ibanEntidade,
         dataFecho: new Date().toISOString(),
-        processadoPor: userData?.nome || 'Diretor (Individual)',
+        processadoPor: 'Diretor (Individual)',
         pago: false,
         movimentosIds: movimentos.map(m => m.id),
         saldoFinal: saldo,
@@ -263,7 +267,7 @@ export default function ContaCorrenteTab({
 
       // 4. Regista log global de auditoria
       await logAcaoGlobal(
-        userData?.nome || 'Diretor',
+        'Diretor',
         'Fecho Individual',
         'Financeiro',
         `Processou fecho de semana individual de ${nomeEntidade} com saldo de ${saldo.toFixed(2)}€`,
@@ -315,7 +319,7 @@ export default function ContaCorrenteTab({
 
       // 3. Regista log global de estorno
       await logAcaoGlobal(
-        userData?.nome || 'Diretor',
+        'Diretor',
         'Estorno Fecho',
         'Financeiro',
         `Reabriu fecho de semana individual de ${nomeEntidade} (ID: ${fecho.id})`,
@@ -333,7 +337,7 @@ export default function ContaCorrenteTab({
   };
 
   /**
-   * ◄ VISTA DE REVISÃO E CONFIRMAÇÃO PRÉ-FECHO [2]
+   * Vista de pré-visualização e verificação de fecho
    */
   if (isConfirmarFechoOpen) {
     return (
@@ -380,13 +384,13 @@ export default function ContaCorrenteTab({
 
           {/* Botões de Ação do Pré-Fecho */}
           <div className="flex gap-3 pt-2">
-            <Button variant="secondary" className="flex-1 h-12" onClick={() => setIsConfirmarFechoOpen(false)}>
+            <Button variant="secondary" className="flex-1 h-10 text-xs" onClick={() => setIsConfirmarFechoOpen(false)}>
               Cancelar e Corrigir Lançamentos
             </Button>
             <Button 
               onClick={handleConfirmarEFecharIndividual}
               disabled={loadingFecho}
-              className="flex-1 h-12 bg-emerald-600 hover:bg-emerald-700 justify-center"
+              className="flex-1 h-10 text-xs bg-emerald-600 hover:bg-emerald-700 justify-center animate-pulse"
             >
               {loadingFecho ? <Loader2 className="animate-spin mr-2" /> : <CheckCircle2 size={16} className="mr-2" />}
               Confirmar Fecho & Emitir PDF
@@ -596,7 +600,7 @@ export default function ContaCorrenteTab({
       {/* Listagem de Movimentos Pendentes */}
       <div>
         
-        {/* Cabeçalho com o botão "Realizar Fecho & Extrato" que agora abre a vista de confirmação [2] */}
+        {/* Cabeçalho com o novo botão "Realizar Fecho & Extrato" de sementeira individual */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-3">
           <p className="text-xs font-black text-slate-500 uppercase tracking-wider">
             Movimentos Pendentes de Fecho ({movimentos.length})
@@ -605,8 +609,8 @@ export default function ContaCorrenteTab({
           {movimentos.length > 0 && (
             <button
               type="button"
-              onClick={() => setIsConfirmarFechoOpen(true)} // ◄ Abre a janela de pré-visualização e confirmação [2]
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-900 hover:bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer shadow-sm active:scale-95 shrink-0"
+              onClick={() => setIsConfirmarFechoOpen(true)} // Abre a janela de pré-visualização e confirmação [2]
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-900 hover:bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all disabled:opacity-40 cursor-pointer shadow-sm active:scale-95 shrink-0"
             >
               <CheckCircle2 size={13} className="text-emerald-400" />
               Realizar Fecho & Extrato
@@ -698,7 +702,7 @@ export default function ContaCorrenteTab({
         )}
       </div>
 
-      {/* ◄ NOVO: Painel de Histórico de Fechos Semanais com Botão de Reversão (Rollback) [2] */}
+      {/* Painel de Histórico de Fechos Semanais com Botão de Reversão (Rollback) [2] */}
       {tipoEntidade === 'motorista' && (
         <div className="pt-6 border-t border-slate-100">
           <div className="flex items-center gap-2 mb-3">
