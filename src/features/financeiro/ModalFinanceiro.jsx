@@ -3,7 +3,7 @@
  * Localização: src/features/financeiro/ModalFinanceiro.jsx
  *
  * Modal dedicado à gestão financeira completa de uma entidade.
- * Otimizado e redesenhado com uma experiência de utilizador (UX/UI) moderna e totalmente responsiva.
+ * Corrigido com scroll responsivo e isolamento de scroll de fundo (overscroll-contain) [2].
  */
 
 import React, { useState, useEffect } from 'react';
@@ -186,7 +186,7 @@ export default function ModalFinanceiro({
           origem, 
           dataLancamento: new Date().toISOString().split('T')[0],
           dataCriacao: new Date().toISOString(),
-          criadoPor: userData?.nome || 'Sistema',
+          criadoPor:      userData?.nome || 'Sistema',
           pagoNoFechoId: ''
         });
       }
@@ -356,7 +356,7 @@ export default function ModalFinanceiro({
     <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm">
       <div className="bg-white rounded-t-[2rem] sm:rounded-3xl shadow-2xl w-full max-w-5xl h-[100dvh] sm:h-[90vh] sm:max-h-[90vh] flex flex-col overflow-hidden animate-in slide-in-from-bottom sm:zoom-in-95 duration-200">
 
-        {/* Cabeçalho Otimizado com Design Fintech */}
+        {/* Cabeçalho Fixo */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 px-6 sm:px-8 py-5 border-b border-slate-150/60 bg-slate-50/50 shrink-0 text-left w-full">
           <div>
             <span className="inline-block px-2.5 py-0.5 rounded-full bg-slate-200/60 text-slate-500 text-[8.5px] font-black uppercase tracking-wider mb-1.5">
@@ -387,12 +387,12 @@ export default function ModalFinanceiro({
           </div>
         </div>
 
-        {/* Layout de Corpo Dividido Responsivo (Tabs à esquerda, Painel de Despesas Fixo à direita) */}
-        <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
+        {/* contentor intermédio com scroll habilitado no mobile, mas travado de scroll de fundo */}
+        <div className="flex-1 flex flex-col lg:flex-row overflow-y-auto lg:overflow-hidden overscroll-contain">
           
           {/* Lado Esquerdo: Abas de Configuração e Histórico */}
-          <div className="flex-1 flex flex-col overflow-hidden">
-            {/* Navegação entre Separadores com Scroll Suave em Mobile */}
+          <div className="w-full lg:flex-1 flex flex-col shrink-0 lg:shrink overflow-visible lg:overflow-hidden">
+            {/* Navegação entre Separadores com Scroll Lateral Suave em Mobile */}
             <div className="flex gap-1.5 px-6 pt-3 shrink-0 border-b border-slate-100 bg-white overflow-x-auto no-scrollbar">
               {abasFiltradas.map(aba => {
                 const Icone  = aba.icon;
@@ -432,7 +432,7 @@ export default function ModalFinanceiro({
             </div>
 
             {/* Corpo do Separador Ativo */}
-            <div className="flex-1 overflow-y-auto p-5 sm:p-8 custom-scrollbar">
+            <div className="p-4 sm:p-8 overflow-visible lg:overflow-y-auto custom-scrollbar">
               {loadingDados ? (
                 <div className="flex flex-col items-center justify-center py-20 text-slate-400">
                   <Loader2 className="animate-spin mb-3" size={32} />
@@ -491,7 +491,7 @@ export default function ModalFinanceiro({
 
           {/* Lado Direito: Painel de Despesas Semanais de Alta Fidelidade (Abastecimento e Portagens) */}
           {tipoEntidade === 'motorista' && (
-            <div className="w-full lg:w-80 bg-slate-50/50 p-6 overflow-y-auto flex flex-col gap-5 shrink-0 border-t lg:border-t-0 lg:border-l border-slate-150/60 text-left">
+            <div className="w-full lg:w-80 bg-slate-50/50 p-6 overflow-visible lg:overflow-y-auto flex flex-col gap-5 shrink-0 border-t lg:border-t-0 lg:border-l border-slate-150/60 text-left">
               <div className="border-b border-slate-200/50 pb-3">
                 <h4 className="text-xs font-black text-slate-800 flex items-center gap-1.5 uppercase tracking-wider">
                   <Sliders className="text-slate-500 shrink-0" size={14} />
