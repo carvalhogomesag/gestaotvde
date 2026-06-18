@@ -2,11 +2,12 @@
  * financeiroService.js
  * Localização: src/services/financeiroService.js
  *
- * Funções Firestore para as três coleções de gestão financeira e geração de extratos:
+ * Funções Firestore para as coleções de gestão financeira e geração de extratos:
  *   - configuracoes_financeiras  (taxa de gestão por entidade)
  *   - caucoes                    (depósitos/caução com suporte a planeamento de parcelas)
  *   - renegociacoes              (planos de pagamento de dívida)
  *   - movimentos_financeiros     (lançamentos de débito/crédito, plataformas e despesas)
+ *   - fechos_semanais            (processamentos semanais consolidados individuais ou em lote) [2]
  *
  * Todas as funções recebem `db` como primeiro argumento.
  */
@@ -15,7 +16,8 @@ import {
   collection, doc,
   getDoc, getDocs,
   addDoc, updateDoc,
-  query, where, runTransaction
+  query, where, runTransaction,
+  writeBatch // ◄ Adicionado writeBatch à lista de importações
 } from 'firebase/firestore';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -723,16 +725,15 @@ export const obterDadosExtratoEntidade = async (db, entidadeId, tipoEntidade, da
       seguro:                   Number(seguro.toFixed(2)),
       combustivel:              Number(combustivel.toFixed(2)),
       portagens:                Number(portagens.toFixed(2)),
-      oficina:                  Number(oficina.toFixed(2)),
-      debitosGerais:            Number(debitosGerais.toFixed(2)),
-      creditosGerais:           Number(creditosGerais.toFixed(2)),
-      plataformas,
+      oficina:                  oficina,
+      debitosGerais:            debitosGerais,
+      creditosGerais:           creditosGerais,
       dadosCaucao,
-      parcelaCaucaoAplicavel: parcelaCaucaoAplicavel ? { ...parcelaCaucaoAplicavel } : null,
-      historicoMovimentosCaucao // Devolve o subextrato exclusivo de caução para a caixa de ponto de situação
+      historicoMovimentosCaucao,
+      parcelaCaucaoAplicavel:   parcelaCaucao ? { valor: parcelaCaucao } : null
     };
   } catch (error) {
-    console.error('[financeiroService] Erro crítico ao obter dados consolidado de extrato:', error);
-    throw error;
+    console.error('[financeiroService] obterDadosExtratoEntidade:', error);
+    return null;
   }
 };

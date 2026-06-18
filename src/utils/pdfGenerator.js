@@ -4,6 +4,7 @@
  *
  * Gerador de PDF profissional em tamanho A4 (folha única) utilizando jsPDF.
  * Suporta a geração de extratos para Motoristas, Veículos e Proprietários com dados fictícios.
+ * CORRIGIDO: Fallbacks contra NaN (valores indefinidos) e mapeamento robusto de conta corrente [2, 3].
  */
 
 import jsPDF from 'jspdf';
@@ -89,17 +90,17 @@ export const generateStatementPDF = (dados, empresa, entidadeInfo) => {
     doc.text('Resultado do período', margin + 3, 54.5);
 
     const linhasFinanceiras = [
-      { label: 'Total de recebimentos líquido (Plataformas)', valor: dados.totalRecebimentosLiquido, sinal: '' },
-      { label: 'Créditos / Ajustes Manuais (+)', valor: dados.creditosGerais, sinal: '' },
-      { label: 'Total de impostos a descontar (-)', valor: dados.totalImpostos, sinal: '-' },
-      { label: 'Aluguer (-)', valor: dados.aluguer, sinal: '-' },
-      { label: 'Gestão (-)', valor: dados.taxaGestao, sinal: '-' },
-      { label: 'Seguro (-)', valor: dados.seguro, sinal: '-' },
-      { label: 'Combustível (-)', valor: dados.combustivel, sinal: '-' },
-      { label: 'Portagens / Via Verde (-)', valor: dados.portagens, sinal: '-' },
-      { label: 'Oficina / Manutenção (-)', valor: dados.oficina, sinal: '-' },
+      { label: 'Total de recebimentos líquido (Plataformas)', valor: dados.totalRecebimentosLiquido || 0, sinal: '' },
+      { label: 'Créditos / Ajustes Manuais (+)', valor: dados.creditosGerais || 0, sinal: '' },
+      { label: 'Total de impostos a descontar (-)', valor: dados.totalImpostos || 0, sinal: '-' },
+      { label: 'Aluguer (-)', valor: dados.aluguer || 0, sinal: '-' },
+      { label: 'Gestão (-)', valor: dados.taxaGestao || 0, sinal: '-' },
+      { label: 'Seguro (-)', valor: dados.seguro || 0, sinal: '-' },
+      { label: 'Combustível (-)', valor: dados.combustivel || 0, sinal: '-' },
+      { label: 'Portagens / Via Verde (-)', valor: dados.portagens || 0, sinal: '-' },
+      { label: 'Oficina / Manutenção (-)', valor: dados.oficina || 0, sinal: '-' },
       { label: 'Caução (-)', valor: dados.valorCaucaoAplicado ?? 0, sinal: '-' },
-      { label: 'Outros Débitos / Ajustes (-)', valor: dados.debitosGerais, sinal: '-' }
+      { label: 'Outros Débitos / Ajustes (-)', valor: dados.debitosGerais || 0, sinal: '-' }
     ];
 
     let currentY = 62;
@@ -118,17 +119,17 @@ export const generateStatementPDF = (dados, empresa, entidadeInfo) => {
     });
 
     // --- CÁLCULO DAS SOMAS CONSOLIDADAS ---
-    const totalCreditos = dados.totalRecebimentosLiquido + dados.creditosGerais;
+    const totalCreditos = (dados.totalRecebimentosLiquido || 0) + (dados.creditosGerais || 0);
     const totalDebitos = 
-      dados.totalImpostos + 
-      dados.aluguer + 
-      dados.taxaGestao + 
-      dados.seguro + 
-      dados.combustivel + 
-      dados.portagens + 
-      dados.oficina + 
+      (dados.totalImpostos || 0) + 
+      (dados.aluguer || 0) + 
+      (dados.taxaGestao || 0) + 
+      (dados.seguro || 0) + 
+      (dados.combustivel || 0) + 
+      (dados.portagens || 0) + 
+      (dados.oficina || 0) + 
       (dados.valorCaucaoAplicado ?? 0) + 
-      dados.debitosGerais;
+      (dados.debitosGerais || 0);
 
     const resultadoSemana = Number((totalCreditos - totalDebitos).toFixed(2));
 
@@ -161,7 +162,7 @@ export const generateStatementPDF = (dados, empresa, entidadeInfo) => {
     doc.text('Saldo acumulado', margin + 3, currentY + 4.5);
     doc.text(formatCurrency(0), 192, currentY + 4.5, { align: 'right' });
 
-    // --- SECÇÃO DE CAUÇÃO (Layout Polido com Linha Divisória e Alinhamento) ---
+    // --- SECÇÃO DE CAUÇÃO ---
     currentY += 14;
     if (dados.dadosCaucao) {
       const cau = dados.dadosCaucao;
@@ -170,7 +171,6 @@ export const generateStatementPDF = (dados, empresa, entidadeInfo) => {
       doc.setFillColor('#f8fafc');
       doc.rect(margin, currentY, 180, 26, 'FD');
 
-      // Título Esquerdo (Sintetizado para evitar sobreposição)
       doc.setFont('Helvetica', 'bold');
       doc.setFontSize(8.5);
       doc.setTextColor(azulEscuro);
@@ -196,10 +196,8 @@ export const generateStatementPDF = (dados, empresa, entidadeInfo) => {
       doc.setTextColor(azulEscuro);
       doc.text('HISTÓRICO & PREVISÕES', margin + 94, currentY + 5.5);
 
-      // Compilação de lançamentos cronológicos e previsões
       const subextratoItens = [];
       
-      // Lançamentos amortizados de garantia
       if (dados.historicoMovimentosCaucao && dados.historicoMovimentosCaucao.length > 0) {
         const ordenados = [...dados.historicoMovimentosCaucao].sort((a, b) => b.dataLancamento.localeCompare(a.dataLancamento));
         ordenados.slice(0, 2).forEach(mov => {
@@ -212,7 +210,6 @@ export const generateStatementPDF = (dados, empresa, entidadeInfo) => {
         });
       }
 
-      // Previsões de parcelamento pendentes
       if (cau.planeamento && cau.planeamento.length > 0) {
         const pendentes = cau.planeamento.filter(p => p.status === 'pendente');
         pendentes.slice(0, 2).forEach(p => {
@@ -225,24 +222,20 @@ export const generateStatementPDF = (dados, empresa, entidadeInfo) => {
         });
       }
 
-      // Desenho Tabular Alinhado do Subextrato Direito
       doc.setFont('Helvetica', 'normal');
       doc.setFontSize(7.2);
       let subextratoY = currentY + 11;
 
       subextratoItens.slice(0, 3).forEach(item => {
         doc.setTextColor(cinzaTexto);
-        // Data na Esquerda da coluna 2
         doc.text(item.data, margin + 94, subextratoY);
-        // Descrição cortada para evitar transbordo
         doc.text(item.label, margin + 114, subextratoY);
 
-        // Montante na Direita
         const sinal = item.tipo === 'credito' ? '+' : '-';
         if (item.tipo === 'credito') {
-          doc.setTextColor('#10b981'); // Verde esmeralda para créditos amortizados
+          doc.setTextColor('#10b981');
         } else {
-          doc.setTextColor('#3b82f6'); // Azul TVDE para as próximas previsões
+          doc.setTextColor('#3b82f6');
         }
         doc.setFont('Helvetica', 'bold');
         doc.text(`${sinal}${formatCurrency(item.valor)}`, 191, subextratoY, { align: 'right' });
@@ -307,6 +300,10 @@ export const generateStatementPDF = (dados, empresa, entidadeInfo) => {
   }
 };
 
+/**
+ * Converte de forma adaptativa os dados processados na grelha de fecho semanal
+ * para o gerador unificado de PDF, eliminando vulnerabilidades de NaN [2, 3].
+ */
 export const generateDriverPDF = (dados, empresa) => {
   const { ...entidadeInfo } = {
     nome: dados.nomeMotorista,
@@ -314,24 +311,25 @@ export const generateDriverPDF = (dados, empresa) => {
     iban: dados.iban || '---'
   };
 
+  // ◄ CORRIGIDO: Coalescência nula (?.) e fallbacks (|| 0) robustos para evitar NaN e omissão de créditos [2, 3]
   const modelacaoDados = {
     periodo: dados.periodo || { inicio: new Date().toISOString(), fim: new Date().toISOString() },
     tipoEntidade: 'motorista',
-    totalRecebimentosLiquido: Number(dados.uber.liquido + dados.bolt.liquido),
-    totalImpostos: Number(dados.uber.impostos + dados.bolt.impostos),
-    aluguer: Number(dados.despesas.aluguer ?? 0),
-    taxaGestao: Number(dados.despesas.gestao ?? 0),
-    seguro: Number(dados.despesas.seguro ?? 0),
-    combustivel: Number(dados.despesas.combustivel ?? 0),
-    portagens: Number(dados.despesas.viaVerde ?? 0),
-    oficina: Number(dados.despesas.oficina ?? 0),
-    debitosGerais: Number(dados.despesas.debitosGerais ?? 0),
-    creditosGerais: Number(dados.creditosGerais ?? 0),
-    valorCaucaoAplicado: Number(dados.despesas.caucao ?? 0),
+    totalRecebimentosLiquido: Number((dados.uber?.liquido || 0) + (dados.bolt?.liquido || 0)),
+    totalImpostos: Number((dados.uber?.impostos || 0) + (dados.bolt?.impostos || 0)),
+    aluguer: Number(dados.despesas?.aluguer || dados.despesas?.custosFixos || 0),
+    taxaGestao: Number(dados.despesas?.gestao || dados.despesas?.taxaGestao || 0),
+    seguro: Number(dados.despesas?.seguro || 0),
+    combustivel: Number(dados.despesas?.combustivel || 0),
+    portagens: Number(dados.despesas?.viaVerde || dados.despesas?.portagens || 0),
+    oficina: Number(dados.despesas?.oficina || 0),
+    debitosGerais: Number(dados.despesas?.debitosGerais || dados.contaCorrente?.debitos || 0),
+    creditosGerais: Number(dados.creditosGerais || dados.contaCorrente?.creditos || 0),
+    valorCaucaoAplicado: Number(dados.despesas?.caucao || 0),
     dadosCaucao: dados.dadosCaucao || null,
     plataformas: {
-      UBER: { bruto: dados.uber.bruto, liquido: dados.uber.liquido, impostos: dados.uber.impostos },
-      BOLT: { bruto: dados.bolt.bruto, liquido: dados.bolt.liquido, impostos: dados.bolt.impostos },
+      UBER: { bruto: dados.uber?.bruto || 0, liquido: dados.uber?.liquido || 0, impostos: dados.uber?.impostos || 0 },
+      BOLT: { bruto: dados.bolt?.bruto || 0, liquido: dados.bolt?.liquido || 0, impostos: dados.bolt?.impostos || 0 },
       TRANSFER: { bruto: 0, liquido: 0, impostos: 0 }
     }
   };

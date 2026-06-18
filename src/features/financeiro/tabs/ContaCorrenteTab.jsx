@@ -1,6 +1,12 @@
 /**
  * ContaCorrenteTab.jsx
  * Localização: src/features/financeiro/tabs/ContaCorrenteTab.jsx
+ *
+ * Separador de Conta Corrente do Modal Financeiro.
+ * Atualizado com:
+ * - Botão "Realizar Fecho & Extrato" transacional com suporte a sementeira no Firestore [2].
+ * - Geração de PDF automática e reinício de ciclo de conta corrente ao fechar [2].
+ * - Preservação estrita das lógicas de suspensão de caução e lançamentos avulsos [2].
  */
 
 import React, { useState } from 'react';
@@ -12,7 +18,9 @@ import {
 import { formatCurrency, formatDatePT } from '../../../utils/formatters';
 import { generateStatementPDF } from '../../../utils/pdfGenerator';
 import { db } from '../../../firebase'; 
+import { collection, doc, writeBatch } from 'firebase/firestore'; // ◄ Importados métodos de lote transacional
 import { suspenderParcelaCaucao, obterDadosExtratoEntidade } from '../../../services/financeiroService';
+import { logAcaoGlobal } from '../../../utils/logger';
 
 // Função utilitária para obter a segunda-feira da semana corrente
 const obterSegundaFeiraDestaSemana = () => {
@@ -51,6 +59,7 @@ export default function ContaCorrenteTab({
   const [novoMov, setNovoMov]             = useState(MOVIMENTO_INICIAL);
   const [loadingLancar, setLoadingLancar] = useState(false);
   const [loadingPdf, setLoadingPdf]       = useState(false);
+  const [loadingFecho, setLoadingFecho]   = useState(false); // ◄ Estado de carregamento do fecho individual
   const [loadingSuspender, setLoadingSuspender] = useState(false);
   const [feedbackMsg, setFeedbackMsg]     = useState(null);
   const [eliminandoId, setEliminandoId]   = useState(null);
@@ -178,10 +187,102 @@ export default function ContaCorrenteTab({
     }
   };
 
+  /**
+   * Realiza o fecho individual da conta corrente do motorista [2].
+   * Transforma movimentos ativos em movimentos históricos, gera o PDF e limpa o ecrã [2].
+   */
+  const handleFecharSemanaIndividual = async () => {
+    if (movimentos.length === 0) {
+      alert("Não existem movimentos pendentes de fecho para este motorista.");
+      return;
+    }
+
+    const confirmacao = window.confirm(
+      `Deseja realmente fechar a semana de ${nomeEntidade}?\n\n` +
+      `- Arquivará ${movimentos.length} movimentos ativos.\n` +
+      `- Descarregará o extrato PDF correspondente.\n` +
+      `- Reiniciará a conta corrente para o próximo ciclo.`
+    );
+
+    if (!confirmacao) return;
+
+    setLoadingFecho(true);
+    try {
+      // 1. Obtém os dados de faturação e faturas consolidadas para o PDF [2]
+      const dadosConsolidados = await obterDadosExtratoEntidade(
+        db,
+        entidadeId,
+        tipoEntidade,
+        dataInicioExtrato,
+        dataFimExtrato
+      );
+
+      const entidadeMeta = {
+        nome: nomeEntidade,
+        nif: nifEntidade,
+        iban: ibanEntidade
+      };
+
+      const payloadPdf = {
+        ...dadosConsolidados,
+        valorCaucaoAplicado: dadosConsolidados.parcelaCaucaoAplicavel ? dadosConsolidados.parcelaCaucaoAplicavel.valor : 0
+      };
+
+      // 2. Dispara a geração e descarregamento imediato do PDF
+      generateStatementPDF(payloadPdf, empresa, entidadeMeta);
+
+      // 3. Executa a escrita em lote (Batch) no Firestore para fecho de ciclo [2]
+      const batch = writeBatch(db);
+      
+      const fechoRef = doc(collection(db, "fechos_semanais"));
+      const fechoId = fechoRef.id;
+
+      // Cria a entrada de fecho semanal individual [2]
+      batch.set(fechoRef, {
+        motoristaId: entidadeId,
+        nomeMotorista: nomeEntidade,
+        iban: ibanEntidade,
+        dataFecho: new Date().toISOString(),
+        processadoPor: 'Diretor (Individual)',
+        pago: false,
+        movimentosIds: movimentos.map(m => m.id),
+        saldoFinal: saldo,
+        tipoFecho: 'individual',
+        periodo: `${dataInicioExtrato} a ${dataFimExtrato}`
+      });
+
+      // Vincula os movimentos de débito/crédito a este fecho para os remover de pendentes [2]
+      movimentos.forEach(mov => {
+        const movRef = doc(db, "movimentos_financeiros", mov.id);
+        batch.update(movRef, { pagoNoFechoId: fechoId });
+      });
+
+      await batch.commit();
+
+      // 4. Regista log global de auditoria
+      await logAcaoGlobal(
+        'Diretor',
+        'Fecho Individual',
+        'Financeiro',
+        `Fecho individual de ${nomeEntidade} com saldo de ${saldo.toFixed(2)}€`,
+        entidadeId
+      );
+
+      alert(`Sucesso! O fecho individual foi processado, o extrato PDF descarregado e a conta corrente de ${nomeEntidade} reiniciada.`);
+      
+      if (onAtualizarDados) onAtualizarDados();
+    } catch (err) {
+      console.error("[ContaCorrenteTab] Erro ao realizar fecho individual:", err);
+      alert("Ocorreu um erro técnico ao fechar a semana individualmente.");
+    } finally {
+      setLoadingFecho(false);
+    }
+  };
+
   return (
     <div className="space-y-6">
 
-      {/* ── Cartão de Caução ────────────── */}
+      {/* Cartão de Caução */}
       {tipoEntidade === 'motorista' && dadosCaucao && (
         <div className="bg-slate-900 text-white rounded-2xl p-5 border border-slate-800 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 shadow-sm">
           <div className="space-y-1">
@@ -214,7 +315,7 @@ export default function ContaCorrenteTab({
         </div>
       )}
 
-      {/* ── Resumo de Saldos Pendentes ───────────────────────────────────────── */}
+      {/* Resumo de Saldos Pendentes */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="bg-emerald-50/60 border border-emerald-100/80 rounded-2xl p-4 text-center">
           <div className="flex items-center justify-center gap-1.5 mb-1">
@@ -257,7 +358,7 @@ export default function ContaCorrenteTab({
         </div>
       </div>
 
-      {/* ── Bloco Rápido de Geração de Extrato PDF ──────────────────────────── */}
+      {/* Bloco Rápido de Geração de Extrato PDF */}
       <div className="bg-white border border-slate-200 rounded-2xl p-4 space-y-3 shadow-xs">
         <div className="flex items-center gap-2">
           <CalendarRange size={16} className="text-slate-500" />
@@ -299,7 +400,7 @@ export default function ContaCorrenteTab({
         </div>
       </div>
 
-      {/* ── Lançamento Manual ─────────────────────────────────── */}
+      {/* Lançamento Manual */}
       <div className="bg-slate-50 border border-slate-200 rounded-2xl p-5 space-y-4">
         <p className="text-xs font-black text-slate-500 uppercase tracking-wider">
           Novo Lançamento Manual
@@ -374,11 +475,31 @@ export default function ContaCorrenteTab({
         )}
       </div>
 
-      {/* ── Listagem de Movimentos Pendentes ───────────────────────────────── */}
+      {/* Listagem de Movimentos Pendentes */}
       <div>
-        <p className="text-xs font-black text-slate-500 uppercase tracking-wider mb-3">
-          Movimentos Pendentes de Fecho ({movimentos.length})
-        </p>
+        
+        {/* ◄ ALTERADO: Cabeçalho com o novo botão "Realizar Fecho & Extrato" de sementeira individual [2] */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-3">
+          <p className="text-xs font-black text-slate-500 uppercase tracking-wider">
+            Movimentos Pendentes de Fecho ({movimentos.length})
+          </p>
+          
+          {movimentos.length > 0 && (
+            <button
+              type="button"
+              onClick={handleFecharSemanaIndividual}
+              disabled={loadingFecho}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-900 hover:bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all disabled:opacity-40 cursor-pointer shadow-sm active:scale-95 shrink-0"
+            >
+              {loadingFecho ? (
+                <Loader2 size={13} className="animate-spin" />
+              ) : (
+                <CheckCircle2 size={13} className="text-emerald-400" />
+              )}
+              Realizar Fecho & Extrato
+            </button>
+          )}
+        </div>
 
         {movimentos.length === 0 ? (
           <div className="text-center py-12 bg-slate-50 rounded-2xl border border-dashed border-slate-200">
