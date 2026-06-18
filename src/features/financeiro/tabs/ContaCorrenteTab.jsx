@@ -4,21 +4,21 @@
  *
  * Separador de Conta Corrente do Modal Financeiro.
  * Atualizado com:
- * - Botão "Realizar Fecho & Extrato" transacional com suporte a sementeira no Firestore [2].
- * - Geração de PDF automática e reinício de ciclo de conta corrente ao fechar [2].
- * - Preservação estrita das lógicas de suspensão de caução e lançamentos avulsos [2].
+ * - Painel de Revisão e Confirmação Pré-Fecho (Evita cliques acidentais) [2].
+ * - Histórico de Fechos Semanais Individuais no fundo do ecrã [2].
+ * - Botão "Reabrir / Corrigir" com reversão automática (Rollback) no Firestore [2].
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Plus, Trash2, TrendingUp, TrendingDown,
   AlertCircle, CheckCircle2, Loader2, ArrowLeftRight,
-  FileDown, CalendarRange, Ban
+  FileDown, CalendarRange, Ban, Undo2, RotateCcw, History
 } from 'lucide-react';
 import { formatCurrency, formatDatePT } from '../../../utils/formatters';
 import { generateStatementPDF } from '../../../utils/pdfGenerator';
 import { db } from '../../../firebase'; 
-import { collection, doc, writeBatch } from 'firebase/firestore'; // ◄ Importados métodos de lote transacional
+import { collection, doc, writeBatch, query, where, onSnapshot } from 'firebase/firestore';
 import { suspenderParcelaCaucao, obterDadosExtratoEntidade } from '../../../services/financeiroService';
 import { logAcaoGlobal } from '../../../utils/logger';
 
@@ -59,14 +59,36 @@ export default function ContaCorrenteTab({
   const [novoMov, setNovoMov]             = useState(MOVIMENTO_INICIAL);
   const [loadingLancar, setLoadingLancar] = useState(false);
   const [loadingPdf, setLoadingPdf]       = useState(false);
-  const [loadingFecho, setLoadingFecho]   = useState(false); // ◄ Estado de carregamento do fecho individual
+  const [loadingFecho, setLoadingFecho]   = useState(false);
+  const [loadingReabrirId, setLoadingReabrirId] = useState(null); // Monitoriza qual fecho está a ser estornado [2]
   const [loadingSuspender, setLoadingSuspender] = useState(false);
   const [feedbackMsg, setFeedbackMsg]     = useState(null);
   const [eliminandoId, setEliminandoId]   = useState(null);
 
+  // Estados para as novas funcionalidades de verificação e reversão [2]
+  const [isConfirmarFechoOpen, setIsConfirmarFechoOpen] = useState(false);
+  const [historicoFechos, setHistoricoFechos] = useState([]);
+
   // Intervalo padrão inteligente: Segunda-feira desta semana até Hoje
   const [dataInicioExtrato, setDataInicioExtrato] = useState(SEGUNDA_FEIRA);
   const [dataFimExtrato, setDataFimExtrato]       = useState(HOJE);
+
+  // Escuta ativa de fechos individuais antigos para listagem de histórico [2]
+  useEffect(() => {
+    if (!entidadeId) return;
+    const q = query(
+      collection(db, "fechos_semanais"),
+      where("motoristaId", "==", entidadeId),
+      where("tipoFecho", "==", "individual")
+    );
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const lista = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      // Ordena por data mais recente
+      lista.sort((a, b) => b.dataFecho.localeCompare(a.dataFecho));
+      setHistoricoFechos(lista);
+    });
+    return () => unsubscribe();
+  }, [entidadeId]);
 
   const totalCreditos = movimentos
     .filter(m => m.tipoMovimento === 'credito')
@@ -162,8 +184,6 @@ export default function ContaCorrenteTab({
         dataFimExtrato
       );
 
-      console.log("[ContaCorrenteTab] Dados obtidos com sucesso:", dadosConsolidados);
-
       const entidadeMeta = {
         nome: nomeEntidade,
         nif: nifEntidade,
@@ -175,10 +195,7 @@ export default function ContaCorrenteTab({
         valorCaucaoAplicado: dadosConsolidados.parcelaCaucaoAplicavel ? dadosConsolidados.parcelaCaucaoAplicavel.valor : 0
       };
 
-      console.log("[ContaCorrenteTab] A invocar renderizador de jsPDF para folha A4...");
       generateStatementPDF(payloadPdf, empresa, entidadeMeta);
-      console.log("[ContaCorrenteTab] Download do documento PDF concluído.");
-
     } catch (err) {
       console.error("[ContaCorrenteTab] Erro crítico ao processar o PDF:", err);
       alert("Ocorreu um erro de processamento ao gerar o extrato PDF.");
@@ -188,24 +205,9 @@ export default function ContaCorrenteTab({
   };
 
   /**
-   * Realiza o fecho individual da conta corrente do motorista [2].
-   * Transforma movimentos ativos em movimentos históricos, gera o PDF e limpa o ecrã [2].
+   * Confirma e grava transacionalmente o fecho de semana individual [2].
    */
-  const handleFecharSemanaIndividual = async () => {
-    if (movimentos.length === 0) {
-      alert("Não existem movimentos pendentes de fecho para este motorista.");
-      return;
-    }
-
-    const confirmacao = window.confirm(
-      `Deseja realmente fechar a semana de ${nomeEntidade}?\n\n` +
-      `- Arquivará ${movimentos.length} movimentos ativos.\n` +
-      `- Descarregará o extrato PDF correspondente.\n` +
-      `- Reiniciará a conta corrente para o próximo ciclo.`
-    );
-
-    if (!confirmacao) return;
-
+  const handleConfirmarEFecharIndividual = async () => {
     setLoadingFecho(true);
     try {
       // 1. Obtém os dados de faturação e faturas consolidadas para o PDF [2]
@@ -243,7 +245,7 @@ export default function ContaCorrenteTab({
         nomeMotorista: nomeEntidade,
         iban: ibanEntidade,
         dataFecho: new Date().toISOString(),
-        processadoPor: 'Diretor (Individual)',
+        processadoPor: userData?.nome || 'Diretor (Individual)',
         pago: false,
         movimentosIds: movimentos.map(m => m.id),
         saldoFinal: saldo,
@@ -261,13 +263,14 @@ export default function ContaCorrenteTab({
 
       // 4. Regista log global de auditoria
       await logAcaoGlobal(
-        'Diretor',
+        userData?.nome || 'Diretor',
         'Fecho Individual',
         'Financeiro',
-        `Fecho individual de ${nomeEntidade} com saldo de ${saldo.toFixed(2)}€`,
+        `Processou fecho de semana individual de ${nomeEntidade} com saldo de ${saldo.toFixed(2)}€`,
         entidadeId
       );
 
+      setIsConfirmarFechoOpen(false);
       alert(`Sucesso! O fecho individual foi processado, o extrato PDF descarregado e a conta corrente de ${nomeEntidade} reiniciada.`);
       
       if (onAtualizarDados) onAtualizarDados();
@@ -278,6 +281,121 @@ export default function ContaCorrenteTab({
       setLoadingFecho(false);
     }
   };
+
+  /**
+   * Reabre e anula um fecho individual passado (Rollback/Estorno) [2].
+   * Devolve as transações antigas à conta corrente ativa do motorista [2].
+   */
+  const handleReabrirFecho = async (fecho) => {
+    const confirmacao = window.confirm(
+      `Anular e Reabrir o Fecho de ${new Date(fecho.dataFecho).toLocaleDateString('pt-PT')}?\n\n` +
+      `- O registo de fecho será eliminado da base de dados.\n` +
+      `- Os ${fecho.movimentosIds?.length || 0} movimentos deste fecho regressarão à conta corrente ativa.`
+    );
+
+    if (!confirmacao) return;
+
+    setLoadingReabrirId(fecho.id);
+    try {
+      const batch = writeBatch(db);
+
+      // 1. Elimina o documento de fecho da coleção [2]
+      const fechoDocRef = doc(db, "fechos_semanais", fecho.id);
+      batch.delete(fechoDocRef);
+
+      // 2. Localiza as transações vinculadas e desvincula-as do fecho, tornando-as ativas de novo [2]
+      if (fecho.movimentosIds && fecho.movimentosIds.length > 0) {
+        fecho.movimentosIds.forEach(movId => {
+          const movRef = doc(db, "movimentos_financeiros", movId);
+          batch.update(movRef, { pagoNoFechoId: "" }); // Remove o vínculo do fecho
+        });
+      }
+
+      await batch.commit();
+
+      // 3. Regista log global de estorno
+      await logAcaoGlobal(
+        userData?.nome || 'Diretor',
+        'Estorno Fecho',
+        'Financeiro',
+        `Reabriu fecho de semana individual de ${nomeEntidade} (ID: ${fecho.id})`,
+        entidadeId
+      );
+
+      alert("Fecho anulado com sucesso! Os movimentos reapareceram na conta corrente pendente.");
+      if (onAtualizarDados) onAtualizarDados();
+    } catch (error) {
+      console.error("[ContaCorrenteTab] Erro ao reabrir fecho:", error);
+      alert("Erro ao anular o fecho semanal.");
+    } finally {
+      setLoadingReabrirId(null);
+    }
+  };
+
+  /**
+   * ◄ VISTA DE REVISÃO E CONFIRMAÇÃO PRÉ-FECHO [2]
+   */
+  if (isConfirmarFechoOpen) {
+    return (
+      <div className="space-y-6 text-left animate-in fade-in duration-200">
+        <div className="bg-slate-50 border border-slate-200 rounded-3xl p-6 space-y-4">
+          <div className="flex justify-between items-center border-b border-slate-200 pb-3">
+            <div>
+              <h3 className="text-base font-black text-slate-800 uppercase tracking-tight">Revisão de Extrato Semanal</h3>
+              <p className="text-[10px] text-slate-400 mt-0.5">Valide a conta do motorista antes de fechar o ciclo.</p>
+            </div>
+            <button 
+              onClick={() => setIsConfirmarFechoOpen(false)}
+              className="px-3 py-1.5 bg-slate-200 text-slate-600 rounded-xl text-xs font-bold hover:bg-slate-300 transition-colors cursor-pointer"
+            >
+              Voltar e Corrigir
+            </button>
+          </div>
+
+          {/* Ficha Fiscal */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs font-semibold text-slate-600 bg-white p-4 rounded-2xl border border-slate-100">
+            <div><span className="text-slate-400 font-bold block text-[9px] uppercase">Motorista</span>{nomeEntidade}</div>
+            <div><span className="text-slate-400 font-bold block text-[9px] uppercase">IBAN</span>{ibanEntidade}</div>
+            <div><span className="text-slate-400 font-bold block text-[9px] uppercase">NIF</span>{nifEntidade}</div>
+            <div><span className="text-slate-400 font-bold block text-[9px] uppercase">Período Fiscal</span>De {formatDatePT(new Date(dataInicioExtrato))} a {formatDatePT(new Date(dataFimExtrato))}</div>
+          </div>
+
+          {/* Resumo Financeiro */}
+          <div className="space-y-2 border-y border-slate-200/60 py-4">
+            <div className="flex justify-between text-xs font-bold text-slate-700">
+              <span>Total de Créditos Lançados (+)</span>
+              <span className="text-emerald-600">+{formatCurrency(totalCreditos)}</span>
+            </div>
+            <div className="flex justify-between text-xs font-bold text-slate-700">
+              <span>Total de Débitos Lançados (-)</span>
+              <span className="text-red-500">-{formatCurrency(totalDebitos)}</span>
+            </div>
+            <div className="flex justify-between text-sm font-black text-slate-800 pt-2 border-t border-dashed border-slate-200">
+              <span>Saldo Final Líquido a Transferir</span>
+              <span className={saldo >= 0 ? 'text-emerald-700' : 'text-red-600'}>
+                {saldo >= 0 ? '+' : ''}{formatCurrency(saldo)}
+              </span>
+            </div>
+          </div>
+
+          {/* Botões de Ação do Pré-Fecho */}
+          <div className="flex gap-3 pt-2">
+            <Button variant="secondary" className="flex-1 h-12" onClick={() => setIsConfirmarFechoOpen(false)}>
+              Cancelar e Corrigir Lançamentos
+            </Button>
+            <Button 
+              onClick={handleConfirmarEFecharIndividual}
+              disabled={loadingFecho}
+              className="flex-1 h-12 bg-emerald-600 hover:bg-emerald-700 justify-center"
+            >
+              {loadingFecho ? <Loader2 className="animate-spin mr-2" /> : <CheckCircle2 size={16} className="mr-2" />}
+              Confirmar Fecho & Emitir PDF
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -478,7 +596,7 @@ export default function ContaCorrenteTab({
       {/* Listagem de Movimentos Pendentes */}
       <div>
         
-        {/* ◄ ALTERADO: Cabeçalho com o novo botão "Realizar Fecho & Extrato" de sementeira individual [2] */}
+        {/* Cabeçalho com o botão "Realizar Fecho & Extrato" que agora abre a vista de confirmação [2] */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3 mb-3">
           <p className="text-xs font-black text-slate-500 uppercase tracking-wider">
             Movimentos Pendentes de Fecho ({movimentos.length})
@@ -487,15 +605,10 @@ export default function ContaCorrenteTab({
           {movimentos.length > 0 && (
             <button
               type="button"
-              onClick={handleFecharSemanaIndividual}
-              disabled={loadingFecho}
-              className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-900 hover:bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all disabled:opacity-40 cursor-pointer shadow-sm active:scale-95 shrink-0"
+              onClick={() => setIsConfirmarFechoOpen(true)} // ◄ Abre a janela de pré-visualização e confirmação [2]
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-slate-900 hover:bg-blue-600 text-white rounded-xl text-xs font-black uppercase tracking-wider transition-all cursor-pointer shadow-sm active:scale-95 shrink-0"
             >
-              {loadingFecho ? (
-                <Loader2 size={13} className="animate-spin" />
-              ) : (
-                <CheckCircle2 size={13} className="text-emerald-400" />
-              )}
+              <CheckCircle2 size={13} className="text-emerald-400" />
               Realizar Fecho & Extrato
             </button>
           )}
@@ -584,6 +697,73 @@ export default function ContaCorrenteTab({
           </div>
         )}
       </div>
+
+      {/* ◄ NOVO: Painel de Histórico de Fechos Semanais com Botão de Reversão (Rollback) [2] */}
+      {tipoEntidade === 'motorista' && (
+        <div className="pt-6 border-t border-slate-100">
+          <div className="flex items-center gap-2 mb-3">
+            <History size={16} className="text-slate-500" />
+            <p className="text-xs font-black text-slate-500 uppercase tracking-wider">
+              Histórico de Fechos Semanais Individuais ({historicoFechos.length})
+            </p>
+          </div>
+
+          {historicoFechos.length === 0 ? (
+            <p className="text-xs text-slate-400 italic text-left pl-1">Nenhum fecho semanal individual processado para este motorista.</p>
+          ) : (
+            <div className="rounded-2xl border border-slate-100 overflow-hidden">
+              <table className="w-full text-left border-collapse">
+                <thead className="bg-slate-50 border-b border-slate-100">
+                  <tr>
+                    <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-wider">Data Fecho</th>
+                    <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-wider">Período Fiscal</th>
+                    <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-wider text-center">Nº Movs</th>
+                    <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-wider text-right">Saldo Consolidado</th>
+                    <th className="px-4 py-3 text-[10px] font-black text-slate-400 uppercase tracking-wider text-center">Processado Por</th>
+                    <th className="w-20"></th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {historicoFechos.map(fecho => (
+                    <tr key={fecho.id} className="hover:bg-slate-50/50 transition-colors">
+                      <td className="px-4 py-3 text-xs text-slate-600 font-bold whitespace-nowrap">
+                        {new Date(fecho.dataFecho).toLocaleDateString('pt-PT')}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-slate-500 font-medium">
+                        {fecho.periodo || '—'}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-slate-500 text-center font-bold">
+                        {fecho.movimentosIds?.length || 0}
+                      </td>
+                      <td className={`px-4 py-3 text-right font-black text-sm ${
+                        fecho.saldoFinal >= 0 ? 'text-emerald-600' : 'text-red-600'
+                      }`}>
+                        {formatCurrency(fecho.saldoFinal)}
+                      </td>
+                      <td className="px-4 py-3 text-xs text-slate-400 text-center font-medium">
+                        {fecho.processadoPor || '—'}
+                      </td>
+                      <td className="px-2 py-3 text-center">
+                        {loadingReabrirId === fecho.id ? (
+                          <Loader2 size={14} className="animate-spin text-slate-300 mx-auto" />
+                        ) : (
+                          <button
+                            onClick={() => handleReabrirFecho(fecho)}
+                            className="inline-flex items-center gap-1 px-2.5 py-1 bg-red-50 hover:bg-red-100 text-red-600 border border-red-100 rounded-lg text-[10px] font-black uppercase tracking-wider transition-colors cursor-pointer"
+                            title="Anular fecho e restaurar movimentos para correção"
+                          >
+                            <RotateCcw size={10} /> Reabrir
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
 
     </div>
   );
