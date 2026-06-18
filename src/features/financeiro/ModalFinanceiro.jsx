@@ -3,16 +3,13 @@
  * Localização: src/features/financeiro/ModalFinanceiro.jsx
  *
  * Modal dedicado à gestão financeira completa de uma entidade.
- * Atualizado e Corrigido com:
- * - Painel lateral fixo (Lado Direito) para Abastecimento/Carregamento e Portagens [2].
- * - Indicadores visuais de estado (Pendente, Lançado Manual, Lançado por IA ou Relatório) [2].
- * - Resolução de erros de tags JSX, imports em falta (Sliders) e parâmetros partidos em RenegociacaoTab [2].
+ * Otimizado e redesenhado com uma experiência de utilizador (UX/UI) moderna e totalmente responsiva.
  */
 
 import React, { useState, useEffect } from 'react';
 import { 
   X, ArrowLeftRight, Settings2, Shield, RefreshCcw, Loader2, AlertTriangle,
-  Fuel, Zap, Coins, CheckCircle, HelpCircle, Save, Trash2, Sparkles, Sliders // ◄ Sliders importado com sucesso
+  Fuel, Zap, Coins, CheckCircle, HelpCircle, Save, Trash2, Sparkles, Sliders 
 } from 'lucide-react';
 import { db } from '../../firebase'; 
 import { useAuth } from '../../context/AuthContext';
@@ -25,7 +22,7 @@ import {
   salvarConfiguracaoFinanceira,
   criarCaucao,
   liquidarCaucao,
-  quitarParcelaCaucao, // Import transacional correto
+  quitarParcelaCaucao, 
   criarRenegociacao,
   cancelarRenegociacao
 } from '../../services/financeiroService';
@@ -67,7 +64,7 @@ export default function ModalFinanceiro({
   const [renegociacaoAtiva, setRenegociacaoAtiva] = useState(null);
   const [historicoRenegociacoes, setHistoricoRenegociacoes] = useState([]);
 
-  // Estados locais para os novos campos dedicados do painel fixo [2]
+  // Estados locais para os campos dedicados do painel fixo
   const [valorAbast, setValAbast] = useState('');
   const [valorPort, setValPort] = useState('');
 
@@ -90,11 +87,11 @@ export default function ModalFinanceiro({
       : acc - Number(mov.valor || 0);
   }, 0);
 
-  // Mapeamento das Despesas Semanais Fixas existentes no ciclo [2]
+  // Mapeamento das Despesas Semanais Fixas existentes no ciclo
   const movAbastecimento = movimentos.find(m => m.categoria === 'abastecimento');
   const movPortagens = movimentos.find(m => m.categoria === 'portagens');
 
-  // Sincroniza os inputs locais com as alterações em tempo real vindas da DB [2]
+  // Sincroniza os inputs locais com as alterações em tempo real vindas da DB
   useEffect(() => {
     setValAbast(movAbastecimento ? movAbastecimento.valor.toString() : '');
     setValPort(movPortagens ? movPortagens.valor.toString() : '');
@@ -160,7 +157,7 @@ export default function ModalFinanceiro({
     return () => unsubscribe();
   }, [isOpen, entidadeId, tipoEntidade]);
 
-  // Lógica transacional para salvar ou atualizar as despesas fixas (Abastecimento / Portagens) [2]
+  // Lógica transacional para salvar ou atualizar as despesas fixas (Abastecimento / Portagens)
   const handleGravarDespesaFixa = async (categoria, valor, origem = 'manual') => {
     if (!valor || Number(valor) <= 0) return;
     
@@ -176,7 +173,7 @@ export default function ModalFinanceiro({
           dataLancamento: new Date().toISOString().split('T')[0]
         });
       } else {
-        // Cria um novo lançamento de débito na conta do motorista [2]
+        // Cria um novo lançamento de débito na conta do motorista
         await addDoc(collection(db, 'movimentos_financeiros'), {
           entidadeId,
           tipoEntidade,
@@ -186,7 +183,7 @@ export default function ModalFinanceiro({
           descricao: categoria === 'abastecimento' 
             ? 'Abastecimento / Carregamento de Energia Semanal' 
             : 'Portagens / Portagens Via Verde Semanal',
-          origem, // manual | ia | relatorio
+          origem, 
           dataLancamento: new Date().toISOString().split('T')[0],
           dataCriacao: new Date().toISOString(),
           criadoPor: userData?.nome || 'Sistema',
@@ -207,7 +204,7 @@ export default function ModalFinanceiro({
     }
   };
 
-  // Limpa/Cancela o lançamento de despesa fixa [2]
+  // Limpa/Cancela o lançamento de despesa fixa
   const handleLimparDespesaFixa = async (categoria) => {
     const movExistente = categoria === 'abastecimento' ? movAbastecimento : movPortagens;
     if (!movExistente) return;
@@ -270,7 +267,6 @@ export default function ModalFinanceiro({
     return resultado;
   };
 
-  // ◄ CORRIGIDO: Nome da função unificado e chamada transacional sem erros de grafia
   const handleQuitarParcelaIndividual = async (numParcela) => {
     if (!caucaoAtiva) return { sucesso: false, msg: "Plano de caução não ativo." };
     const resultado = await quitarParcelaCaucao(db, caucaoAtiva.id, numParcela, userData?.nome || 'Sistema');
@@ -357,46 +353,47 @@ export default function ModalFinanceiro({
   );
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
-      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden animate-in fade-in zoom-in-95 duration-200">
+    <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-sm">
+      <div className="bg-white rounded-t-[2rem] sm:rounded-3xl shadow-2xl w-full max-w-5xl h-[100dvh] sm:h-[90vh] sm:max-h-[90vh] flex flex-col overflow-hidden animate-in slide-in-from-bottom sm:zoom-in-95 duration-200">
 
-        {/* Cabeçalho */}
-        <div className="flex justify-between items-center px-8 py-5 border-b border-slate-100 bg-slate-50/50 shrink-0">
+        {/* Cabeçalho Otimizado com Design Fintech */}
+        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 px-6 sm:px-8 py-5 border-b border-slate-150/60 bg-slate-50/50 shrink-0 text-left w-full">
           <div>
-            <p className="text-[10px] font-black text-slate-500 uppercase tracking-widest mb-0.5">
+            <span className="inline-block px-2.5 py-0.5 rounded-full bg-slate-200/60 text-slate-500 text-[8.5px] font-black uppercase tracking-wider mb-1.5">
               Gestão Financeira Consolidada
-            </p>
-            <h3 className="text-xl font-black text-slate-800">{nomeEntidade}</h3>
+            </span>
+            <h3 className="text-xl font-extrabold text-slate-800 tracking-tight leading-tight">{nomeEntidade}</h3>
           </div>
-          <div className="flex items-center gap-4">
+          <div className="flex items-center justify-between sm:justify-end gap-3.5 w-full sm:w-auto">
             {!loadingDados && (
-              <div className={`px-4 py-2 rounded-2xl text-sm font-black ${
+              <div className={`flex items-center gap-2 px-4 py-2 rounded-2xl text-xs sm:text-sm font-bold border shadow-xs ${
                 saldo >= 0
-                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-100'
-                  : 'bg-red-50 text-red-700 border border-red-100'
+                  ? 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                  : 'bg-red-50 text-red-700 border-red-100'
               }`}>
-                Saldo: {saldo >= 0 ? '+' : ''}{saldo.toFixed(2)} €
+                <span className="text-[10px] font-bold text-slate-400 uppercase">Saldo Pendente:</span>
+                <span className="font-extrabold text-sm sm:text-base">{saldo >= 0 ? '+' : ''}{saldo.toFixed(2)} €</span>
                 {saldo < 0 && (
-                  <AlertTriangle size={14} className="inline ml-1.5 mb-0.5" />
+                  <AlertTriangle size={15} className="text-red-500 animate-pulse shrink-0" />
                 )}
               </div>
             )}
             <button
               onClick={onClose}
-              className="p-2 hover:bg-white rounded-full text-slate-400 hover:text-slate-600 transition-all shadow-sm border border-transparent hover:border-slate-200"
+              className="p-2.5 hover:bg-white rounded-full text-slate-400 hover:text-slate-600 transition-all border border-slate-100 active:scale-95 cursor-pointer shadow-xs bg-slate-50"
             >
-              <X size={20} />
+              <X size={18} />
             </button>
           </div>
         </div>
 
-        {/* Layout de Corpo Dividido (Abas à esquerda, Painel Fixo à direita) [2] */}
-        <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
+        {/* Layout de Corpo Dividido Responsivo (Tabs à esquerda, Painel de Despesas Fixo à direita) */}
+        <div className="flex-1 flex flex-col lg:flex-row overflow-hidden">
           
           {/* Lado Esquerdo: Abas de Configuração e Histórico */}
           <div className="flex-1 flex flex-col overflow-hidden">
-            {/* Navegação entre Separadores */}
-            <div className="flex gap-1 px-8 pt-4 shrink-0 border-b border-slate-100 bg-white">
+            {/* Navegação entre Separadores com Scroll Suave em Mobile */}
+            <div className="flex gap-1.5 px-6 pt-3 shrink-0 border-b border-slate-100 bg-white overflow-x-auto no-scrollbar">
               {abasFiltradas.map(aba => {
                 const Icone  = aba.icon;
                 const ativa  = abaAtiva === aba.id;
@@ -406,26 +403,26 @@ export default function ModalFinanceiro({
                   <button
                     key={aba.id}
                     onClick={() => setAbaAtiva(aba.id)}
-                    className={`flex items-center gap-2 px-4 py-3 text-xs font-black uppercase tracking-wider rounded-t-xl transition-all border-b-2 ${
+                    className={`flex items-center gap-2 px-4 py-2.5 text-[11px] font-bold uppercase tracking-wider rounded-t-xl transition-all border-b-2 whitespace-nowrap active:scale-95 cursor-pointer shrink-0 ${
                       ativa
                         ? vermelho
-                          ? 'border-red-500 text-red-600 bg-red-50/50'
-                          : 'border-slate-800 text-slate-800 bg-slate-50'
-                        : 'border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-50'
+                          ? 'border-red-500 text-red-600 bg-red-50/50 font-extrabold'
+                          : 'border-slate-800 text-slate-800 bg-slate-50/60 font-extrabold'
+                        : 'border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-50/50'
                     }`}
                   >
-                    <Icone size={14} />
-                    {aba.label}
+                    <Icone size={13} />
+                    <span>{aba.label}</span>
                     {aba.id === 'renegociacao' && saldo < 0 && !renegociacaoAtiva && (
-                      <span className="w-2 h-2 bg-red-500 rounded-full animate-pulse" />
+                      <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-ping" />
                     )}
                     {aba.id === 'renegociacao' && renegociacaoAtiva && (
-                      <span className="bg-amber-100 text-amber-700 text-[9px] px-1.5 py-0.5 rounded-full font-bold">
+                      <span className={`text-[8px] px-1.5 py-0.5 rounded-md font-extrabold ml-1 uppercase ${ativa ? 'bg-white/20 text-white' : 'bg-amber-100 text-amber-800'}`}>
                         Ativo
                       </span>
                     )}
                     {aba.id === 'caucao' && caucaoAtiva && (
-                      <span className="bg-blue-100 text-blue-700 text-[9px] px-1.5 py-0.5 rounded-full font-bold">
+                      <span className={`text-[8px] px-1.5 py-0.5 rounded-md font-extrabold ml-1 uppercase ${ativa ? 'bg-white/20 text-white' : 'bg-blue-100 text-blue-800'}`}>
                         Ativa
                       </span>
                     )}
@@ -435,11 +432,11 @@ export default function ModalFinanceiro({
             </div>
 
             {/* Corpo do Separador Ativo */}
-            <div className="flex-1 overflow-y-auto p-8">
+            <div className="flex-1 overflow-y-auto p-5 sm:p-8 custom-scrollbar">
               {loadingDados ? (
                 <div className="flex flex-col items-center justify-center py-20 text-slate-400">
                   <Loader2 className="animate-spin mb-3" size={32} />
-                  <p className="text-sm font-medium">A sincronizar dados financeiros...</p>
+                  <p className="text-sm font-semibold">A sincronizar dados financeiros...</p>
                 </div>
               ) : (
                 <>
@@ -474,15 +471,15 @@ export default function ModalFinanceiro({
                       nomeEntidade={nomeEntidade}
                       onCriar={handleCriarCaucao}
                       onLiquidar={handleLiquidarCaucao}
-                      onQuitarParcela={handleQuitarParcelaIndividual} // Prop repassada sem typos
+                      onQuitarParcela={handleQuitarParcelaIndividual} 
                     />
                   )}
                   {abaAtiva === 'renegociacao' && (
                     <RenegociacaoTab
-                      renegociacaoAtiva={renegociacaoAtiva} // ◄ CORRIGIDO: Passagem do estado local correto
-                      historico={historicoRenegociacoes}    // ◄ CORRIGIDO: Passagem do histórico reconstruída
-                      saldoAtual={saldo}                    // ◄ CORRIGIDO: Adicionado parâmetro de saldo
-                      nomeEntidade={nomeEntidade}           // ◄ CORRIGIDO: Adicionado parâmetro de nome
+                      renegociacaoAtiva={renegociacaoAtiva} 
+                      historico={historicoRenegociacoes}    
+                      saldoAtual={saldo}                    
+                      nomeEntidade={nomeEntidade}           
                       onCriar={handleCriarRenegociacao}
                       onCancelar={handleCancelarRenegociacao}
                     />
@@ -492,124 +489,124 @@ export default function ModalFinanceiro({
             </div>
           </div>
 
-          {/* Lado Direito: Painel Fixo de Despesas Semanais (Abastecimento e Portagens) [2] */}
+          {/* Lado Direito: Painel de Despesas Semanais de Alta Fidelidade (Abastecimento e Portagens) */}
           {tipoEntidade === 'motorista' && (
-            <div className="w-full md:w-80 bg-slate-50/50 p-6 overflow-y-auto flex flex-col gap-6 shrink-0 border-t md:border-t-0 md:border-l border-slate-100 text-left">
-              <div className="border-b border-slate-200/60 pb-3">
-                <h4 className="text-sm font-black text-slate-800 flex items-center gap-1.5 uppercase tracking-wider">
-                  <Sliders className="text-tvde-primary shrink-0" size={16} />
+            <div className="w-full lg:w-80 bg-slate-50/50 p-6 overflow-y-auto flex flex-col gap-5 shrink-0 border-t lg:border-t-0 lg:border-l border-slate-150/60 text-left">
+              <div className="border-b border-slate-200/50 pb-3">
+                <h4 className="text-xs font-black text-slate-800 flex items-center gap-1.5 uppercase tracking-wider">
+                  <Sliders className="text-slate-500 shrink-0" size={14} />
                   Despesas Semanais Fixas
                 </h4>
                 <p className="text-[10px] text-slate-400 mt-1 leading-relaxed">
-                  Lançamento de despesas de via verde e combustível faturados para acerto no fecho semanal.
+                  Lançamento de despesas de combustível e portagens faturadas para desconto imediato no próximo ciclo de faturação.
                 </p>
               </div>
 
               {/* 1. ABASTECIMENTO / CARREGAMENTO */}
-              <div className="space-y-2 bg-white p-4 rounded-2xl border border-slate-100 shadow-xs relative">
+              <div className="space-y-3 bg-white p-4.5 rounded-2xl border border-slate-200/60 shadow-xs relative">
                 <div className="flex justify-between items-center">
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
-                    <Fuel size={12} className="text-blue-500" /> Combustível / Energia
+                  <span className="text-[10.5px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                    <Fuel size={13} className="text-blue-500" /> Combustível / Energia
                   </span>
                   
-                  {/* Badge de Estado e Origem Visual [2] */}
+                  {/* Badge de Estado e Origem Visual */}
                   {movAbastecimento ? (
-                    <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 text-[8px] font-black uppercase px-2 py-0.5 rounded-md border border-emerald-100">
+                    <span className="inline-flex items-center gap-1 bg-emerald-50 text-emerald-700 text-[8px] font-extrabold uppercase px-2 py-0.5 rounded-md border border-emerald-100">
                       {movAbastecimento.origem === 'ia' && <Sparkles size={8} className="animate-pulse text-violet-500" />}
                       Lançado ({movAbastecimento.origem || 'Manual'})
                     </span>
                   ) : (
-                    <span className="bg-slate-150 text-slate-500 text-[8px] font-black uppercase px-2 py-0.5 rounded-md">
+                    <span className="bg-slate-100 text-slate-400 text-[8px] font-extrabold uppercase px-2 py-0.5 rounded-md">
                       Pendente
                     </span>
                   )}
                 </div>
 
-                <div className="flex gap-2 items-center pt-1.5">
+                <div className="flex gap-2 items-center">
                   <div className="relative flex-1">
-                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400">€</span>
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400">€</span>
                     <input 
                       type="number" 
                       step="0.01"
                       placeholder="0.00"
                       value={valorAbast}
                       onChange={(e) => setValAbast(e.target.value)}
-                      className="w-full pl-6 pr-2.5 py-2 border border-slate-200 rounded-xl outline-none text-xs font-bold text-slate-700 bg-slate-50 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                      className="w-full pl-7 pr-2.5 py-2 border border-slate-200 rounded-xl outline-none text-xs font-bold text-slate-700 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-slate-900/10 focus:border-slate-800 transition-all"
                     />
                   </div>
                   
                   <button
                     onClick={() => handleGravarDespesaFixa('abastecimento', valorAbast, 'manual')}
-                    className="p-2.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-xl transition-all cursor-pointer"
+                    className="p-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl transition-all cursor-pointer shadow-xs active:scale-95"
                     title="Gravar Abastecimento"
                   >
-                    <Save size={14} />
+                    <Save size={13} />
                   </button>
                   
                   {movAbastecimento && (
                     <button
                       onClick={() => handleLimparDespesaFixa('abastecimento')}
-                      className="p-2 bg-red-50 hover:bg-red-100 text-red-500 rounded-xl transition-all cursor-pointer"
+                      className="p-2.5 bg-red-50 hover:bg-red-100 text-red-500 rounded-xl transition-all cursor-pointer border border-red-100 active:scale-95"
                       title="Apagar despesa"
                     >
-                      <Trash2 size={14} />
+                      <Trash2 size={13} />
                     </button>
                   )}
                 </div>
               </div>
 
               {/* 2. PORTAGENS / VIA VERDE */}
-              <div className="space-y-2 bg-white p-4 rounded-2xl border border-slate-100 shadow-xs">
+              <div className="space-y-3 bg-white p-4.5 rounded-2xl border border-slate-200/60 shadow-xs">
                 <div className="flex justify-between items-center">
-                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest flex items-center gap-1">
-                    <Coins size={12} className="text-purple-500" /> Portagens / Via Verde
-                  </span> {/* ◄ CORRIGIDO: Fecho de tag correto (span em vez de p) */}
+                  <span className="text-[10.5px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+                    <Coins size={13} className="text-purple-500" /> Portagens / Via Verde
+                  </span> 
                   
                   {/* Badge de Estado */}
-                  <span className={`text-[8px] font-black px-2 py-0.5 rounded-md uppercase ${
+                  <span className={`text-[8px] font-extrabold px-2 py-0.5 rounded-md uppercase border ${
                     movimentosDisponiveis(movPortagens)
-                      ? 'bg-purple-50 text-purple-700 border border-purple-100'
-                      : 'bg-slate-100 text-slate-500'
+                      ? 'bg-purple-50 text-purple-700 border-purple-100'
+                      : 'bg-slate-100 text-slate-400 border-transparent'
                   }`}>
                     {movPortagens ? `Lançado (${movPortagens.origem || 'Manual'})` : 'Pendente'}
                   </span>
                 </div>
 
-                <div className="flex gap-2 items-center pt-1.5">
+                <div className="flex gap-2 items-center">
                   <div className="relative flex-1">
-                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400">€</span>
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs font-black text-slate-400">€</span>
                     <input 
                       type="number" 
                       step="0.01"
                       placeholder="0.00"
                       value={valorPort}
                       onChange={(e) => setValPort(e.target.value)}
-                      className="w-full pl-6 pr-2.5 py-2 border border-slate-200 rounded-xl outline-none text-xs font-bold text-slate-700 bg-slate-50 focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 transition-all"
+                      className="w-full pl-7 pr-2.5 py-2 border border-slate-200 rounded-xl outline-none text-xs font-bold text-slate-700 bg-slate-50 focus:bg-white focus:ring-2 focus:ring-slate-900/10 focus:border-slate-800 transition-all"
                     />
                   </div>
                   
                   <button
                     onClick={() => handleGravarDespesaFixa('portagens', valorPort, 'manual')}
-                    className="p-2.5 bg-blue-50 hover:bg-blue-100 text-blue-600 rounded-xl transition-all cursor-pointer"
+                    className="p-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl transition-all cursor-pointer shadow-xs active:scale-95"
                     title="Gravar Portagens"
                   >
-                    <Save size={14} />
+                    <Save size={13} />
                   </button>
                   
                   {movPortagens && (
                     <button
                       onClick={() => handleLimparDespesaFixa('portagens')}
-                      className="p-2 bg-red-50 hover:bg-red-100 text-red-500 rounded-xl transition-all cursor-pointer"
+                      className="p-2.5 bg-red-50 hover:bg-red-100 text-red-500 rounded-xl transition-all cursor-pointer border border-red-100 active:scale-95"
                       title="Apagar despesa"
                     >
-                      <Trash2 size={14} />
+                      <Trash2 size={13} />
                     </button>
                   )}
                 </div>
               </div>
               
-              <div className="bg-slate-100/60 p-4 rounded-2xl border border-dashed border-slate-200 text-[10px] text-slate-400 leading-relaxed">
-                * Os lançamentos aqui efetuados são de dedução automática no próximo extrato e fecho semanal deste motorista [2].
+              <div className="bg-slate-100/60 p-4 rounded-2xl border border-dashed border-slate-200 text-[9.5px] text-slate-400 leading-relaxed">
+                * Os lançamentos aqui efetuados são de dedução automática no próximo extrato e fecho semanal deste motorista.
               </div>
             </div>
           )}
