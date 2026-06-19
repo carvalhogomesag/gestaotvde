@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Plus, Search, Loader2 } from 'lucide-react';
+import { Plus, Search, Loader2, Sparkles } from 'lucide-react'; // ◄ CORRIGIDO: Sparkles importado com sucesso
 import Button from '../components/ui/Button';
 import Modal from '../components/ui/Modal';
 import JustificacaoModal from '../components/ui/JustificacaoModal';
@@ -35,6 +35,12 @@ export default function Motoristas() {
   // ESTADO DA PESQUISA
   const [searchTerm, setSearchTerm] = useState('');
 
+  // ESTADOS DO IMPORTADOR DE MIGRACAO CSV (MODO DEV)
+  const [csvInput, setCsvInput] = useState('');
+  const [importando, setImportando] = useState(false);
+  const [statusImportacao, setStatusImportacao] = useState('');
+  const [mostrarImportador, setMostrarImportador] = useState(false);
+
   // useCallback para evitar que handleEditClick seja recriada
   const handleEditClick = useCallback((motorista, viewOnly = false) => {
     setEditingId(motorista.id);
@@ -51,6 +57,87 @@ export default function Motoristas() {
       }
     });
     return novoObj;
+  };
+
+  // Função auxiliar para formatar nomes de "DAVID MENEZES" para "David Menezes"
+  const formatarNomeProprio = (texto) => {
+    if (!texto) return '';
+    return texto
+      .toLowerCase()
+      .split(' ')
+      .map(palavra => palavra.charAt(0).toUpperCase() + palavra.slice(1))
+      .join(' ');
+  };
+
+  const executarMigracao = async () => {
+    if (!csvInput.trim()) {
+      alert("Por favor, cole o conteúdo do CSV na caixa de texto.");
+      return;
+    }
+
+    if (!window.confirm("Deseja iniciar a importação automática destes motoristas para o ambiente de DEV?")) {
+      return;
+    }
+
+    setImportando(true);
+    setStatusImportacao("A iniciar migração...");
+
+    try {
+      const linhas = csvInput.split('\n');
+      let totalImportados = 0;
+
+      // Importação sequencial para garantir que os códigos internos (MOT001, MOT002...) não duplicam
+      for (let i = 0; i < linhas.length; i++) {
+        const linha = linhas[i].trim();
+        if (!linha) continue;
+
+        const colunas = linha.split(',');
+        const uuid = colunas[0]?.trim();
+        const nomeProprio = colunas[1]?.trim();
+        const apelido = colunas[2]?.trim();
+
+        // 1. Ignorar cabeçalho se houver
+        if (uuid === 'UUID do motorista' || uuid.includes('UUID') || i === 0) {
+          continue;
+        }
+
+        // 2. Ignorar o registo da própria frota operadora (Opinião e Consenso, Lda)
+        if (uuid === 'db0fecb2-502f-4418-baa9-aee3934835e4' || nomeProprio?.includes('Opinião')) {
+          continue;
+        }
+
+        if (uuid && nomeProprio) {
+          const nomeFormatado = formatarNomeProprio(`${nomeProprio} ${apelido || ''}`);
+          setStatusImportacao(`A processar (${totalImportados + 1}): ${nomeFormatado}...`);
+
+          const novoCodigo = await generateNextCode("motoristas", "MOT");
+
+          await addDoc(collection(db, "motoristas"), {
+            nome: nomeFormatado,
+            uuid: uuid, // Campo novo adicionado com sucesso
+            email: `${nomeProprio.toLowerCase()}.${(apelido || 'tvde').toLowerCase()}@exemplo.com`,
+            telemovel: "900000000",
+            nif: "999999999",
+            status: "Ativo",
+            codigoInterno: novoCodigo,
+            criadoPor: "Migrador Automático CSV",
+            dataCriacao: new Date().toISOString(),
+            historico: []
+          });
+
+          totalImportados++;
+        }
+      }
+
+      setStatusImportacao(`Concluído com sucesso! ${totalImportados} motoristas foram importados.`);
+      setCsvInput('');
+      alert(`Sucesso! ${totalImportados} motoristas foram importados para o sistema.`);
+    } catch (err) {
+      console.error("Erro durante a migração:", err);
+      alert("Ocorreu um erro ao importar os dados. Verifique a consola de programador (F12).");
+    } finally {
+      setImportando(false);
+    }
   };
 
   useEffect(() => {
@@ -226,7 +313,7 @@ export default function Motoristas() {
 
   return (
     <div className="space-y-6">
-      {/* ◄ ALTERADO: Header empilhável responsivo e botão expandido em mobile */}
+      {/* Header empilhável responsivo e botão expandido em mobile */}
       <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-slate-800">Motoristas</h1>
@@ -240,7 +327,7 @@ export default function Motoristas() {
         </Button>
       </header>
 
-      {/* ◄ ALTERADO: Padding otimizado para mobile */}
+      {/* Padding otimizado para mobile */}
       <div className="flex gap-4 bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-slate-100">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
@@ -260,13 +347,64 @@ export default function Motoristas() {
           <p className="text-xs sm:text-sm font-semibold">A carregar motoristas...</p>
         </div>
       ) : (
-        /* ◄ ALTERADO: Contentor de segurança de scroll lateral adicionado ao redor da tabela */
+        /* Contentor de segurança de scroll lateral adicionado ao redor da tabela */
         <div className="w-full overflow-x-auto rounded-2xl border border-slate-100 shadow-sm bg-white">
           <MotoristasList 
             motoristas={motoristasFiltrados} 
             onEdit={handleEditClick} 
             onDelete={handleDelete} 
           />
+        </div>
+      )}
+
+      {/* PAINEL DE MIGRAÇÃO CSV (APENAS ATIVO EM AMBIENTES DE DESENVOLVIMENTO) */}
+      {import.meta.env.DEV && (
+        <div className="mt-12 p-6 bg-slate-900 text-white rounded-3xl border border-slate-800 text-left animate-in fade-in duration-200">
+          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-4">
+            <div>
+              <h3 className="text-sm font-black uppercase tracking-wider text-emerald-400 flex items-center gap-2">
+                <Sparkles className="animate-pulse shrink-0" size={16} />
+                Migrador de Motoristas CSV (Modo DEV)
+              </h3>
+              <p className="text-xs text-slate-400 mt-1">
+                Cole a lista de motoristas para popular automaticamente a sua base de dados de testes local.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => setMostrarImportador(!mostrarImportador)}
+              className="w-full sm:w-auto px-4 py-2 bg-slate-800 hover:bg-slate-700 text-xs font-bold rounded-xl transition-all cursor-pointer text-center"
+            >
+              {mostrarImportador ? 'Ocultar Painel' : 'Abrir Painel'}
+            </button>
+          </div>
+
+          {mostrarImportador && (
+            <div className="space-y-4 animate-in fade-in slide-in-from-top-2 duration-200">
+              <textarea
+                rows={8}
+                placeholder="Cole o conteúdo do CSV aqui (incluindo o cabeçalho se desejar)..."
+                value={csvInput}
+                onChange={(e) => setCsvInput(e.target.value)}
+                disabled={importando}
+                className="w-full p-4 bg-slate-950 text-slate-200 border border-slate-800 rounded-2xl text-xs font-mono outline-none focus:ring-2 focus:ring-emerald-500/20"
+              />
+              
+              <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
+                <span className="text-xs text-emerald-400 font-medium min-h-5">
+                  {statusImportacao}
+                </span>
+                <button
+                  type="button"
+                  onClick={executarMigracao}
+                  disabled={importando}
+                  className="w-full sm:w-auto px-6 py-3 bg-emerald-600 hover:bg-emerald-700 disabled:bg-slate-800 text-white font-bold text-xs uppercase tracking-wider rounded-xl transition-all cursor-pointer shadow-md flex items-center justify-center gap-2"
+                >
+                  {importando ? 'A Importar...' : 'Iniciar Migração'}
+                </button>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
