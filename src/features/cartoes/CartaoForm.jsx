@@ -1,20 +1,44 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Button from '../../components/ui/Button';
 
 export default function CartaoForm({ onSubmit, initialData = {}, veiculos = [], onCancel }) {
+  // Estado inicial que lê de forma defensiva ambas as nomenclaturas existentes na BD (numero/numeroCartao e pin/PIN)
   const [formData, setFormData] = useState({
     fornecedor: initialData.fornecedor || '',
-    numero: initialData.numero || '',
-    pin: initialData.pin || '',
+    numero: initialData.numero || initialData.numeroCartao || '',
+    pin: initialData.pin || initialData.PIN || '',
     plafond: initialData.plafond || '',
     veiculoId: initialData.veiculoId || '',
     veiculoMatricula: initialData.veiculoMatricula || '',
     tipo: initialData.tipo || 'combustivel' // ou 'eletrico'
   });
 
+  // Garante a re-sincronização do estado caso o formulário mude de dados em edição
+  useEffect(() => {
+    setFormData({
+      fornecedor: initialData.fornecedor || '',
+      numero: initialData.numero || initialData.numeroCartao || '',
+      pin: initialData.pin || initialData.PIN || '',
+      plafond: initialData.plafond || '',
+      veiculoId: initialData.veiculoId || '',
+      veiculoMatricula: initialData.veiculoMatricula || '',
+      tipo: initialData.tipo || 'combustivel'
+    });
+  }, [initialData]);
+
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSubmit(formData);
+    
+    const valorLimpo = formData.numero.trim();
+
+    // Sincroniza ambos os campos de dados na submissão ao componente pai
+    onSubmit({
+      ...formData,
+      numero: valorLimpo,
+      numeroCartao: valorLimpo,
+      pin: formData.pin,
+      PIN: formData.pin // Preserva as duas variações de propriedades para segurança estrutural
+    });
   };
 
   return (
@@ -26,7 +50,7 @@ export default function CartaoForm({ onSubmit, initialData = {}, veiculos = [], 
       </div>
       
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">Número do Cartão</label>
+        <label className="block text-sm font-medium text-slate-700 mb-1">Número do Cartão (Identificador)</label>
         <input required className="w-full p-2 border border-slate-200 rounded-lg font-mono"
           value={formData.numero} onChange={(e) => setFormData({...formData, numero: e.target.value})} />
       </div>

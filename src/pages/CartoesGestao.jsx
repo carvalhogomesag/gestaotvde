@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Plus, CreditCard, ShieldCheck, Trash2, Eye, Edit } from 'lucide-react';
+import { Plus, CreditCard, ShieldCheck, Trash2, Eye, Edit, Database } from 'lucide-react';
 import Button from '../components/ui/Button';
 import Modal from '../components/ui/Modal';
 import JustificacaoModal from '../components/ui/JustificacaoModal';
@@ -9,9 +9,25 @@ import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { logAcaoGlobal } from '../utils/logger';
 import { 
-  collection, addDoc, getDocs, query, where, 
-  doc, deleteDoc, updateDoc, arrayUnion 
+  collection, getDocs, query, where, 
+  doc, deleteDoc, updateDoc, arrayUnion, setDoc, writeBatch 
 } from 'firebase/firestore';
+
+// Lista de cartões de abastecimento (Combustível) identificados na imagem
+const CARTOES_COMBUSTIVEL = [
+  "0C1062", "OC001", "OC0010", "OC0013", "OC0019", "OC0020", "OC003", "OC004", "OC007", "OC1001",
+  "OC1004", "OC1011", "OC1023", "OC1025", "OC1026", "OC1027", "OC1032", "OC1034", "OC1037", "OC1040",
+  "OC1042", "OC1047", "OC1053", "OC1056", "OC1064", "OC1065", "OC1066", "OC107", "OC109", "OC122"
+];
+
+// Lista de cartões de carregamento (Elétrico) identificados na imagem
+const CARTOES_ELETRICOS = [
+  "OCE002", "OCE005", "OCE006", "OCE010", "OCE0100", "OCE011", "OCE013", "OCE014", "OCE015", "OCE017",
+  "OCE018", "OCE023", "OCE025", "OCE026", "OCE028", "OCE029", "OCE032", "OCE036", "OCE039", "OCE042",
+  "OCE043", "OCE045", "OCE046", "OCE047", "OCE049", "OCE052", "OCE056", "OCE059", "OCE061", "OCE065",
+  "OCE068", "OCE072", "OCE074", "OCE075", "OCE076", "OCE077", "OCE079", "OCE081", "OCE083", "OCE084",
+  "OCE088", "OCE089", "OCE090", "OCE091", "OCE095", "OCE096", "OCE097", "OCE098", "OCE099"
+];
 
 export default function CartoesGestao({ tipo }) {
   const { userData } = useAuth();
@@ -26,6 +42,7 @@ export default function CartoesGestao({ tipo }) {
   const [editingCartao, setEditingCartao] = useState(null);
   const [tempDados, setTempDados] = useState(null);
   const [lastSavedItem, setLastSavedItem] = useState(null);
+  const [isImporting, setIsImporting] = useState(false);
 
   // 'tipo' vem da prop da rota: "combustivel" ou "eletrico" (lowercase, sem acento)
   // É usado directamente — sem normalização — para coincidir com o Firestore
@@ -52,27 +69,109 @@ export default function CartoesGestao({ tipo }) {
 
   useEffect(() => { fetchData(); }, [tipo]);
 
+  // Executa a sementeira inteligente em lote de acordo com o tipo atual do ecrã
+  const handleSementeiraLote = async () => {
+    const cardsToSeed = tipo === 'combustivel' ? CARTOES_COMBUSTIVEL : CARTOES_ELETRICOS;
+    const fornecedorPadrao = tipo === 'combustivel' ? 'Galp' : 'Prio';
+    const tipoLabel = tipo === 'combustivel' ? 'Abastecimento (Combustível)' : 'Carregamento (Elétrico)';
+
+    const confirmacao = window.confirm(
+      `Deseja iniciar a sementeira de ${cardsToSeed.length} cartões de ${tipoLabel}?\n\n` +
+      `Nota: Cartões que já se encontrem registados não sofrerão alterações.`
+    );
+
+    if (!confirmacao) return;
+
+    setIsImporting(true);
+    try {
+      const batch = writeBatch(db);
+      
+      // Mapeia identificadores locais existentes na memória para poupar leituras adicionais
+      const existentesIDs = cartoes.map(c => c.id.toLowerCase().trim());
+      let novosAdicionadosCount = 0;
+
+      cardsToSeed.forEach((nomeCartao) => {
+        const nomeLimpo = nomeCartao.trim();
+        
+        if (!existentesIDs.includes(nomeLimpo.toLowerCase())) {
+          // O nome do cartão é usado diretamente como o ID do documento
+          const docRef = doc(db, "cartoes", nomeLimpo);
+          
+          batch.set(docRef, {
+            numero: nomeLimpo,               // Compatibilidade com outras pesquisas do sistema
+            numeroCartao: nomeLimpo,         // Compatibilidade com listagem interna [1]
+            fornecedor: fornecedorPadrao,
+            tipo: tipo,
+            plafond: 100,                    // Plafond padrão inicial sugerido
+            pin: "0000",                     // PIN genérico inicial
+            PIN: "0000",                     // Compatibilidade de caixa alta/baixa
+            estado: "Disponível",
+            historico: [],
+            dataCriacao: new Date().toISOString(),
+            criadoPor: "Sistema (Sementeira)"
+          });
+          novosAdicionadosCount++;
+        }
+      });
+
+      if (novosAdicionadosCount > 0) {
+        await batch.commit();
+        await logAcaoGlobal(userData?.nome || "Sistema", "Sementeira", "Cartões", `Sementeira em lote de ${novosAdicionadosCount} cartões de ${tipo}`, "lote");
+        alert(`Sementeira concluída! Foram criados ${novosAdicionadosCount} cartões com sucesso.`);
+        fetchData();
+      } else {
+        alert("Sementeira ignorada. Todos os cartões indicados já existem na base de dados.");
+      }
+    } catch (error) {
+      console.error("Erro na sementeira em lote:", error);
+      alert("Ocorreu um erro ao registar os cartões em lote.");
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
   const handleSave = async (dados) => {
     if (editingCartao) {
       setTempDados(dados);
       setIsJustifyModalOpen(true);
     } else {
       try {
-        const docRef = await addDoc(collection(db, "cartoes"), { 
+        // Garantir que usamos o número do cartão (nome) inserido como o ID do documento
+        const cardId = (dados.numeroCartao || dados.numero || '').trim();
+        if (!cardId) {
+          alert("O número do cartão (Nome) é obrigatório.");
+          return;
+        }
+
+        const docRef = doc(db, "cartoes", cardId);
+        
+        // Salvaguarda manual: Verificar se já existe documento com este ID
+        const duplicado = cartoes.some(c => c.id.toLowerCase() === cardId.toLowerCase());
+        if (duplicado) {
+          alert(`O cartão "${cardId}" já se encontra registado.`);
+          return;
+        }
+
+        const payload = { 
           ...dados, 
+          numero: cardId,             // Uniformização de campos [1]
+          numeroCartao: cardId,       // Uniformização de campos [1]
           tipo: tipo,
           historico: [],
           dataCriacao: new Date().toISOString(),
           criadoPor: userData?.nome
-        });
+        };
 
-        await logAcaoGlobal(userData?.nome, "Criação", "Cartões", `${dados.fornecedor} (${dados.numeroCartao})`, docRef.id);
+        await setDoc(docRef, payload);
+
+        await logAcaoGlobal(userData?.nome, "Criação", "Cartões", `${dados.fornecedor} (${cardId})`, cardId);
         
-        setLastSavedItem({ id: docRef.id, nome: `${dados.fornecedor} - ${dados.numeroCartao}`, codigo: 'CARD' });
+        setLastSavedItem({ id: cardId, nome: `${dados.fornecedor} - ${cardId}`, codigo: 'CARD' });
         setIsModalOpen(false);
         fetchData();
         setIsTicketModalOpen(true);
       } catch (error) {
+        console.error("Erro ao salvar cartão:", error);
         alert("Erro ao salvar cartão.");
       }
     }
@@ -87,8 +186,12 @@ export default function CartoesGestao({ tipo }) {
         descricao: motivo
       };
 
+      const cardId = (tempDados.numeroCartao || tempDados.numero || editingCartao.id).trim();
+
       await updateDoc(docRef, {
         ...tempDados,
+        numero: cardId,
+        numeroCartao: cardId,
         tipo: tipo,
         historico: arrayUnion(novoLog)
       });
@@ -143,9 +246,18 @@ export default function CartoesGestao({ tipo }) {
           </h1>
           <p className="text-slate-500 text-sm">Gestão de cartões físicos e fluxo de entrega.</p>
         </div>
-        <Button onClick={() => { setEditingCartao(null); setIsModalOpen(true); }}>
-          <Plus size={20} /> Novo Cartão
-        </Button>
+        
+        <div className="flex gap-3">
+          {/* Botão de Sementeira Contextualizado */}
+          <Button onClick={handleSementeiraLote} disabled={isImporting || loading}>
+            <Database size={20} className={isImporting ? "animate-spin" : ""} />
+            {isImporting ? 'A Importar...' : 'Sementeira em Lote'}
+          </Button>
+
+          <Button onClick={() => { setEditingCartao(null); setIsModalOpen(true); }}>
+            <Plus size={20} /> Novo Cartão
+          </Button>
+        </div>
       </header>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
