@@ -25,10 +25,14 @@ export default function Veiculos() {
   const [isJustifyModalOpen, setIsJustifyModalOpen] = useState(false);
   const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
   
+  // ◄ CORRIGIDO: Todos os estados originais restaurados com sucesso
   const [veiculos, setVeiculos] = useState([]);
+  const [motoristas, setMotoristas] = useState([]);
+  const [proprietarios, setProprietarios] = useState([]);
   const [funcionarios, setFuncionarios] = useState([]);
+  const [cartoes, setCartoes] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [editingId, setEditingId] = useState(null);
+  const [editingVeiculo, setEditingVeiculo] = useState(null);
   const [isViewOnly, setIsViewOnly] = useState(false);
   const [tempDados, setTempDados] = useState(null);
   const [lastSavedItem, setLastSavedItem] = useState(null);
@@ -78,9 +82,9 @@ export default function Veiculos() {
         if (!matriculasExistentes.includes(matricula)) {
           await addDoc(collection(db, "veiculos"), {
             matricula: matricula,
-            marca: "Viatura Oficial", // Placeholder
-            modelo: "TVDE",            // Placeholder
-            motoristaId: "",           // Fica livre para associar ao motorista
+            marca: "Viatura Oficial", 
+            modelo: "TVDE",            
+            motoristaId: "",           
             status: "Ativo",
             dataCriacao: new Date().toISOString()
           });
@@ -89,7 +93,7 @@ export default function Veiculos() {
       }
 
       alert(`Concluído com sucesso!\n\nForam criadas ${criadasCount} novas viaturas (das ${listaMatriculas.length} da lista).`);
-      fetchData(); // Recarrega os dados do ecrã para mostrar as novas viaturas
+      fetchData(); 
     } catch (err) {
       console.error("Erro na sementeira de viaturas:", err);
       alert("Erro ao gravar os dados no Firestore de Produção.");
@@ -230,7 +234,7 @@ export default function Veiculos() {
 
       if (resultado.sucesso) {
         alert(resultado.msg);
-        fetchData(); // Refresca os dados na tabela do ERP em tempo real
+        fetchData(); 
       } else {
         alert(resultado.msg);
       }
