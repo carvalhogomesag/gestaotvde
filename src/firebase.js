@@ -12,6 +12,17 @@ const firebaseConfig = {
   appId: import.meta.env.VITE_FIREBASE_APP_ID
 };
 
+// ◄ ADICIONADO: Diagnóstico inteligente de ambiente no Console
+if (!import.meta.env.VITE_FIREBASE_API_KEY) {
+  console.warn(
+    "⚠️ [Firebase]: Variáveis de ambiente em falta! " +
+    "Verifique se os ficheiros .env.development ou .env.production estão na raiz do projeto."
+  );
+} else {
+  const modoAtivo = import.meta.env.MODE; // Retorna 'development' ou 'production'
+  console.log(`📡 [Firebase] Conectado com sucesso em modo: ${modoAtivo.toUpperCase()}`);
+}
+
 // Inicializar Firebase
 const app = initializeApp(firebaseConfig);
 
