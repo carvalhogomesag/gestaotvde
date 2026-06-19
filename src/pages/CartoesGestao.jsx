@@ -260,47 +260,91 @@ export default function CartoesGestao({ tipo }) {
         </div>
       </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {cartoes.map(c => (
-          <div key={c.id} className="bg-white border border-slate-200 rounded-[2rem] p-6 shadow-sm hover:shadow-md transition-all relative overflow-hidden group">
-            <div className="absolute top-0 right-0 w-20 h-20 bg-slate-50 rounded-bl-full -mr-10 -mt-10"></div>
-            
-            <div className="flex justify-between items-start mb-4">
-              <div>
-                <p className="text-xs font-black text-tvde-primary uppercase tracking-widest">{c.fornecedor}</p>
-                <p className="text-lg font-mono font-bold mt-1 text-slate-700">{c.numeroCartao}</p>
-              </div>
-              <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                <button onClick={() => { setEditingCartao(c); setIsModalOpen(true); }} className="p-2 bg-slate-100 text-slate-400 hover:text-tvde-primary rounded-xl">
-                  <Edit size={16} />
-                </button>
-                <button onClick={() => handleDelete(c.id)} className="p-2 bg-slate-100 text-slate-400 hover:text-red-500 rounded-xl">
-                  <Trash2 size={16} />
-                </button>
-              </div>
-            </div>
+      {/* Visualização em Linhas (Tabela) */}
+      {cartoes.length > 0 && !loading && (
+        <div className="bg-white border border-slate-200 rounded-[2rem] overflow-hidden shadow-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse">
+              <thead className="bg-slate-50 border-b border-slate-100 text-slate-400 text-[10px] font-black uppercase tracking-widest">
+                <tr>
+                  <th className="py-4 px-6">Identificador / Número</th>
+                  <th className="py-4 px-6">Fornecedor</th>
+                  <th className="py-4 px-6">PIN</th>
+                  <th className="py-4 px-6">Plafond Semanal</th>
+                  <th className="py-4 px-6">Veículo Associado</th>
+                  <th className="py-4 px-6 text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-sm text-slate-700 font-medium">
+                {cartoes.map(c => (
+                  <tr key={c.id} className="hover:bg-slate-50/50 transition-all group">
+                    {/* Número do Cartão */}
+                    <td className="py-4 px-6 font-mono font-bold text-slate-900">
+                      {c.numeroCartao || c.numero}
+                    </td>
 
-            <div className="space-y-3">
-              <div className="flex justify-between items-center bg-slate-50 p-3 rounded-2xl border border-slate-100">
-                <span className="text-[10px] text-slate-400 font-black uppercase flex items-center gap-1">
-                  <ShieldCheck size={14} /> PIN
-                </span>
-                <span className="font-black text-tvde-dark tracking-widest">{c.pin || '----'}</span>
-              </div>
+                    {/* Fornecedor */}
+                    <td className="py-4 px-6">
+                      <span className="text-xs font-black text-tvde-primary uppercase tracking-widest">
+                        {c.fornecedor}
+                      </span>
+                    </td>
 
-              <div className="flex justify-between text-sm px-1">
-                <span className="text-slate-400 font-medium">Plafond Semanal:</span>
-                <span className="font-bold text-tvde-accent">{c.plafond} €</span>
-              </div>
+                    {/* Código PIN */}
+                    <td className="py-4 px-6">
+                      <div className="inline-flex items-center gap-1.5 bg-slate-50 border border-slate-100 px-3 py-1 rounded-xl">
+                        <ShieldCheck size={14} className="text-slate-400" />
+                        <span className="font-bold text-slate-700 tracking-wider font-mono">
+                          {c.pin || '----'}
+                        </span>
+                      </div>
+                    </td>
 
-              <div className="flex justify-between text-sm border-t border-slate-50 pt-3 px-1">
-                <span className="text-slate-400 font-medium">Veículo:</span>
-                <span className="font-bold text-slate-700">{c.vinculoMatricula || 'Em Stock'}</span>
-              </div>
-            </div>
+                    {/* Plafond Semanal */}
+                    <td className="py-4 px-6">
+                      <span className="font-bold text-tvde-accent">
+                        {c.plafond} €
+                      </span>
+                    </td>
+
+                    {/* Veículo Associado */}
+                    <td className="py-4 px-6">
+                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${
+                        c.vinculoMatricula 
+                          ? 'bg-indigo-50 text-indigo-700 border-indigo-100' 
+                          : 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                      }`}>
+                        <span className={`h-1.5 w-1.5 rounded-full ${c.vinculoMatricula ? 'bg-indigo-600' : 'bg-emerald-600'}`} />
+                        {c.vinculoMatricula || 'Em Stock'}
+                      </span>
+                    </td>
+
+                    {/* Ações */}
+                    <td className="py-4 px-6 text-right">
+                      <div className="flex gap-2 justify-end opacity-0 group-hover:opacity-100 transition-all">
+                        <button 
+                          onClick={() => { setEditingCartao(c); setIsModalOpen(true); }} 
+                          className="p-2 text-slate-400 hover:text-tvde-primary hover:bg-slate-100 rounded-xl transition"
+                          title="Editar Cartão"
+                        >
+                          <Edit size={16} />
+                        </button>
+                        <button 
+                          onClick={() => handleDelete(c.id)} 
+                          className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition"
+                          title="Eliminar Cartão"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        ))}
-      </div>
+        </div>
+      )}
 
       {cartoes.length === 0 && !loading && (
         <div className="text-center py-20 bg-white rounded-[3rem] border-2 border-dashed border-slate-100">
