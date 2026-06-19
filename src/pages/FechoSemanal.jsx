@@ -341,12 +341,41 @@ export default function FechoSemanal() {
   );
 }
 
-const UploadBox = ({ title, icon: Icon, color, onChange, ready }) => (
-  <div className={`bg-white p-5 rounded-[2rem] border-2 border-dashed transition-all flex flex-col items-center text-center group ${ready ? 'border-green-500 bg-green-50/30' : 'border-slate-200 hover:border-tvde-primary'}`}>
-    <div className={`w-11 h-11 rounded-xl flex items-center justify-center mb-3 ${ready ? 'bg-green-500 text-white' : `bg-${color}-50 text-${color}-500`}`}>
-      {ready ? <CheckCircle2 size={20} /> : <Icon size={20} />}
-    </div>
-    <h4 className="text-xs font-bold text-slate-700">{cat?.label || 'Dístico'}</h4>
-    <p className="text-[10px] text-slate-400 mt-1 leading-snug">Formatos suportados: PDF, XLS, CSV.</p>
-  </div>
-);
+// ◄ CORRIGIDO: UploadBox reestruturado com suporte de clique, resolvido o erro "cat" e mapa de cores correto
+const UploadBox = ({ title, icon: Icon, color, onChange, ready }) => {
+  const colorMap = {
+    blue:   'bg-blue-50 text-blue-500 hover:border-blue-400',
+    green:  'bg-green-50 text-green-500 hover:border-green-400',
+    purple: 'bg-purple-50 text-purple-500 hover:border-purple-400',
+    orange: 'bg-orange-50 text-orange-500 hover:border-orange-400',
+    yellow: 'bg-yellow-50 text-yellow-500 hover:border-yellow-400'
+  };
+
+  const idInput = `file-upload-${title.toLowerCase().replace(/\s/g, '-')}`;
+
+  return (
+    <label 
+      htmlFor={idInput}
+      className={`bg-white p-5 rounded-[2rem] border-2 border-dashed transition-all flex flex-col items-center text-center group cursor-pointer ${
+        ready ? 'border-green-500 bg-green-50/30' : 'border-slate-200 hover:border-slate-400'
+      }`}
+    >
+      <input 
+        id={idInput}
+        type="file" 
+        accept=".csv, .xls, .xlsx" 
+        onChange={onChange} 
+        className="hidden" 
+      />
+      <div className={`w-11 h-11 rounded-xl flex items-center justify-center mb-3 ${
+        ready ? 'bg-green-500 text-white' : colorMap[color] || 'bg-slate-50 text-slate-500'
+      }`}>
+        {ready ? <CheckCircle2 size={20} /> : <Icon size={20} />}
+      </div>
+      <h4 className="text-xs font-bold text-slate-700">{title}</h4>
+      <p className="text-[10px] text-slate-400 mt-1 leading-snug">
+        {ready ? 'Ficheiro pronto' : 'Formatos: CSV, XLS, XLSX'}
+      </p>
+    </label>
+  );
+};
