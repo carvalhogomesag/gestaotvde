@@ -26,12 +26,9 @@ export default function Veiculos() {
   const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
   
   const [veiculos, setVeiculos] = useState([]);
-  const [motoristas, setMotoristas] = useState([]);
-  const [proprietarios, setProprietarios] = useState([]);
   const [funcionarios, setFuncionarios] = useState([]);
-  const [cartoes, setCartoes] = useState([]);
   const [loading, setLoading] = useState(true);
-  const [editingVeiculo, setEditingVeiculo] = useState(null);
+  const [editingId, setEditingId] = useState(null);
   const [isViewOnly, setIsViewOnly] = useState(false);
   const [tempDados, setTempDados] = useState(null);
   const [lastSavedItem, setLastSavedItem] = useState(null);
@@ -48,6 +45,57 @@ export default function Veiculos() {
       }
     });
     return novoObj;
+  };
+
+  /**
+   * SEMEADOR AUTOMÁTICO EM LOTE PARA PRODUÇÃO:
+   * Grava as 49 matrículas da lista da frota original.
+   */
+  const preencherMatriculasProducao = async () => {
+    const listaMatriculas = [
+      "22-ZR-30", "69-RI-58", "AA-80-HJ", "AD-69-RI", "AF-02-FS", "AN-43-NA", "AO-73-SJ", 
+      "AS-36-RC", "AZ-39-MM", "AZ-59-PS", "BB-17-HA", "BC-43-10", "BM-84-XQ", "BO-44-VT", 
+      "BO-72-SX", "BP-35-EH", "BQ-10-ER", "BQ-20-LS", "BQ-61-LR", "BQ-71-LT", "BR-31-FO", 
+      "BS-10-HH", "BS-23-IT", "BS-26-JG", "BS-69-LS", "BS-79-HF", "BU-21-VR", "BV-25-NE", 
+      "BV-98-ZJ", "BZ-13-UE", "BZ-19-TD", "BZ-21-TC", "BZ-28-UG", "BZ-35-TC", "BZ-46-UD", 
+      "BZ-48-SZ", "BZ-54-TD", "BZ-58-UG", "BZ-97-SX", "CA-71-EQ", "CB-54-OX", "CE-04-LH", 
+      "CE-35-LD", "CE-38-OS", "CF-52-GH", "CF-91-FQ", "CG-16-LG", "CG-64-LC", "CG-74-ZE"
+    ];
+
+    if (!window.confirm(`Deseja importar as ${listaMatriculas.length} viaturas reais diretamente para a Produção?`)) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      // 1. Procurar as viaturas que já existem para evitar duplicados
+      const querySnapshot = await getDocs(collection(db, "veiculos"));
+      const matriculasExistentes = querySnapshot.docs.map(doc => doc.data().matricula);
+
+      let criadasCount = 0;
+
+      for (const matricula of listaMatriculas) {
+        if (!matriculasExistentes.includes(matricula)) {
+          await addDoc(collection(db, "veiculos"), {
+            matricula: matricula,
+            marca: "Viatura Oficial", // Placeholder
+            modelo: "TVDE",            // Placeholder
+            motoristaId: "",           // Fica livre para associar ao motorista
+            status: "Ativo",
+            dataCriacao: new Date().toISOString()
+          });
+          criadasCount++;
+        }
+      }
+
+      alert(`Concluído com sucesso!\n\nForam criadas ${criadasCount} novas viaturas (das ${listaMatriculas.length} da lista).`);
+      fetchData(); // Recarrega os dados do ecrã para mostrar as novas viaturas
+    } catch (err) {
+      console.error("Erro na sementeira de viaturas:", err);
+      alert("Erro ao gravar os dados no Firestore de Produção.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   /**
@@ -295,21 +343,32 @@ export default function Veiculos() {
 
   return (
     <div className="space-y-6">
-      {/* ◄ ALTERADO: Header empilhável responsivo e botão de registo expandido em mobile */}
+      {/* Header empilhável responsivo e botão de registo expandido em mobile */}
       <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-slate-800">Veículos</h1>
           <p className="text-slate-500 text-xs sm:text-sm">Gestão da frota, condutores e tarefas.</p>
         </div>
-        <Button 
-          onClick={() => setIsModalOpen(true)}
-          className="w-full sm:w-auto justify-center text-xs sm:text-sm"
-        >
-          <Plus size={18} /> Novo Veículo
-        </Button>
+        
+        {/* Agrupamento de botões de acção do Cabeçalho */}
+        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+          <Button 
+            onClick={preencherMatriculasProducao}
+            disabled={loading}
+            className="w-full sm:w-auto justify-center text-xs sm:text-sm bg-emerald-600 hover:bg-emerald-700"
+          >
+            🚗 Registar Frota (Lote)
+          </Button>
+          <Button 
+            onClick={() => setIsModalOpen(true)}
+            className="w-full sm:w-auto justify-center text-xs sm:text-sm"
+          >
+            <Plus size={18} /> Novo Veículo
+          </Button>
+        </div>
       </header>
 
-      {/* ◄ ALTERADO: Padding otimizado para telemóveis */}
+      {/* Padding otimizado para telemóveis */}
       <div className="flex gap-4 bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-slate-100">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
@@ -327,7 +386,7 @@ export default function Veiculos() {
           <p className="text-xs sm:text-sm font-semibold">A carregar frota...</p>
         </div>
       ) : (
-        /* ◄ ALTERADO: Contentor de segurança de scroll lateral adicionado ao redor da tabela */
+        /* Contentor de segurança de scroll lateral adicionado ao redor da tabela */
         <div className="w-full overflow-x-auto rounded-2xl border border-slate-100 shadow-sm bg-white">
           <VeiculosList 
             veiculos={veiculos} 
