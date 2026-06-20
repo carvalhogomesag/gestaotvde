@@ -5,14 +5,16 @@
  * Lista de veículos da frota em formato de tabela.
  * Atualizado com suporte responsivo autocapsulado (Horizontal Scroll-Safe).
  * Otimizado com:
- * - Filtros integrados rápidos em cada cabeçalho [2].
- * - Ordenação alfabética automática por veículo [1].
- * - Remoção definitiva da coluna de cartões de combustível (migrados para motorista) [1].
- * - Renderização de placas físicas em conformidade com o formato real de matrículas portuguesas [1].
+ * - Filtros integrados rápidos em cada cabeçalho.
+ * - Ordenação alfabética automática por veículo.
+ * - Remoção definitiva da coluna de cartões de combustível (migrados para motorista).
+ * - Renderização de placas físicas em conformidade com o formato real de matrículas portuguesas.
+ * - [NOVO] Coluna de Anúncio otimizada para ícones (Play/Pause) poupando espaço horizontal.
  */
 
 import React, { useState } from 'react';
-import { Edit, Trash2, Car, User, Building2, FileText, ShieldCheck, ClipboardCheck, Eye, AlertCircle } from 'lucide-react';
+// Foram adicionados os ícones Play e Pause para substituir o texto do estado do anúncio
+import { Edit, Trash2, Car, User, Building2, FileText, ShieldCheck, ClipboardCheck, Eye, AlertCircle, Play, Pause } from 'lucide-react';
 import { formatMatricula } from '../../utils/formatters';
 
 export default function VeiculosList({ 
@@ -22,7 +24,7 @@ export default function VeiculosList({
   onToggleAnuncio // Propriedade para ativar ou desativar o fluxo de workflow
 }) {
   
-  // ESTADOS DE FILTRAGEM INDIVIDUAL POR COLUNA [1, 2]
+  // ESTADOS DE FILTRAGEM INDIVIDUAL POR COLUNA
   const [filterVeiculo, setFilterVeiculo] = useState('');
   const [filterMatricula, setFilterMatricula] = useState('');
   const [filterMotorista, setFilterMotorista] = useState('');
@@ -255,20 +257,23 @@ export default function VeiculosList({
                   </div>
                 </td>
 
-                {/* COLUNA DO INTERRUPTOR DE ANÚNCIO DO CATÁLOGO PÚBLICO */}
+                {/* COLUNA DO INTERRUPTOR DE ANÚNCIO DO CATÁLOGO PÚBLICO - OTIMIZADA COM ÍCONES */}
                 <td className="p-4 text-center">
                   <button
                     type="button"
                     onClick={() => onToggleAnuncio && onToggleAnuncio(v.id, !anuncioAtivo, v.matricula)}
-                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[10px] font-black uppercase tracking-wider transition-all border cursor-pointer select-none ${
+                    className={`inline-flex items-center justify-center p-2 rounded-lg transition-all border cursor-pointer select-none shadow-sm ${
                       anuncioAtivo
-                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200 hover:bg-emerald-100'
-                        : 'bg-slate-100 text-slate-500 border-slate-200 hover:bg-slate-200'
+                        ? 'bg-emerald-50 border-emerald-200 hover:bg-emerald-100'
+                        : 'bg-slate-50 border-slate-200 hover:bg-slate-100'
                     }`}
-                    title={anuncioAtivo ? "Pausar anúncio no catálogo público" : "Ativar anúncio no catálogo público"}
+                    title={anuncioAtivo ? "Anúncio Ativo no Catálogo (Clique para Pausar)" : "Anúncio Pausado (Clique para Ativar)"}
                   >
-                    <span className={`w-1.5 h-1.5 rounded-full ${anuncioAtivo ? 'bg-emerald-500 animate-pulse' : 'bg-slate-400'}`}></span>
-                    {anuncioAtivo ? 'Ativo' : 'Pausado'}
+                    {anuncioAtivo ? (
+                      <Play size={18} className="fill-emerald-500 text-emerald-500" />
+                    ) : (
+                      <Pause size={18} className="fill-slate-400 text-slate-400" />
+                    )}
                   </button>
                 </td>
 

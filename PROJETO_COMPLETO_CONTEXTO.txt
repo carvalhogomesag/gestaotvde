@@ -2638,65 +2638,114 @@ export default function AssessoradosList({ assessorados, onEdit }) {
 
 ### ARQUIVO: src\features\cartoes\CartaoForm.jsx ###
 --------------------------------------------------
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import Button from '../../components/ui/Button';
 
-export default function CartaoForm({ onSubmit, initialData = {}, veiculos = [], onCancel }) {
+/**
+ * Função Auxiliar: Formata o nome em Title Case para exibição 
+ * uniforme no select de motoristas.
+ */
+const formatTitleCase = (str) => {
+  if (!str) return '';
+  const preposicoes = ['de', 'da', 'do', 'das', 'dos', 'e', 'em'];
+  return str
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .map((word, index) => {
+      if (preposicoes.includes(word) && index !== 0) {
+        return word;
+      }
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    })
+    .join(' ');
+};
+
+export default function CartaoForm({ onSubmit, initialData = {}, motoristas = [], onCancel }) {
+  // Estado inicial lê de forma defensiva e mapeia para a nova relação com Motoristas [1]
   const [formData, setFormData] = useState({
     fornecedor: initialData.fornecedor || '',
-    numero: initialData.numero || '',
-    pin: initialData.pin || '',
+    numero: initialData.numero || initialData.numeroCartao || '',
+    pin: initialData.pin || initialData.PIN || '',
     plafond: initialData.plafond || '',
-    veiculoId: initialData.veiculoId || '',
-    veiculoMatricula: initialData.veiculoMatricula || '',
+    motoristaId: initialData.motoristaId || '',
+    motoristaNome: initialData.motoristaNome || '',
     tipo: initialData.tipo || 'combustivel' // ou 'eletrico'
   });
 
+  // Garante a re-sincronização do estado caso o formulário mude de dados em edição
+  useEffect(() => {
+    setFormData({
+      fornecedor: initialData.fornecedor || '',
+      numero: initialData.numero || initialData.numeroCartao || '',
+      pin: initialData.pin || initialData.PIN || '',
+      plafond: initialData.plafond || '',
+      motoristaId: initialData.motoristaId || '',
+      motoristaNome: initialData.motoristaNome || '',
+      tipo: initialData.tipo || 'combustivel'
+    });
+  }, [initialData]);
+
   const handleSubmit = (e) => {
     e.preventDefault();
-    onSubmit(formData);
+    
+    const valorLimpo = formData.numero.trim();
+
+    // Sincroniza ambos os campos de dados na submissão ao componente pai [1]
+    onSubmit({
+      ...formData,
+      numero: valorLimpo,
+      numeroCartao: valorLimpo,
+      pin: formData.pin,
+      PIN: formData.pin // Preserva as duas variações de propriedades para segurança estrutural
+    });
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
       <div>
         <label className="block text-sm font-medium text-slate-700 mb-1">Fornecedor (Ex: Prio, Galp, MiiO)</label>
-        <input required className="w-full p-2 border border-slate-200 rounded-lg"
+        <input required className="w-full p-2 border border-slate-200 rounded-lg text-xs"
           value={formData.fornecedor} onChange={(e) => setFormData({...formData, fornecedor: e.target.value})} />
       </div>
       
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">Número do Cartão</label>
-        <input required className="w-full p-2 border border-slate-200 rounded-lg font-mono"
+        <label className="block text-sm font-medium text-slate-700 mb-1">Número do Cartão (Identificador)</label>
+        <input required className="w-full p-2 border border-slate-200 rounded-lg font-mono text-xs"
           value={formData.numero} onChange={(e) => setFormData({...formData, numero: e.target.value})} />
       </div>
 
       <div className="grid grid-cols-2 gap-4">
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1">PIN / Senha</label>
-          <input required className="w-full p-2 border border-slate-200 rounded-lg font-bold text-tvde-primary"
+          <input required className="w-full p-2 border border-slate-200 rounded-lg font-bold text-tvde-primary text-xs"
             value={formData.pin} onChange={(e) => setFormData({...formData, pin: e.target.value})} />
         </div>
         <div>
           <label className="block text-sm font-medium text-slate-700 mb-1">Plafond Semanal (€)</label>
-          <input type="number" required className="w-full p-2 border border-slate-200 rounded-lg"
+          <input type="number" required className="w-full p-2 border border-slate-200 rounded-lg text-xs"
             value={formData.plafond} onChange={(e) => setFormData({...formData, plafond: e.target.value})} />
         </div>
       </div>
 
+      {/* ◄ ALTERADO: Atribuição direta ao Motorista em vez de Veículo */}
       <div>
-        <label className="block text-sm font-medium text-slate-700 mb-1">Atribuído ao Veículo</label>
+        <label className="block text-sm font-medium text-slate-700 mb-1">Atribuído ao Motorista</label>
         <select 
-          className="w-full p-2 border border-slate-200 rounded-lg bg-white"
-          value={formData.veiculoId}
+          className="w-full p-2 border border-slate-200 rounded-lg bg-white text-xs"
+          value={formData.motoristaId}
           onChange={(e) => {
-            const v = veiculos.find(v => v.id === e.target.value);
-            setFormData({...formData, veiculoId: e.target.value, veiculoMatricula: v ? v.matricula : ''});
+            const m = motoristas.find(m => m.id === e.target.value);
+            setFormData({
+              ...formData, 
+              motoristaId: e.target.value, 
+              motoristaNome: m ? m.nome : ''
+            });
           }}
         >
           <option value="">Cartão em Stock (Não atribuído)</option>
-          {veiculos.map(v => (
-            <option key={v.id} value={v.id}>{v.matricula} - {v.marca}</option>
+          {motoristas.map(m => (
+            <option key={m.id} value={m.id}>{formatTitleCase(m.nome)}</option>
           ))}
         </select>
       </div>
@@ -6429,7 +6478,7 @@ import {
   CheckSquare, Square, Camera, Eye, Trash2, 
   CheckCircle2, AlertCircle, History, Wallet, Plus, Minus, 
   Euro, ChevronDown, ChevronUp, FileCheck, Image as ImageIcon, Info,
-  MessageSquare, Share2, Send, Sparkles, ShieldCheck, AlertTriangle, ArrowRight, X
+  MessageSquare, Share2, Send, Sparkles, ShieldCheck, AlertTriangle, ArrowRight, X, Car
 } from 'lucide-react';
 import { db } from '../../firebase';
 import { doc, updateDoc, addDoc, collection, query, where, onSnapshot, deleteDoc } from 'firebase/firestore';
@@ -6437,6 +6486,47 @@ import { useAuth } from '../../context/AuthContext';
 import { logAcaoGlobal } from '../../utils/logger';
 import { formatCurrency } from '../../utils/formatters';
 import ModalFinanceiro from '../financeiro/ModalFinanceiro';
+
+/**
+ * Função Auxiliar: Formata qualquer texto em Title Case,
+ * mantendo as preposições portuguesas comuns em minúsculas.
+ */
+const formatTitleCase = (str) => {
+  if (!str) return '';
+  const preposicoes = ['de', 'da', 'do', 'das', 'dos', 'e', 'em'];
+  return str
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .map((word, index) => {
+      if (preposicoes.includes(word) && index !== 0) {
+        return word;
+      }
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    })
+    .join(' ');
+};
+
+/**
+ * Função Auxiliar: Aplica máscara de telemóvel português (000 000 000)
+ */
+const formatPhone = (val) => {
+  if (!val) return '';
+  const clean = val.replace(/\D/g, '').substring(0, 9);
+  if (clean.length <= 3) return clean;
+  if (clean.length <= 6) return `${clean.slice(0, 3)} ${clean.slice(3)}`;
+  return `${clean.slice(0, 3)} ${clean.slice(3, 6)} ${clean.slice(6)}`;
+};
+
+/**
+ * Função Auxiliar: Aplica máscara de código postal português (0000-000)
+ */
+const formatPostalCode = (val) => {
+  if (!val) return '';
+  const clean = val.replace(/\D/g, '').substring(0, 7);
+  if (clean.length <= 4) return clean;
+  return `${clean.slice(0, 4)}-${clean.slice(4)}`;
+};
 
 /**
  * Componente Auxiliar: Secção Colapsável Compacta
@@ -6454,34 +6544,98 @@ const CollapsibleSection = ({ title, icon: Icon, iconColor, defaultOpen = false,
   );
 };
 
-export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, isReadOnly = false, onCriarProprietario }) {
+export default function MotoristaForm({ 
+  onSubmit, 
+  initialData = {}, 
+  onCancel, 
+  isReadOnly = false, 
+  onCriarProprietario,
+  veiculos = [],  
+  cartoes = [],    
+  motoristas = [] 
+}) {
   const { userData } = useAuth();
   
-  // ESTADO CENTRAL DO FORMULÁRIO
+  // ESTADO CENTRAL DO FORMULÁRIO (Mapeado e mascarado de origem)
   const [formData, setFormData] = useState({
-    nome: initialData.nome || '', email: initialData.email || '', telemovel: initialData.telemovel || '', nif: initialData.nif || '',
-    nifPagamento: initialData.nifPagamento || '', nifMesmoMotorista: initialData.nifMesmoMotorista || false, 
-    numID: initialData.numID || '', numCarta: initialData.numCarta || '', 
-    numTVDE: initialData.numTVDE || '', dataNascimento: initialData.dataNascimento || '', iban: initialData.iban || '',
-    moradaTipo: initialData.moradaTipo || '', moradaRua: initialData.moradaRua || '', moradaNumero: initialData.moradaNumero || '',
-    moradaComplemento: initialData.moradaComplemento || '', codigoPostal: initialData.codigoPostal || '', localidade: initialData.localidade || '',
-    status: initialData.status || 'Ativo', fotoPerfil: initialData.fotoPerfil || '', docIDFront: initialData.docIDFront || '',
-    docIDBack: initialData.docIDBack || '', docCartaFront: initialData.docCartaFront || '', docCartaBack: initialData.docCartaBack || '',
-    docCertificadoTVDE: initialData.docCertificadoTVDE || '', docRegistoCriminal: initialData.docRegistoCriminal || '',
-    docIBAN: initialData.docIBAN || '', docMorada: initialData.docMorada || '', validadeID: initialData.validadeID || '',
-    validadeCarta: initialData.validadeCarta || '', validadeTVDE: initialData.validadeTVDE || '', validadeCriminal: initialData.validadeCriminal || '',
+    nome: initialData.nome || '', 
+    email: initialData.email || '', 
+    telemovel: formatPhone(initialData.telemovel || ''), 
+    nif: initialData.nif || '',
+    nifPagamento: initialData.nifPagamento || '', 
+    nifMesmoMotorista: initialData.nifMesmoMotorista || false, 
+    numID: initialData.numID || '', 
+    numCarta: initialData.numCarta || '', 
+    numTVDE: initialData.numTVDE || '', 
+    dataNascimento: initialData.dataNascimento || '', 
+    iban: initialData.iban || '',
+    moradaTipo: initialData.moradaTipo || '', 
+    moradaRua: initialData.moradaRua || '', 
+    moradaNumero: initialData.moradaNumero || '',
+    moradaComplemento: initialData.moradaComplemento || '', 
+    codigoPostal: formatPostalCode(initialData.codigoPostal || ''), 
+    localidade: initialData.localidade || '',
+    status: initialData.status || 'Ativo', 
+    fotoPerfil: initialData.fotoPerfil || '', 
+    docIDFront: initialData.docIDFront || '',
+    docIDBack: initialData.docIDBack || '', 
+    docCartaFront: initialData.docCartaFront || '', 
+    docCartaBack: initialData.docCartaBack || '',
+    docCertificadoTVDE: initialData.docCertificadoTVDE || '', 
+    docRegistoCriminal: initialData.docRegistoCriminal || '',
+    docIBAN: initialData.docIBAN || '', 
+    docMorada: initialData.docMorada || '', 
+    validadeID: initialData.validadeID || '',
+    validadeCarta: initialData.validadeCarta || '', 
+    validadeTVDE: initialData.validadeTVDE || '', 
+    validadeCriminal: initialData.validadeCriminal || '',
     observacoes_ia: initialData.observacoes_ia || '',
     alerta_inconsistencia: initialData.alerta_inconsistencia || false,
-    motivo_inconsistencia: initialData.motivo_inconsistencia || ''
+    motivo_inconsistencia: initialData.motivo_inconsistencia || '',
+    
+    // Atribuição de Frota e Cartões
+    veiculoId: initialData.veiculoId || '',
+    veiculoMatricula: initialData.veiculoMatricula || '',
+    cartaoAbastecimentoId: initialData.cartaoAbastecimentoId || '',
+    cartaoAbastecimentoNumero: initialData.cartaoAbastecimentoNumero || '',
+    cartaoCarregamentoId: initialData.cartaoCarregamentoId || '',
+    cartaoCarregamentoNumero: initialData.cartaoCarregamentoNumero || ''
   });
 
   const [criarComoProprietario, setCriarComoProprietario] = useState(false);
   const [modalFinanceiroAberto, setModalFinanceiroAberto] = useState(false);
 
-  // ◄ ADICIONADO: Estados em falta para controlar os sub-modais de UX
+  // Estados para controlo dos sub-modais de UX
+  const [modalIdentificacaoAberto, setModalIdentificacaoAberto] = useState(false);
   const [modalMoradaAberto, setModalMoradaAberto] = useState(false);
   const [modalFaturacaoAberto, setModalFaturacaoAberto] = useState(false);
   const [modalDocumentosAberto, setModalDocumentosAberto] = useState(false);
+  const [modalFrotaAberto, setModalFrotaAberto] = useState(false); 
+
+  // Novo estado para controlar dinamicamente a exibição das categorias de cartões [1]
+  const [tipoCartaoAtribuido, setTipoCartaoAtribuido] = useState('');
+
+  // TRAVA DE SEGURANÇA OPERACIONAL: Filtra motoristas que já têm outro cartão deste tipo [1]
+  const cartoesAbastecimentoOcupados = motoristas
+    .filter(m => m.id !== initialData.id && m.cartaoAbastecimentoId)
+    .map(m => m.cartaoAbastecimentoId);
+
+  const cartoesCarregamentoOcupados = motoristas
+    .filter(m => m.id !== initialData.id && m.cartaoCarregamentoId)
+    .map(m => m.cartaoCarregamentoId);
+
+  // Filtrar os cartões que estão livres na base de dados para atribuição [1]
+  const cartoesCombustivelDisponiveis = cartoes.filter(card => {
+    const isCombustivel = card.tipo === 'combustivel';
+    const isOcupadoPorOutro = cartoesAbastecimentoOcupados.includes(card.id);
+    return isCombustivel && !isOcupadoPorOutro;
+  });
+
+  const cartoesEletricosDisponiveis = cartoes.filter(card => {
+    const isEletrico = card.tipo === 'eletrico';
+    const isOcupadoPorOutro = cartoesCarregamentoOcupados.includes(card.id);
+    return isEletrico && !isOcupadoPorOutro;
+  });
 
   // Vínculo do campo IBAN ao seu respetivo documento de origem para auditoria visual
   const fieldToDocMap = {
@@ -6526,13 +6680,51 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
       ...prev, 
       ...initialData, 
       ...camposIA, 
+      telemovel: formatPhone(initialData.telemovel || prev.telemovel || ''),
+      codigoPostal: formatPostalCode(initialData.codigoPostal || prev.codigoPostal || ''),
       observacoes_ia: initialData.observacoes_ia || prev.observacoes_ia,
       alerta_inconsistencia: initialData.alerta_inconsistencia || prev.alerta_inconsistencia,
       motivo_inconsistencia: initialData.motivo_inconsistencia || prev.motivo_inconsistencia
     }));
+
+    // Determina o tipo de cartão inicial na montagem dos dados [1]
+    if (initialData.cartaoAbastecimentoId) {
+      setTipoCartaoAtribuido('combustivel');
+    } else if (initialData.cartaoCarregamentoId) {
+      setTipoCartaoAtribuido('eletrico');
+    } else {
+      setTipoCartaoAtribuido('');
+    }
   }, [initialData]);
 
   useEffect(() => { if (formData.nifMesmoMotorista) { setFormData(prev => ({ ...prev, nifPagamento: prev.nif })); } }, [formData.nif, formData.nifMesmoMotorista]);
+
+  // Função para controlar a mudança de categoria e limpar resíduos do outro tipo [1]
+  const handleTipoCartaoChange = (novoTipo) => {
+    setTipoCartaoAtribuido(novoTipo);
+    
+    if (novoTipo === 'combustivel') {
+      setFormData(prev => ({
+        ...prev,
+        cartaoCarregamentoId: '',
+        cartaoCarregamentoNumero: ''
+      }));
+    } else if (novoTipo === 'eletrico') {
+      setFormData(prev => ({
+        ...prev,
+        cartaoAbastecimentoId: '',
+        cartaoAbastecimentoNumero: ''
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        cartaoAbastecimentoId: '',
+        cartaoAbastecimentoNumero: '',
+        cartaoCarregamentoId: '',
+        cartaoCarregamentoNumero: ''
+      }));
+    }
+  };
 
   const validarCampoIA = async (campo) => {
     const motoristaId = initialData.id || formData.id;
@@ -6545,23 +6737,10 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
     }
   };
 
-  const handleEnviarLinkExistente = (metodo) => {
-    const onboardingUrl = `${window.location.origin}/onboarding/${initialData.id}`;
-    const mensagem = `Olá ${formData.nome}, utilize este link para carregar os seus documentos: ${onboardingUrl}`;
-    if (metodo === 'whatsapp') {
-      window.open(`https://wa.me/351${formData.telemovel}?text=${encodeURIComponent(mensagem)}`, '_blank');
-    } else if (metodo === 'email') {
-      window.location.href = `mailto:${formData.email}?subject=Registo de Motorista - Documentação&body=${encodeURIComponent(mensagem)}`;
-    }
-    logAcaoGlobal(userData.nome, "Reenvio de Link Onboarding", "Motoristas", formData.nome, initialData.id);
-  };
-
   const handleRemoveFile = (field) => { if (window.confirm("Deseja remover este documento?")) { setFormData(prev => ({ ...prev, [field]: '' })); } };
 
-  // py-1.5 px-3 e rounded-lg no inputClass para economizar espaço de ecrã [2]
   const inputClass = `w-full py-1.5 px-2.5 border border-slate-200 rounded-lg outline-none transition-all text-xs ${isReadOnly ? 'bg-slate-50/50 border-transparent font-semibold text-slate-700' : 'bg-white focus:ring-2 focus:ring-tvde-primary/20 hover:border-slate-300'}`;
 
-  // Suporte a parâmetro forceReadOnly para bloquear campos autogeridos
   const renderInputIA = (label, field, required = false, forceReadOnly = false) => {
     const isAIFilled = initialData[`ai_filled_${field}`];
     const docUrl = fieldToDocMap[field];
@@ -6578,7 +6757,11 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
             className={`${inputClass} ${isAIFilled ? 'border-blue-300 bg-blue-50/20 ring-1 ring-blue-100 pr-14' : ''} ${forceReadOnly ? 'bg-slate-100 text-slate-400 font-medium cursor-not-allowed' : ''}`} 
             value={formData[field] || ''} 
             onChange={(e) => {
-              setFormData({...formData, [field]: e.target.value});
+              let val = e.target.value;
+              if (field === 'codigoPostal') {
+                val = formatPostalCode(val);
+              }
+              setFormData({...formData, [field]: val});
               if (isAIFilled) validarCampoIA(field);
             }} 
           />
@@ -6678,35 +6861,37 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
   );
 
   const handleFinalSubmit = async (enviarLink = false) => {
-    if (!formData.nome || !formData.telemovel || !formData.email) { alert("Preencha Nome, Telemóvel e Email."); return; }
-    if (criarComoProprietario && onCriarProprietario) { await onCriarProprietario({ nome: formData.nome, nif: formData.nif, iban: formData.iban, telemovel: formData.telemovel, email: formData.email }); }
-    onSubmit(formData, enviarLink);
+    // Purga de máscaras visuais para persistência consistente no Firestore
+    const cleanTelemovel = formData.telemovel.replace(/\D/g, '');
+    const cleanCodigoPostal = formData.codigoPostal.replace(/\D/g, '');
+    const cleanEmail = formData.email.trim();
+    
+    if (!formData.nome || !cleanTelemovel || !cleanEmail) { 
+      alert("Preencha Nome, Telemóvel e Email."); 
+      return; 
+    }
+
+    const dadosLimposParaGuardar = {
+      ...formData,
+      telemovel: cleanTelemovel,
+      codigoPostal: cleanCodigoPostal
+    };
+
+    if (criarComoProprietario && onCriarProprietario) { 
+      await onCriarProprietario({ 
+        nome: formData.nome, 
+        nif: formData.nif, 
+        iban: formData.iban, 
+        telemovel: cleanTelemovel, 
+        email: formData.email 
+      }); 
+    }
+    
+    onSubmit(dadosLimposParaGuardar, enviarLink);
   };
 
   return (
     <form onSubmit={(e) => e.preventDefault()} className="space-y-1 max-h-[75vh] overflow-y-auto pr-3.5 custom-scrollbar">
-      
-      {/* Quadro horizontal de Onboarding Digital (Padding otimizado para economizar espaço) [2] */}
-      {initialData.id && !isReadOnly && (
-        <div className="flex flex-col sm:flex-row items-center justify-between p-2.5 bg-blue-50/50 border border-blue-100 rounded-2xl mb-3 gap-2 text-left animate-in fade-in duration-200">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-blue-100 text-blue-600 rounded-xl shrink-0">
-              <Share2 size={14} />
-            </div>
-            <div>
-              <p className="text-xs font-bold text-slate-800">Onboarding Digital</p>
-              <p className="text-[9.5px] text-slate-400">Reenvie o link de recolha de documentação e registo para o telemóvel do motorista [2].</p>
-            </div>
-          </div>
-          <button 
-            type="button" 
-            onClick={() => handleEnviarLinkExistente('whatsapp')} 
-            className="flex items-center gap-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[9px] font-black uppercase tracking-wider transition-all shadow-sm hover:shadow active:scale-95 cursor-pointer shrink-0"
-          >
-            <MessageSquare size={12} /> Reenviar WhatsApp
-          </button>
-        </div>
-      )}
 
       {/* BLOCO DE ALERTAS IA (REVISÃO E INCONSISTÊNCIA) */}
       {(Object.keys(initialData).some(k => k.startsWith('ai_filled_') && initialData[k] === true) || formData.alerta_inconsistencia) && (
@@ -6741,25 +6926,28 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
         </div>
       )}
 
-      {/* DADOS VITAIS E DE IDENTIFICAÇÃO (Padding e margem otimizados de p-5 para p-3.5) [2] */}
-      <div className="flex flex-col md:flex-row gap-4 items-center bg-slate-50 p-3.5 rounded-2xl border border-slate-100 mb-3">
-        <div className="relative">
-          <div className="w-20 h-20 rounded-full overflow-hidden border-4 border-white shadow-lg bg-white flex items-center justify-center shrink-0">{formData.fotoPerfil ? <img src={formData.fotoPerfil} alt="Perfil" className="w-full h-full object-cover" /> : <User size={28} className="text-slate-200" />}</div>
-          {!isReadOnly && <FileUpload mode="minimal" label={<div className="p-1 bg-tvde-primary text-white rounded-full shadow-md cursor-pointer border-2 border-white"><Camera size={10}/></div>} folder="motoristas/fotos" onUploadComplete={(url) => setFormData({...formData, fotoPerfil: url})} />}
-        </div>
-        <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-2 w-full">
-          <div className="md:col-span-3">{renderInputIA("Nome Completo", "nome", true)}</div>
-          <div><DatePicker label="Nascimento" value={formData.dataNascimento} onChange={(val) => { setFormData({...formData, dataNascimento: val}); if (initialData.ai_filled_dataNascimento) validarCampoIA('dataNascimento'); }} isReadOnly={isReadOnly} /></div>
-          <div>{renderInputIA("NIF", "nif")}</div>
-          <div>{renderInputIA("ID Documento", "numID")}</div>
-          <div>{renderInputIA("Nº Carta Condução", "numCarta")}</div>
-          <div>{renderInputIA("Cért. TVDE", "numTVDE")}</div>
-        </div>
-      </div>
+      {/* Grelha de botões de navegação para sub-modais de UX (Symmetric Layout) [2] */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 my-3">
+        
+        {/* Botão 1: Identificação & Ficha Cadastral */}
+        <button
+          type="button"
+          onClick={() => setModalIdentificacaoAberto(true)}
+          className="p-2.5 bg-slate-50 hover:bg-blue-50/50 border border-slate-200/80 rounded-xl flex items-center justify-between transition-all cursor-pointer group text-left"
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="p-2 bg-blue-100 text-blue-600 rounded-lg group-hover:scale-105 transition-transform shrink-0">
+              <User size={16} />
+            </div>
+            <div className="truncate">
+              <p className="text-xs font-black text-slate-800">Identificação & Ficha</p>
+              <p className="text-[9.5px] text-slate-400 truncate">Nome, NIF, nascimento, carta de condução [2].</p>
+            </div>
+          </div>
+          <ArrowRight size={12} className="text-slate-300 group-hover:text-tvde-primary transition-colors shrink-0" />
+        </button>
 
-      {/* Grelha de botões de navegação para sub-modais de UX (Padding otimizado de p-4 para p-2.5 e my-3) [2] */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 my-3">
-        {/* Botão 1: Contacto e Morada */}
+        {/* Botão 2: Contacto e Morada */}
         <button
           type="button"
           onClick={() => setModalMoradaAberto(true)}
@@ -6777,7 +6965,7 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
           <ArrowRight size={12} className="text-slate-300 group-hover:text-tvde-primary transition-colors shrink-0" />
         </button>
 
-        {/* Botão 2: Dados Financeiros */}
+        {/* Botão 3: Dados Financeiros */}
         <button
           type="button"
           onClick={() => setModalFaturacaoAberto(true)}
@@ -6795,7 +6983,7 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
           <ArrowRight size={12} className="text-slate-300 group-hover:text-tvde-primary transition-colors shrink-0" />
         </button>
 
-        {/* Botão 3: Documentação Digital */}
+        {/* Botão 4: Documentação Digital */}
         <button
           type="button"
           onClick={() => setModalDocumentosAberto(true)}
@@ -6812,6 +7000,66 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
           </div>
           <ArrowRight size={12} className="text-slate-300 group-hover:text-tvde-primary transition-colors shrink-0" />
         </button>
+
+        {/* Botão 5: Atribuição de Frota & Cartões [1] */}
+        <button
+          type="button"
+          onClick={() => setModalFrotaAberto(true)}
+          className="p-2.5 bg-slate-50 hover:bg-indigo-50/50 border border-slate-200/80 rounded-xl flex items-center justify-between transition-all cursor-pointer group text-left"
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="p-2 bg-indigo-100 text-indigo-600 rounded-lg group-hover:scale-105 transition-transform shrink-0">
+              <Car size={16} />
+            </div>
+            <div className="truncate">
+              <p className="text-xs font-black text-slate-800">Atribuição de Frota</p>
+              <p className="text-[9.5px] text-slate-400 truncate">Vincular veículo e cartões de consumo [1].</p>
+            </div>
+          </div>
+          <ArrowRight size={12} className="text-slate-300 group-hover:text-tvde-primary transition-colors shrink-0" />
+        </button>
+
+        {/* Botão 6: Onboarding WhatsApp */}
+        {initialData.id && !isReadOnly && (
+          <button
+            type="button"
+            onClick={() => handleEnviarLinkExistente('whatsapp')}
+            className="p-2.5 bg-slate-50 hover:bg-emerald-50/50 border border-slate-200/80 rounded-xl flex items-center justify-between transition-all cursor-pointer group text-left"
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="p-2 bg-emerald-100 text-emerald-600 rounded-lg group-hover:scale-105 transition-transform shrink-0">
+                <Share2 size={16} />
+              </div>
+              <div className="truncate">
+                <p className="text-xs font-black text-slate-800">Onboarding Digital</p>
+                <p className="text-[9.5px] text-slate-400 truncate">Reenviar WhatsApp para recolha [2].</p>
+              </div>
+            </div>
+            <ArrowRight size={12} className="text-slate-300 group-hover:text-emerald-600 transition-colors shrink-0" />
+          </button>
+        )}
+
+        {/* Botão 7: Gestão Financeira */}
+        {initialData.id && (
+          <button
+            type="button"
+            onClick={() => setModalFinanceiroAberto(true)}
+            className={`p-2.5 bg-slate-50 hover:bg-emerald-50/50 border border-slate-200/80 rounded-xl flex items-center justify-between transition-all cursor-pointer group text-left ${
+              isReadOnly ? '' : 'sm:col-span-2'
+            }`}
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="p-2 bg-emerald-100 text-emerald-600 rounded-lg group-hover:scale-105 transition-transform shrink-0">
+                <Euro size={16} />
+              </div>
+              <div className="truncate">
+                <p className="text-xs font-black text-slate-800">Gestão Financeira</p>
+                <p className="text-[9.5px] text-slate-400 truncate">Saldos, cauções, adiantamentos e renegociações [2].</p>
+              </div>
+            </div>
+            <ArrowRight size={12} className="text-slate-300 group-hover:text-emerald-600 transition-colors shrink-0" />
+          </button>
+        )}
       </div>
 
       {initialData.historico && initialData.historico.length > 0 && (
@@ -6829,6 +7077,47 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
         </CollapsibleSection>
       )}
 
+      {/* SUB-MODAL 0: Identificação e Dados Cadastrais */}
+      {modalIdentificacaoAberto && (
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="absolute inset-0" onClick={() => setModalIdentificacaoAberto(false)} />
+          <div className="relative bg-white rounded-t-[2.5rem] sm:rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden p-6 sm:p-8 animate-in slide-in-from-bottom sm:zoom-in-95 duration-200 text-left">
+            <button type="button" onClick={() => setModalIdentificacaoAberto(false)} className="absolute top-4 right-4 p-1.5 text-slate-400 hover:bg-slate-50 hover:text-slate-600 rounded-full transition-all cursor-pointer"><X size={18} /></button>
+            <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-2 mb-4 border-b border-slate-100 pb-3 select-none">
+              <User size={18} className="text-blue-500" /> Identificação & Ficha Cadastral
+            </h3>
+            <div className="space-y-4 overflow-y-auto pr-2 custom-scrollbar">
+              
+              <div className="flex flex-col sm:flex-row gap-4 items-center bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
+                <div className="relative">
+                  <div className="w-20 h-20 rounded-full overflow-hidden border-4 border-white shadow-lg bg-white flex items-center justify-center shrink-0">
+                    {formData.fotoPerfil ? <img src={formData.fotoPerfil} alt="Perfil" className="w-full h-full object-cover" /> : <User size={28} className="text-slate-200" />}
+                  </div>
+                  {!isReadOnly && <FileUpload mode="minimal" label={<div className="p-1 bg-tvde-primary text-white rounded-full shadow-md cursor-pointer border-2 border-white"><Camera size={10}/></div>} folder="motoristas/fotos" onUploadComplete={(url) => setFormData({...formData, fotoPerfil: url})} />}
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-slate-800">Fotografia de Perfil</p>
+                  <p className="text-[10px] text-slate-400">Carregue uma imagem clara do rosto em formato quadrado ou proporções 1:1 [2].</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 w-full pt-1">
+                <div className="md:col-span-3">{renderInputIA("Nome Completo", "nome", true)}</div>
+                <div><DatePicker label="Nascimento" value={formData.dataNascimento} onChange={(val) => { setFormData({...formData, dataNascimento: val}); if (initialData.ai_filled_dataNascimento) validarCampoIA('dataNascimento'); }} isReadOnly={isReadOnly} /></div>
+                <div>{renderInputIA("NIF", "nif")}</div>
+                <div>{renderInputIA("ID Documento", "numID")}</div>
+                <div>{renderInputIA("Nº Carta Condução", "numCarta")}</div>
+                <div className="md:col-span-2">{renderInputIA("Certificado TVDE", "numTVDE")}</div>
+              </div>
+
+            </div>
+            <div className="mt-6 pt-4 border-t border-slate-100 flex justify-end">
+              <Button type="button" onClick={() => setModalIdentificacaoAberto(false)} className="px-6 h-10 text-xs">Confirmar e Fechar</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* SUB-MODAL 1: Contacto e Morada */}
       {modalMoradaAberto && (
         <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
@@ -6841,7 +7130,7 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
             <div className="space-y-4 overflow-y-auto pr-2 custom-scrollbar">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div><label className="block text-xs font-medium text-slate-700 mb-1">Email *</label><input type="email" required readOnly={isReadOnly} className={inputClass} value={formData.email || ''} onChange={(e) => setFormData({...formData, email: e.target.value})} /></div>
-                <div><label className="block text-xs font-medium text-slate-700 mb-1">Telemóvel *</label><div className="flex"><span className="inline-flex items-center px-2 rounded-l-xl border border-r-0 border-slate-200 bg-slate-100 text-slate-500 font-bold text-[10px]">+351</span><input required readOnly={isReadOnly} className={`${inputClass} rounded-l-none font-mono`} value={formData.telemovel || ''} onChange={(e) => setFormData({...formData, telemovel: e.target.value.replace(/\D/g, '').substring(0,9)})} /></div></div>
+                <div><label className="block text-xs font-medium text-slate-700 mb-1">Telemóvel *</label><div className="flex"><span className="inline-flex items-center px-2 rounded-l-xl border border-r-0 border-slate-200 bg-slate-100 text-slate-500 font-bold text-[10px]">+351</span><input required readOnly={isReadOnly} className={`${inputClass} rounded-l-none font-mono`} value={formData.telemovel || ''} onChange={(e) => setFormData({...formData, telemovel: formatPhone(e.target.value)})} /></div></div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-3.5 pt-2">
                 <div className="sm:col-span-2">{renderInputIA("Rua / Avenida", "moradaRua")}</div>
@@ -6936,19 +7225,123 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
         </div>
       )}
 
-      {/* BOTÕES FIXOS NO RODAPÉ (mt-3.5 pt-3 e h-10 para manter scroll zero no desktop) [2] */}
+      {/* SUB-MODAL 4: Atribuição de Frota & Cartões [1] */}
+      {modalFrotaAberto && (
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="absolute inset-0" onClick={() => setModalFrotaAberto(false)} />
+          <div className="relative bg-white rounded-t-[2.5rem] sm:rounded-3xl shadow-2xl w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden p-6 sm:p-8 animate-in slide-in-from-bottom sm:zoom-in-95 duration-200 text-left">
+            <button type="button" onClick={() => setModalFrotaAberto(false)} className="absolute top-4 right-4 p-1.5 text-slate-400 hover:bg-slate-50 hover:text-slate-600 rounded-full transition-all cursor-pointer"><X size={18} /></button>
+            <h3 className="text-sm font-black text-indigo-700 uppercase tracking-wider flex items-center gap-2 mb-4 border-b border-slate-100 pb-3 select-none">
+              <Car size={18} className="text-indigo-600" /> Atribuição de Frota & Cartões
+            </h3>
+            
+            <div className="space-y-4 overflow-y-auto pr-2 custom-scrollbar">
+              
+              {/* Seleção do Veículo */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Veículo Atribuído</label>
+                <select 
+                  disabled={isReadOnly}
+                  className="w-full p-2.5 border border-slate-200 rounded-lg bg-white text-xs outline-none focus:ring-2 focus:ring-tvde-primary/20 text-slate-700 font-medium"
+                  value={formData.veiculoId || ''}
+                  onChange={(e) => {
+                    const v = veiculos.find(veic => veic.id === e.target.value);
+                    setFormData({
+                      ...formData, 
+                      veiculoId: e.target.value, 
+                      veiculoMatricula: v ? v.matricula : ''
+                    });
+                  }}
+                >
+                  <option value="">Nenhum Veículo Atribuído (Em Stock)</option>
+                  {veiculos.map(v => (
+                    <option key={v.id} value={v.id}>
+                      {v.matricula} — {v.marca} {v.modelo}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Escolher primeiro o tipo de cartão que será atribuído [1] */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Tipo de Cartão de Consumo</label>
+                <select 
+                  disabled={isReadOnly}
+                  className="w-full p-2.5 border border-slate-200 rounded-lg bg-white text-xs outline-none focus:ring-2 focus:ring-tvde-primary/20 text-slate-700 font-medium"
+                  value={tipoCartaoAtribuido}
+                  onChange={(e) => handleTipoCartaoChange(e.target.value)}
+                >
+                  <option value="">Nenhum Cartão Associado</option>
+                  <option value="combustivel">Abastecimento (Combustível)</option>
+                  <option value="eletrico">Carregamento (Elétrico)</option>
+                </select>
+              </div>
+
+              {/* Abre a caixa com os cartões disponíveis daquela categoria de forma dinâmica [1] */}
+              {tipoCartaoAtribuido === 'combustivel' && (
+                <div className="animate-in fade-in slide-in-from-top-1 duration-200">
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Cartão de Abastecimento Disponível</label>
+                  <select 
+                    disabled={isReadOnly}
+                    className="w-full p-2.5 border border-slate-200 rounded-lg bg-white text-xs outline-none focus:ring-2 focus:ring-tvde-primary/20 text-slate-700 font-medium font-mono"
+                    value={formData.cartaoAbastecimentoId || ''}
+                    onChange={(e) => {
+                      const c = cartoesCombustivelDisponiveis.find(card => card.id === e.target.value);
+                      setFormData({
+                        ...formData, 
+                        cartaoAbastecimentoId: e.target.value, 
+                        cartaoAbastecimentoNumero: c ? (c.numeroCartao || c.numero) : ''
+                      });
+                    }}
+                  >
+                    <option value="">-- Selecione o Cartão de Combustível --</option>
+                    {cartoesCombustivelDisponiveis.map(card => (
+                      <option key={card.id} value={card.id}>
+                        {card.numeroCartao || card.numero} ({card.fornecedor})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {tipoCartaoAtribuido === 'eletrico' && (
+                <div className="animate-in fade-in slide-in-from-top-1 duration-200">
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Cartão de Carregamento Disponível</label>
+                  <select 
+                    disabled={isReadOnly}
+                    className="w-full p-2.5 border border-slate-200 rounded-lg bg-white text-xs outline-none focus:ring-2 focus:ring-tvde-primary/20 text-slate-700 font-medium font-mono"
+                    value={formData.cartaoCarregamentoId || ''}
+                    onChange={(e) => {
+                      const c = cartoesEletricosDisponiveis.find(card => card.id === e.target.value);
+                      setFormData({
+                        ...formData, 
+                        cartaoCarregamentoId: e.target.value, 
+                        cartaoCarregamentoNumero: c ? (c.numeroCartao || c.numero) : ''
+                      });
+                    }}
+                  >
+                    <option value="">-- Selecione o Cartão Elétrico --</option>
+                    {cartoesEletricosDisponiveis.map(card => (
+                      <option key={card.id} value={card.id}>
+                        {card.numeroCartao || card.numero} ({card.fornecedor})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+            </div>
+
+            <div className="mt-6 pt-4 border-t border-slate-100 flex justify-end">
+              <Button type="button" onClick={() => setModalFrotaAberto(false)} className="px-6 h-10 text-xs shadow-md">Confirmar e Fechar</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* BOTÕES FIXOS NO RODAPÉ */}
       <div className="flex flex-col md:flex-row gap-2 mt-3.5 sticky bottom-0 bg-white pt-3 border-t border-slate-100">
         <Button variant="secondary" className="flex-1 h-10 text-xs" onClick={onCancel}>{isReadOnly ? 'Fechar' : 'Cancelar'}</Button>
-        {initialData.id && (
-          <Button
-            type="button"
-            variant="outline"
-            className="flex-1 h-10 text-xs border-emerald-500 text-emerald-600 hover:bg-emerald-50"
-            onClick={() => setModalFinanceiroAberto(true)}
-          >
-            💰 Gestão Financeira
-          </Button>
-        )}
         {!isReadOnly && (
           <>
             <Button type="button" variant="outline" className="flex-1 h-10 text-xs border-tvde-primary text-tvde-primary hover:bg-blue-50" onClick={() => handleFinalSubmit(true)}><MessageSquare size={14} /> Guardar e Enviar Link</Button>
@@ -6976,19 +7369,33 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
  * MotoristasList.jsx
  * Localização: src/features/motoristas/MotoristasList.jsx
  *
- * Lista de motoristas em formato de tabela.
- * Atualizado com suporte responsivo autocapsulado (Horizontal Scroll-Safe)
+ * Listagem tabular compacta de motoristas.
+ * Otimizado com:
+ * - Interruptor de estado (Ativo/Inativo) com trava de segurança para pendentes [1, 2].
+ * - Auto-corretor em segundo plano para manter conformidade de estado no Firestore [1].
+ * - Filtros rápidos no cabeçalho integrados [2].
  */
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Edit, Trash2, User, FileText, CreditCard, 
   ShieldAlert, BadgeCheck, Home, Eye, AlertCircle, 
   Sparkles 
 } from 'lucide-react';
+import { db } from '../../firebase';
+import { doc, updateDoc } from 'firebase/firestore';
+import { logAcaoGlobal } from '../../utils/logger';
+import { useAuth } from '../../context/AuthContext';
 
 export default function MotoristasList({ motoristas, onEdit, onDelete }) {
-  
+  const { userData } = useAuth();
+
+  // ESTADOS LOCAIS PARA OS FILTROS DE CADA COLUNA
+  const [filterNome, setFilterNome] = useState('');
+  const [filterContacto, setFilterContacto] = useState('');
+  const [filterStatus, setFilterStatus] = useState('todos');
+  const [filterDocs, setFilterDocs] = useState('todos');
+
   /**
    * Determina a cor do ícone baseada na validade do documento
    */
@@ -7020,12 +7427,84 @@ export default function MotoristasList({ motoristas, onEdit, onDelete }) {
     return Object.keys(m).some(key => key.startsWith('ai_filled_') && m[key] === true);
   };
 
+  // ◄ ADICIONADO: Auto-corretor de conformidade regulamentar em segundo plano [1]
+  useEffect(() => {
+    motoristas.forEach(async (m) => {
+      if (isProfileIncomplete(m) && m.status === 'Ativo') {
+        try {
+          const docRef = doc(db, "motoristas", m.id);
+          await updateDoc(docRef, { status: "Inativo" });
+          await logAcaoGlobal("Sistema", "Auto-Correção", "Motoristas", `Estado de ${m.nome} forçado a Inativo por documentação pendente`, m.id);
+        } catch (e) {
+          console.error("Erro ao auto-corrigir estado de conformidade:", e);
+        }
+      }
+    });
+  }, [motoristas]);
+
+  // ◄ ADICIONADO: Função para alternar o estado diretamente na lista [1, 2]
+  const handleToggleStatus = async (motoristaId, nome, currentStatus, incomplete) => {
+    if (incomplete) {
+      alert("Operação bloqueada: Não é possível ativar um motorista com documentação pendente.");
+      return;
+    }
+
+    const novoEstado = currentStatus === 'Ativo' ? 'Inativo' : 'Ativo';
+    
+    try {
+      const docRef = doc(db, "motoristas", motoristaId);
+      await updateDoc(docRef, { status: novoEstado });
+      await logAcaoGlobal(userData?.nome || 'Sistema', "Alteração de Estado", "Motoristas", `Status de ${nome} alterado para ${novoEstado}`, motoristaId);
+    } catch (error) {
+      console.error("Erro ao alterar estado do motorista:", error);
+      alert("Erro ao alterar o estado do motorista.");
+    }
+  };
+
+  // Ordenação Alfabética Nativa por Defeito + Filtragem Multi-Coluna
+  const sortedAndFilteredMotoristas = [...motoristas]
+    .sort((a, b) => {
+      const nomeA = a.nome || '';
+      const nomeB = b.nome || '';
+      return nomeA.localeCompare(nomeB, 'pt', { sensitivity: 'base' });
+    })
+    .filter((m) => {
+      const incomplete = isProfileIncomplete(m);
+      const effectiveStatus = incomplete ? 'Inativo' : (m.status || 'Inativo');
+
+      // 1. Filtragem por Nome ou Código
+      const queryNome = filterNome.toLowerCase();
+      const matchesNome = 
+        (m.nome || '').toLowerCase().includes(queryNome) ||
+        (m.codigoInterno || '').toLowerCase().includes(queryNome);
+
+      // 2. Filtragem por Telemóvel ou NIF
+      const queryContacto = filterContacto.toLowerCase();
+      const matchesContacto = 
+        (m.telemovel || '').toLowerCase().includes(queryContacto) ||
+        (m.nif || '').toLowerCase().includes(queryContacto);
+
+      // 3. Filtragem por Status (Alinhado com a trava de pendentes)
+      const matchesStatus = filterStatus === 'todos' || effectiveStatus === filterStatus;
+
+      // 4. Filtragem pelo Estado dos Documentos
+      let matchesDocs = true;
+      if (filterDocs === 'pendente') {
+        matchesDocs = incomplete;
+      } else if (filterDocs === 'completo') {
+        matchesDocs = !incomplete;
+      } else if (filterDocs === 'ia') {
+        matchesDocs = needsAIValidation(m);
+      }
+
+      return matchesNome && matchesContacto && matchesStatus && matchesDocs;
+    });
+
   return (
-    // ◄ ALTERADO: Contentor agora é auto-rolável mantendo os cantos arredondados do cartão
     <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-x-auto w-full custom-scrollbar">
-      {/* ◄ ALTERADO: min-w-[750px] adicionado para proteger colunas em telemóveis */}
       <table className="w-full text-left border-collapse min-w-[750px]">
         <thead>
+          {/* Cabeçalho de Títulos Principal */}
           <tr className="bg-slate-50 border-b border-slate-100">
             <th className="p-4 font-semibold text-slate-600 text-sm">Motorista</th>
             <th className="p-4 font-semibold text-slate-600 text-sm">Contacto / NIF</th>
@@ -7033,11 +7512,62 @@ export default function MotoristasList({ motoristas, onEdit, onDelete }) {
             <th className="p-4 font-semibold text-slate-600 text-sm">Documentos</th>
             <th className="p-4 font-semibold text-slate-600 text-sm text-right">Ações</th>
           </tr>
+          
+          {/* Linha de Filtros Dinâmicos Individuais por Coluna */}
+          <tr className="bg-slate-50/50 border-b border-slate-100">
+            {/* Filtro: Motorista */}
+            <td className="px-4 py-2">
+              <input 
+                type="text" 
+                placeholder="🔍 Pesquisar por nome/ID..." 
+                value={filterNome} 
+                onChange={(e) => setFilterNome(e.target.value)}
+                className="w-full p-1.5 border border-slate-200 rounded-lg text-[11px] outline-none focus:ring-1 focus:ring-tvde-primary text-slate-700 bg-white font-medium"
+              />
+            </td>
+            {/* Filtro: Contacto / NIF */}
+            <td className="px-4 py-2">
+              <input 
+                type="text" 
+                placeholder="🔍 Pesquisar tlf/NIF..." 
+                value={filterContacto} 
+                onChange={(e) => setFilterContacto(e.target.value)}
+                className="w-full p-1.5 border border-slate-200 rounded-lg text-[11px] outline-none focus:ring-1 focus:ring-tvde-primary text-slate-700 bg-white font-medium"
+              />
+            </td>
+            {/* Filtro: Status */}
+            <td className="px-4 py-2">
+              <select 
+                value={filterStatus} 
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="w-full p-1.5 border border-slate-200 rounded-lg text-[11px] outline-none focus:ring-1 focus:ring-tvde-primary text-slate-700 bg-white font-medium cursor-pointer"
+              >
+                <option value="todos">Todos</option>
+                <option value="Ativo">Ativo</option>
+                <option value="Inativo">Inativo</option>
+              </select>
+            </td>
+            {/* Filtro: Documentos */}
+            <td className="px-4 py-2">
+              <select 
+                value={filterDocs} 
+                onChange={(e) => setFilterDocs(e.target.value)}
+                className="w-full p-1.5 border border-slate-200 rounded-lg text-[11px] outline-none focus:ring-1 focus:ring-tvde-primary text-slate-700 bg-white font-medium cursor-pointer"
+              >
+                <option value="todos">Todos</option>
+                <option value="pendente">Pendente</option>
+                <option value="completo">Completo</option>
+                <option value="ia">Revisão IA</option>
+              </select>
+            </td>
+            <td className="px-4 py-2"></td>
+          </tr>
         </thead>
         <tbody className="divide-y divide-slate-50">
-          {motoristas.map((m) => {
+          {sortedAndFilteredMotoristas.map((m) => {
             const incomplete = isProfileIncomplete(m);
             const aiReview = needsAIValidation(m);
+            const isDriverActive = m.status === 'Ativo' && !incomplete;
             
             return (
               <tr key={m.id} className="hover:bg-slate-50/50 transition-colors">
@@ -7065,17 +7595,43 @@ export default function MotoristasList({ motoristas, onEdit, onDelete }) {
                   <p className="font-medium">{m.telemovel || '---'}</p>
                   <p className="text-[10px] text-slate-400 font-bold">NIF: {m.nif || '---'}</p>
                 </td>
+                
+                {/* ◄ ALTERADO: Coluna de Status Interativa (Toggle Switch) com Trava de Segurança */}
                 <td className="p-4">
-                  <div className="flex flex-col gap-1.5">
-                    <span className={`w-fit px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
-                      m.status === 'Ativo' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'
-                    }`}>
-                      {m.status}
-                    </span>
+                  <div className="flex flex-col gap-1.5 text-left justify-center">
+                    <div className="flex items-center gap-2.5">
+                      {/* Botão Interruptor (Switch) */}
+                      <button
+                        type="button"
+                        disabled={incomplete}
+                        onClick={() => handleToggleStatus(m.id, m.nome, m.status, incomplete)}
+                        className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                          incomplete 
+                            ? 'bg-slate-200 cursor-not-allowed opacity-50' 
+                            : (isDriverActive ? 'bg-emerald-500' : 'bg-slate-300')
+                        }`}
+                        title={incomplete ? "Bloqueado: Documentação Pendente" : `Alternar para ${isDriverActive ? 'Inativo' : 'Ativo'}`}
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                            isDriverActive ? 'translate-x-4' : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
+                      
+                      {/* Texto de Estado */}
+                      <span className={`text-[10px] font-black uppercase tracking-wider ${
+                        incomplete 
+                          ? 'text-red-500 font-extrabold' 
+                          : (isDriverActive ? 'text-emerald-600' : 'text-slate-500')
+                      }`}>
+                        {incomplete ? 'Inativo (Pendente)' : m.status}
+                      </span>
+                    </div>
                     
                     {/* INDICADOR DE REVISÃO IA */}
                     {aiReview && (
-                      <span className="flex items-center gap-1 text-[9px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-md font-black uppercase border border-blue-100 animate-pulse">
+                      <span className="flex items-center gap-1 text-[9px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-md font-black uppercase border border-blue-100 animate-pulse w-fit mt-1">
                         <Sparkles size={10} /> Revisão IA
                       </span>
                     )}
@@ -7103,12 +7659,14 @@ export default function MotoristasList({ motoristas, onEdit, onDelete }) {
                       </div>
 
                       <div className="flex -space-x-2">
-                        {m.docCertificadoTVDE && (
-                          <a href={m.docCertificadoTVDE} target="_blank" rel="noreferrer" 
-                            className={`w-8 h-8 rounded-full border flex items-center justify-center shadow-sm z-10 ${checkStatusColor(m.validadeTVDE)}`} title="TVDE">
-                            <BadgeCheck size={14} />
-                          </a>
-                        )}
+                        {m.docCertificadoTVDE} {
+                          m.docCertificadoTVDE && (
+                            <a href={m.docCertificadoTVDE} target="_blank" rel="noreferrer" 
+                              className={`w-8 h-8 rounded-full border flex items-center justify-center shadow-sm z-10 transition-all ${checkStatusColor(m.validadeTVDE)}`} title="TVDE">
+                              <BadgeCheck size={14} />
+                            </a>
+                          )
+                        }
                         {m.docRegistoCriminal && (
                           <a href={m.docRegistoCriminal} target="_blank" rel="noreferrer" 
                             className={`w-8 h-8 rounded-full border flex items-center justify-center shadow-sm z-20 ${checkStatusColor(m.validadeCriminal)}`} title="Criminal">
@@ -7118,8 +7676,8 @@ export default function MotoristasList({ motoristas, onEdit, onDelete }) {
                       </div>
 
                       <div className="flex -space-x-2">
-                        {m.docIBAN && <a href={m.docIBAN} target="_blank" className="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:text-indigo-500 shadow-sm z-10" title="IBAN"><CreditCard size={14} /></a>}
-                        {m.docMorada && <a href={m.docMorada} target="_blank" className="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:text-indigo-500 shadow-sm z-20" title="Morada"><Home size={14} /></a>}
+                        {m.docIBAN && <a href={m.docIBAN} target="_blank" className="w-8 h-8 flex items-center justify-center bg-slate-50 border border-slate-100 rounded-full text-slate-400 hover:text-tvde-primary transition" title="Comprovativo IBAN"><Wallet size={12} /></a>}
+                        {m.docMorada && <a href={formData.docMorada} target="_blank" rel="noreferrer" className="w-8 h-8 flex items-center justify-center bg-slate-50 border border-slate-200 rounded-full text-slate-400 hover:text-indigo-500 transition" title="Comprovativo Morada"><Home size={12} /></a>}
                       </div>
                     </div>
 
@@ -7143,9 +7701,9 @@ export default function MotoristasList({ motoristas, onEdit, onDelete }) {
           })}
         </tbody>
       </table>
-      {motoristas.length === 0 && (
+      {sortedAndFilteredMotoristas.length === 0 && (
         <div className="p-10 text-center text-slate-400 text-sm italic">
-          Nenhum motorista registado no sistema.
+          Nenhum motorista corresponde aos critérios de pesquisa ou seleção.
         </div>
       )}
     </div>
@@ -8072,21 +8630,32 @@ export default function VeiculoForm({
  * Localização: src/features/veiculos/VeiculosList.jsx
  *
  * Lista de veículos da frota em formato de tabela.
- * Atualizado com suporte responsivo autocapsulado (Horizontal Scroll-Safe)
+ * Atualizado com suporte responsivo autocapsulado (Horizontal Scroll-Safe).
+ * Otimizado com:
+ * - Filtros integrados rápidos em cada cabeçalho [2].
+ * - Ordenação alfabética automática por veículo [1].
+ * - Remoção definitiva da coluna de cartões de combustível (migrados para motorista) [1].
+ * - Renderização de placas físicas em conformidade com o formato real de matrículas portuguesas [1].
  */
 
-import React from 'react';
-import { Edit, Trash2, Car, User, Building2, FileText, ShieldCheck, ClipboardCheck, CreditCard, Eye, AlertCircle } from 'lucide-react';
+import React, { useState } from 'react';
+import { Edit, Trash2, Car, User, Building2, FileText, ShieldCheck, ClipboardCheck, Eye, AlertCircle } from 'lucide-react';
 import { formatMatricula } from '../../utils/formatters';
 
 export default function VeiculosList({ 
   veiculos, 
-  cartoes = [], 
   onEdit, 
   onDelete,
-  onToggleAnuncio // Nova prop integrada para alternar anúncios
+  onToggleAnuncio // Propriedade para ativar ou desativar o fluxo de workflow
 }) {
   
+  // ESTADOS DE FILTRAGEM INDIVIDUAL POR COLUNA [1, 2]
+  const [filterVeiculo, setFilterVeiculo] = useState('');
+  const [filterMatricula, setFilterMatricula] = useState('');
+  const [filterMotorista, setFilterMotorista] = useState('');
+  const [filterDocs, setFilterDocs] = useState('todos');
+  const [filterAnuncio, setFilterAnuncio] = useState('todos');
+
   // Função auxiliar para calcular a cor baseada na validade (Seguro e IPO)
   const checkStatusColor = (data) => {
     if (!data) return 'text-slate-300 bg-slate-50 border-slate-200';
@@ -8110,25 +8679,131 @@ export default function VeiculosList({
     return camposEssenciais.some(campo => !v[campo] || v[campo] === '');
   };
 
+  // Ordenação Alfabética Nativa (A-Z) + Filtros por Coluna
+  const sortedAndFilteredVeiculos = [...veiculos]
+    .sort((a, b) => {
+      const nomeA = `${a.marca || ''} ${a.modelo || ''}`.trim();
+      const nomeB = `${b.marca || ''} ${b.modelo || ''}`.trim();
+      return nomeA.localeCompare(nomeB, 'pt', { sensitivity: 'base' });
+    })
+    .filter((v) => {
+      // 1. Filtro: Veículo (Marca, Modelo, Código ou Ano)
+      const qVeiculo = filterVeiculo.toLowerCase();
+      const matchesVeiculo = 
+        (v.marca || '').toLowerCase().includes(qVeiculo) ||
+        (v.modelo || '').toLowerCase().includes(qVeiculo) ||
+        (v.ano || '').toString().includes(qVeiculo) ||
+        (v.codigoInterno || '').toLowerCase().includes(qVeiculo);
+
+      // 2. Filtro: Matrícula (Com limpeza de hífenes para aceitar pesquisas simples como 'BR31')
+      const qMatricula = filterMatricula.toLowerCase().replace(/[^a-zA-Z0-9]/g, '');
+      const cleanMatricula = (v.matricula || '').toLowerCase().replace(/[^a-zA-Z0-9]/g, '');
+      const matchesMatricula = cleanMatricula.includes(qMatricula);
+
+      // 3. Filtro: Motorista / Proprietário
+      const qMotorista = filterMotorista.toLowerCase();
+      const matchesMotorista = 
+        (v.motoristaNome || '').toLowerCase().includes(qMotorista) ||
+        (v.proprietarioNome || '').toLowerCase().includes(qMotorista);
+
+      // 4. Filtro: Documentação
+      const incomplete = isVehicleIncomplete(v);
+      let matchesDocs = true;
+      if (filterDocs === 'pendente') {
+        matchesDocs = incomplete;
+      } else if (filterDocs === 'completo') {
+        matchesDocs = !incomplete;
+      }
+
+      // 5. Filtro: Estado do Anúncio
+      const anuncioAtivo = v.anuncioAtivo ?? false;
+      let matchesAnuncio = true;
+      if (filterAnuncio === 'ativo') {
+        matchesAnuncio = anuncioAtivo;
+      } else if (filterAnuncio === 'pausado') {
+        matchesAnuncio = !anuncioAtivo;
+      }
+
+      return matchesVeiculo && matchesMatricula && matchesMotorista && matchesDocs && matchesAnuncio;
+    });
+
   return (
-    // ◄ ALTERADO: Contentor agora é auto-rolável mantendo os cantos arredondados do cartão
+    // Contentor agora é auto-rolável mantendo os cantos arredondados do cartão
     <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-x-auto w-full custom-scrollbar">
-      {/* ◄ ALTERADO: min-w-[850px] adicionado para proteger colunas em telemóveis */}
+      {/* min-w-[850px] adicionado para proteger colunas em telemóveis */}
       <table className="w-full text-left border-collapse min-w-[850px]">
         <thead>
+          {/* Cabeçalho Principal de Títulos */}
           <tr className="bg-slate-50 border-b border-slate-100">
             <th className="p-4 font-semibold text-slate-600 text-sm">Veículo</th>
             <th className="p-4 font-semibold text-slate-600 text-sm text-center">Matrícula</th>
             <th className="p-4 font-semibold text-slate-600 text-sm">Motorista / Prop.</th>
-            <th className="p-4 font-semibold text-slate-600 text-sm">Cartões (Nº)</th>
             <th className="p-4 font-semibold text-slate-600 text-sm">Documentos</th>
-            <th className="p-4 font-semibold text-slate-600 text-sm text-center">Anúncio</th> {/* Nova coluna de controlo */}
+            <th className="p-4 font-semibold text-slate-600 text-sm text-center">Anúncio</th> 
             <th className="p-4 font-semibold text-slate-600 text-sm text-right">Ações</th>
+          </tr>
+          
+          {/* Filtros Rápidos de Coluna */}
+          <tr className="bg-slate-50/50 border-b border-slate-100">
+            {/* Filtro: Veículo */}
+            <td className="px-4 py-2">
+              <input 
+                type="text" 
+                placeholder="🔍 Marca, modelo, ano..." 
+                value={filterVeiculo} 
+                onChange={(e) => setFilterVeiculo(e.target.value)}
+                className="w-full p-1.5 border border-slate-200 rounded-lg text-[11px] outline-none focus:ring-1 focus:ring-tvde-primary text-slate-700 bg-white font-medium"
+              />
+            </td>
+            {/* Filtro: Matrícula */}
+            <td className="px-4 py-2">
+              <input 
+                type="text" 
+                placeholder="🔍 Matrícula..." 
+                value={filterMatricula} 
+                onChange={(e) => setFilterMatricula(e.target.value)}
+                className="w-full p-1.5 border border-slate-200 rounded-lg text-[11px] outline-none focus:ring-1 focus:ring-tvde-primary text-slate-700 bg-white font-medium text-center uppercase"
+              />
+            </td>
+            {/* Filtro: Motorista / Prop. */}
+            <td className="px-4 py-2">
+              <input 
+                type="text" 
+                placeholder="🔍 Motorista ou prop..." 
+                value={filterMotorista} 
+                onChange={(e) => setFilterMotorista(e.target.value)}
+                className="w-full p-1.5 border border-slate-200 rounded-lg text-[11px] outline-none focus:ring-1 focus:ring-tvde-primary text-slate-700 bg-white font-medium"
+              />
+            </td>
+            {/* Filtro: Documentação */}
+            <td className="px-4 py-2">
+              <select 
+                value={filterDocs} 
+                onChange={(e) => setFilterDocs(e.target.value)}
+                className="w-full p-1.5 border border-slate-200 rounded-lg text-[11px] outline-none focus:ring-1 focus:ring-tvde-primary text-slate-700 bg-white font-medium cursor-pointer"
+              >
+                <option value="todos">Todos</option>
+                <option value="pendente">Pendente</option>
+                <option value="completo">Completo</option>
+              </select>
+            </td>
+            {/* Filtro: Anúncio */}
+            <td className="px-4 py-2">
+              <select 
+                value={filterAnuncio} 
+                onChange={(e) => setFilterAnuncio(e.target.value)}
+                className="w-full p-1.5 border border-slate-200 rounded-lg text-[11px] outline-none focus:ring-1 focus:ring-tvde-primary text-slate-700 bg-white font-medium cursor-pointer"
+              >
+                <option value="todos">Todos</option>
+                <option value="ativo">Ativo</option>
+                <option value="pausado">Pausado</option>
+              </select>
+            </td>
+            <td className="px-4 py-2"></td>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-50">
-          {veiculos.map((v) => {
-            const cartoesDoVeiculo = cartoes.filter(c => c.veiculoId === v.id);
+          {sortedAndFilteredVeiculos.map((v) => {
             const incomplete = isVehicleIncomplete(v);
             const anuncioAtivo = v.anuncioAtivo ?? false;
 
@@ -8151,10 +8826,19 @@ export default function VeiculosList({
                   </div>
                 </td>
                 
-                <td className="p-4 text-center">
-                  <span className="inline-block px-3 py-1 border-2 border-slate-800 rounded text-xs font-black tracking-[0.1em] bg-white shadow-sm font-mono">
-                    {formatMatricula(v.matricula)}
-                  </span>
+                {/* Célula renderizada como uma matrícula física real portuguesa */}
+                <td className="p-4 text-center select-none">
+                  <div className="inline-flex items-center border-[2.2px] border-slate-900 rounded-[4px] bg-white overflow-hidden shadow-sm h-7 text-xs font-black font-mono">
+                    {/* Eurobanda Azul Portuguesa à esquerda */}
+                    <div className="bg-[#003399] text-white flex flex-col items-center justify-center px-1 h-full text-[6px] shrink-0 border-r border-slate-200">
+                      <span className="text-yellow-400 text-[5px] mb-0.5 font-bold leading-none">★</span>
+                      <span className="font-extrabold tracking-tight leading-none scale-90">P</span>
+                    </div>
+                    {/* Texto com numeração da Matrícula */}
+                    <span className="px-3.5 py-0.5 text-slate-900 tracking-[0.05em] uppercase text-xs font-extrabold font-mono">
+                      {formatMatricula(v.matricula)}
+                    </span>
+                  </div>
                 </td>
 
                 <td className="p-4 text-sm text-slate-600">
@@ -8167,29 +8851,6 @@ export default function VeiculosList({
                       <Building2 size={10} /> 
                       {v.proprietarioNome || 'Sem Proprietário'}
                     </div>
-                  </div>
-                </td>
-
-                <td className="p-4">
-                  <div className="flex flex-col gap-1 max-w-[180px]">
-                    {cartoesDoVeiculo.length > 0 ? (
-                      cartoesDoVeiculo.map(c => (
-                        <span 
-                          key={c.id} 
-                          className={`flex items-center gap-2 px-2 py-1 rounded-lg text-[10px] font-bold border font-mono ${
-                            c.tipo === 'combustivel' 
-                            ? 'bg-orange-50 text-orange-600 border-orange-100' 
-                            : 'bg-blue-50 text-blue-600 border-blue-100'
-                          }`}
-                          title={`Fornecedor: ${c.fornecedor}`}
-                        >
-                          <CreditCard size={10} />
-                          {c.numero}
-                        </span>
-                      ))
-                    ) : (
-                      <span className="text-[10px] text-slate-300 italic">Nenhum</span>
-                    )}
                   </div>
                 </td>
                 
@@ -8221,7 +8882,7 @@ export default function VeiculosList({
                   </div>
                 </td>
 
-                {/* 🟢 COLUNA DO INTERRUPTOR DE ANÚNCIO DO CATÁLOGO PÚBLICO [NOVO] */}
+                {/* COLUNA DO INTERRUPTOR DE ANÚNCIO DO CATÁLOGO PÚBLICO */}
                 <td className="p-4 text-center">
                   <button
                     type="button"
@@ -8240,7 +8901,7 @@ export default function VeiculosList({
 
                 <td className="p-4 text-right">
                   <div className="flex justify-end gap-2">
-                    <button onClick={() => onEdit(v, true)} className="p-2 text-slate-400 hover:text-indigo-600 transition-colors bg-slate-50 rounded-lg hover:bg-indigo-50 cursor-pointer" title="Visualizar Ficha"><Eye size={18} /></button>
+                    <button onClick={() => onEdit(v, true)} className="p-2 text-slate-400 hover:text-indigo-600 transition-colors bg-slate-50 rounded-lg hover:bg-indigo-50 cursor-pointer" title="Visualizar"><Eye size={18} /></button>
                     <button onClick={() => onEdit(v, false)} className="p-2 text-slate-400 hover:text-tvde-primary transition-colors bg-slate-50 rounded-lg hover:bg-blue-50 cursor-pointer" title="Editar"><Edit size={18} /></button>
                     <button onClick={() => onDelete(v.id)} className="p-2 text-slate-400 hover:text-tvde-danger transition-colors bg-slate-50 rounded-lg hover:bg-red-50 cursor-pointer" title="Eliminar"><Trash2 size={18} /></button>
                   </div>
@@ -8250,6 +8911,11 @@ export default function VeiculosList({
           })}
         </tbody>
       </table>
+      {sortedAndFilteredVeiculos.length === 0 && (
+        <div className="p-10 text-center text-slate-400 text-sm italic">
+          Nenhum veículo corresponde aos critérios de pesquisa ou seleção.
+        </div>
+      )}
     </div>
   );
 }
@@ -8980,7 +9646,7 @@ export default function Blog() {
 ### ARQUIVO: src\pages\CartoesGestao.jsx ###
 --------------------------------------------------
 import React, { useState, useEffect } from 'react';
-import { Plus, CreditCard, ShieldCheck, Trash2, Eye, Edit } from 'lucide-react';
+import { Plus, CreditCard, ShieldCheck, Trash2, Eye, Edit, Database } from 'lucide-react';
 import Button from '../components/ui/Button';
 import Modal from '../components/ui/Modal';
 import JustificacaoModal from '../components/ui/JustificacaoModal';
@@ -8990,9 +9656,45 @@ import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { logAcaoGlobal } from '../utils/logger';
 import { 
-  collection, addDoc, getDocs, query, where, 
-  doc, deleteDoc, updateDoc, arrayUnion 
+  collection, getDocs, query, where, 
+  doc, deleteDoc, updateDoc, arrayUnion, setDoc, writeBatch 
 } from 'firebase/firestore';
+
+// Lista de cartões de abastecimento (Combustível) identificados na imagem
+const CARTOES_COMBUSTIVEL = [
+  "0C1062", "OC001", "OC0010", "OC0013", "OC0019", "OC0020", "OC003", "OC004", "OC007", "OC1001",
+  "OC1004", "OC1011", "OC1023", "OC1025", "OC1026", "OC1027", "OC1032", "OC1034", "OC1037", "OC1040",
+  "OC1042", "OC1047", "OC1053", "OC1056", "OC1064", "OC1065", "OC1066", "OC107", "OC109", "OC122"
+];
+
+// Lista de cartões de carregamento (Elétrico) identificados na imagem
+const CARTOES_ELETRICOS = [
+  "OCE002", "OCE005", "OCE006", "OCE010", "OCE0100", "OCE011", "OCE013", "OCE014", "OCE015", "OCE017",
+  "OCE018", "OCE023", "OCE025", "OCE026", "OCE028", "OCE029", "OCE032", "OCE036", "OCE039", "OCE042",
+  "OCE043", "OCE045", "OCE046", "OCE047", "OCE049", "OCE052", "OCE056", "OCE059", "OCE061", "OCE065",
+  "OCE068", "OCE072", "OCE074", "OCE075", "OCE076", "OCE077", "OCE079", "OCE081", "OCE083", "OCE084",
+  "OCE088", "OCE089", "OCE090", "OCE091", "OCE095", "OCE096", "OCE097", "OCE098", "OCE099"
+];
+
+/**
+ * Função Auxiliar: Formata o nome em Title Case para exibição 
+ * uniforme na tabela de cartões.
+ */
+const formatTitleCase = (str) => {
+  if (!str) return '';
+  const preposicoes = ['de', 'da', 'do', 'das', 'dos', 'e', 'em'];
+  return str
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .map((word, index) => {
+      if (preposicoes.includes(word) && index !== 0) {
+        return word;
+      }
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    })
+    .join(' ');
+};
 
 export default function CartoesGestao({ tipo }) {
   const { userData } = useAuth();
@@ -9001,12 +9703,13 @@ export default function CartoesGestao({ tipo }) {
   const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
   
   const [cartoes, setCartoes] = useState([]);
-  const [veiculos, setVeiculos] = useState([]);
+  const [motoristas, setMotoristas] = useState([]); // Mudança de Veículos para Motoristas [1]
   const [funcionarios, setFuncionarios] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editingCartao, setEditingCartao] = useState(null);
   const [tempDados, setTempDados] = useState(null);
   const [lastSavedItem, setLastSavedItem] = useState(null);
+  const [isImporting, setIsImporting] = useState(false);
 
   // 'tipo' vem da prop da rota: "combustivel" ou "eletrico" (lowercase, sem acento)
   // É usado directamente — sem normalização — para coincidir com o Firestore
@@ -9015,14 +9718,14 @@ export default function CartoesGestao({ tipo }) {
     setLoading(true);
     try {
       const q = query(collection(db, "cartoes"), where("tipo", "==", tipo));
-      const [snapC, snapV, snapU] = await Promise.all([
+      const [snapC, snapM, snapU] = await Promise.all([
         getDocs(q),
-        getDocs(collection(db, "veiculos")),
+        getDocs(collection(db, "motoristas")), // Carregar motoristas [1]
         getDocs(collection(db, "usuarios"))
       ]);
 
       setCartoes(snapC.docs.map(d => ({ id: d.id, ...d.data() })));
-      setVeiculos(snapV.docs.map(d => ({ id: d.id, ...d.data() })));
+      setMotoristas(snapM.docs.map(d => ({ id: d.id, ...d.data() })));
       setFuncionarios(snapU.docs.map(d => ({ id: d.id, ...d.data() })));
     } catch (error) {
       console.error("Erro ao carregar cartões:", error);
@@ -9033,27 +9736,136 @@ export default function CartoesGestao({ tipo }) {
 
   useEffect(() => { fetchData(); }, [tipo]);
 
+  // Sincroniza bidirecionalmente as relações no motorista quando edita um cartão [1]
+  const syncMotoristaParaCartao = async (cardId, cardNumero, cardTipo, novosDados, antigosDados = null) => {
+    const batch = writeBatch(db);
+
+    const antigoMotoristaId = antigosDados?.motoristaId || '';
+    const novoMotoristaId = novosDados.motoristaId || '';
+
+    const campoCardId = cardTipo === 'combustivel' ? 'cartaoAbastecimentoId' : 'cartaoCarregamentoId';
+    const campoCardNumero = cardTipo === 'combustivel' ? 'cartaoAbastecimentoNumero' : 'cartaoCarregamentoNumero';
+
+    if (antigoMotoristaId !== novoMotoristaId) {
+      if (antigoMotoristaId) {
+        const antigoRef = doc(db, "motoristas", antigoMotoristaId);
+        batch.update(antigoRef, { [campoCardId]: "", [campoCardNumero]: "" });
+      }
+      if (novoMotoristaId) {
+        const novoRef = doc(db, "motoristas", novoMotoristaId);
+        batch.update(novoRef, { [campoCardId]: cardId, [campoCardNumero]: cardNumero });
+      }
+    }
+
+    await batch.commit();
+  };
+
+  // Executa a sementeira inteligente em lote de acordo com o tipo atual do ecrã
+  const handleSementeiraLote = async () => {
+    const cardsToSeed = tipo === 'combustivel' ? CARTOES_COMBUSTIVEL : CARTOES_ELETRICOS;
+    const fornecedorPadrao = tipo === 'combustivel' ? 'Galp' : 'Prio';
+    const tipoLabel = tipo === 'combustivel' ? 'Abastecimento (Combustível)' : 'Carregamento (Elétrico)';
+
+    const confirmacao = window.confirm(
+      `Deseja iniciar a sementeira de ${cardsToSeed.length} cartões de ${tipoLabel}?\n\n` +
+      `Nota: Cartões que já se encontrem registados não sofrerão alterações.`
+    );
+
+    if (!confirmacao) return;
+
+    setIsImporting(true);
+    try {
+      const batch = writeBatch(db);
+      
+      // Mapeia identificadores locais existentes na memória para poupar leituras adicionais
+      const existentesIDs = cartoes.map(c => c.id.toLowerCase().trim());
+      let novosAdicionadosCount = 0;
+
+      cardsToSeed.forEach((nomeCartao) => {
+        const nomeLimpo = nomeCartao.trim();
+        
+        if (!existentesIDs.includes(nomeLimpo.toLowerCase())) {
+          // O nome do cartão é usado diretamente como o ID do documento
+          const docRef = doc(db, "cartoes", nomeLimpo);
+          
+          batch.set(docRef, {
+            numero: nomeLimpo,               
+            numeroCartao: nomeLimpo,         
+            fornecedor: fornecedorPadrao,
+            tipo: tipo,
+            plafond: 100,                    
+            pin: "0000",                     
+            PIN: "0000",                     
+            estado: "Disponível",
+            historico: [],
+            dataCriacao: new Date().toISOString(),
+            criadoPor: "Sistema (Sementeira)"
+          });
+          novosAdicionadosCount++;
+        }
+      });
+
+      if (novosAdicionadosCount > 0) {
+        await batch.commit();
+        await logAcaoGlobal(userData?.nome || "Sistema", "Sementeira", "Cartões", `Sementeira em lote de ${novosAdicionadosCount} cartões de ${tipo}`, "lote");
+        alert(`Sementeira concluída! Foram criados ${novosAdicionadosCount} cartões com sucesso.`);
+        fetchData();
+      } else {
+        alert("Sementeira ignorada. Todos os cartões indicados já existem na base de dados.");
+      }
+    } catch (error) {
+      console.error("Erro na sementeira em lote:", error);
+      alert("Ocorreu um erro ao registar os cartões em lote.");
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
   const handleSave = async (dados) => {
     if (editingCartao) {
       setTempDados(dados);
       setIsJustifyModalOpen(true);
     } else {
       try {
-        const docRef = await addDoc(collection(db, "cartoes"), { 
+        // Garantir que usamos o número do cartão (nome) inserido como o ID do documento
+        const cardId = (dados.numeroCartao || dados.numero || '').trim();
+        if (!cardId) {
+          alert("O número do cartão (Nome) é obrigatório.");
+          return;
+        }
+
+        const docRef = doc(db, "cartoes", cardId);
+        
+        // Salvaguarda manual: Verificar se já existe documento com este ID
+        const duplicado = cartoes.some(c => c.id.toLowerCase() === cardId.toLowerCase());
+        if (duplicado) {
+          alert(`O cartão "${cardId}" já se encontra registado.`);
+          return;
+        }
+
+        const payload = { 
           ...dados, 
+          numero: cardId,             
+          numeroCartao: cardId,       
           tipo: tipo,
           historico: [],
           dataCriacao: new Date().toISOString(),
           criadoPor: userData?.nome
-        });
+        };
 
-        await logAcaoGlobal(userData?.nome, "Criação", "Cartões", `${dados.fornecedor} (${dados.numeroCartao})`, docRef.id);
+        await setDoc(docRef, payload);
+
+        // Sincronizar o motorista novo [1]
+        await syncMotoristaParaCartao(cardId, cardId, tipo, dados);
+
+        await logAcaoGlobal(userData?.nome, "Criação", "Cartões", `${dados.fornecedor} (${cardId})`, cardId);
         
-        setLastSavedItem({ id: docRef.id, nome: `${dados.fornecedor} - ${dados.numeroCartao}`, codigo: 'CARD' });
+        setLastSavedItem({ id: cardId, nome: `${dados.fornecedor} - ${cardId}`, codigo: 'CARD' });
         setIsModalOpen(false);
         fetchData();
         setIsTicketModalOpen(true);
       } catch (error) {
+        console.error("Erro ao salvar cartão:", error);
         alert("Erro ao salvar cartão.");
       }
     }
@@ -9068,11 +9880,18 @@ export default function CartoesGestao({ tipo }) {
         descricao: motivo
       };
 
+      const cardId = (tempDados.numeroCartao || tempDados.numero || editingCartao.id).trim();
+
       await updateDoc(docRef, {
         ...tempDados,
+        numero: cardId,
+        numeroCartao: cardId,
         tipo: tipo,
         historico: arrayUnion(novoLog)
       });
+
+      // Sincronizar motorista alterado [1]
+      await syncMotoristaParaCartao(cardId, cardId, tipo, tempDados, editingCartao);
 
       await logAcaoGlobal(userData?.nome, "Edição", "Cartões", tempDados.fornecedor, editingCartao.id);
 
@@ -9124,52 +9943,106 @@ export default function CartoesGestao({ tipo }) {
           </h1>
           <p className="text-slate-500 text-sm">Gestão de cartões físicos e fluxo de entrega.</p>
         </div>
-        <Button onClick={() => { setEditingCartao(null); setIsModalOpen(true); }}>
-          <Plus size={20} /> Novo Cartão
-        </Button>
+        
+        <div className="flex gap-3">
+          {/* Botão de Sementeira Contextualizado */}
+          <Button onClick={handleSementeiraLote} disabled={isImporting || loading}>
+            <Database size={20} className="isImporting ? 'animate-spin' : ''" />
+            {isImporting ? 'A Importar...' : 'Sementeira em Lote'}
+          </Button>
+
+          <Button onClick={() => { setEditingCartao(null); setIsModalOpen(true); }}>
+            <Plus size={20} /> Novo Cartão
+          </Button>
+        </div>
       </header>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {cartoes.map(c => (
-          <div key={c.id} className="bg-white border border-slate-200 rounded-[2rem] p-6 shadow-sm hover:shadow-md transition-all relative overflow-hidden group">
-            <div className="absolute top-0 right-0 w-20 h-20 bg-slate-50 rounded-bl-full -mr-10 -mt-10"></div>
-            
-            <div className="flex justify-between items-start mb-4">
-              <div>
-                <p className="text-xs font-black text-tvde-primary uppercase tracking-widest">{c.fornecedor}</p>
-                <p className="text-lg font-mono font-bold mt-1 text-slate-700">{c.numeroCartao}</p>
-              </div>
-              <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-all">
-                <button onClick={() => { setEditingCartao(c); setIsModalOpen(true); }} className="p-2 bg-slate-100 text-slate-400 hover:text-tvde-primary rounded-xl">
-                  <Edit size={16} />
-                </button>
-                <button onClick={() => handleDelete(c.id)} className="p-2 bg-slate-100 text-slate-400 hover:text-red-500 rounded-xl">
-                  <Trash2 size={16} />
-                </button>
-              </div>
-            </div>
+      {/* Visualização em Linhas (Tabela) */}
+      {cartoes.length > 0 && !loading && (
+        <div className="bg-white border border-slate-200 rounded-[2rem] overflow-hidden shadow-sm">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left border-collapse text-sm">
+              <thead className="bg-slate-50 border-b border-slate-100 text-slate-400 text-[10px] font-black uppercase tracking-widest">
+                <tr>
+                  <th className="py-4 px-6">Identificador / Número</th>
+                  <th className="py-4 px-6">Fornecedor</th>
+                  <th className="py-4 px-6">PIN</th>
+                  <th className="py-4 px-6">Plafond Semanal</th>
+                  {/* Cabeçalho de Motorista */}
+                  <th className="py-4 px-6">Motorista Associado</th>
+                  <th className="py-4 px-6 text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100 text-sm text-slate-700 font-medium">
+                {cartoes.map(c => (
+                  <tr key={c.id} className="hover:bg-slate-50/50 transition-all group">
+                    {/* Número do Cartão */}
+                    <td className="py-4 px-6 font-mono font-bold text-slate-900">
+                      {c.numeroCartao || c.numero}
+                    </td>
 
-            <div className="space-y-3">
-              <div className="flex justify-between items-center bg-slate-50 p-3 rounded-2xl border border-slate-100">
-                <span className="text-[10px] text-slate-400 font-black uppercase flex items-center gap-1">
-                  <ShieldCheck size={14} /> PIN
-                </span>
-                <span className="font-black text-tvde-dark tracking-widest">{c.pin || '----'}</span>
-              </div>
+                    {/* Fornecedor */}
+                    <td className="py-4 px-6">
+                      <span className="text-xs font-black text-tvde-primary uppercase tracking-widest">
+                        {c.fornecedor}
+                      </span>
+                    </td>
 
-              <div className="flex justify-between text-sm px-1">
-                <span className="text-slate-400 font-medium">Plafond Semanal:</span>
-                <span className="font-bold text-tvde-accent">{c.plafond} €</span>
-              </div>
+                    {/* Código PIN */}
+                    <td className="py-4 px-6">
+                      <div className="inline-flex items-center gap-1.5 bg-slate-50 border border-slate-100 px-3 py-1 rounded-xl">
+                        <ShieldCheck size={14} className="text-slate-400" />
+                        <span className="font-bold text-slate-700 tracking-wider font-mono">
+                          {c.pin || '----'}
+                        </span>
+                      </div>
+                    </td>
 
-              <div className="flex justify-between text-sm border-t border-slate-50 pt-3 px-1">
-                <span className="text-slate-400 font-medium">Veículo:</span>
-                <span className="font-bold text-slate-700">{c.vinculoMatricula || 'Em Stock'}</span>
-              </div>
-            </div>
+                    {/* Plafond Semanal */}
+                    <td className="py-4 px-6">
+                      <span className="font-bold text-tvde-accent">
+                        {c.plafond} €
+                      </span>
+                    </td>
+
+                    {/* Motorista Associado na listagem de Cartões */}
+                    <td className="py-4 px-6">
+                      <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${
+                        c.motoristaNome 
+                          ? 'bg-indigo-50 text-indigo-700 border-indigo-100' 
+                          : 'bg-emerald-50 text-emerald-700 border-emerald-100'
+                      }`}>
+                        <span className={`h-1.5 w-1.5 rounded-full ${c.motoristaNome ? 'bg-indigo-600' : 'bg-emerald-600'}`} />
+                        {c.motoristaNome ? formatTitleCase(c.motoristaNome) : 'Em Stock'}
+                      </span>
+                    </td>
+
+                    {/* Ações */}
+                    <td className="py-4 px-6 text-right">
+                      <div className="flex gap-2 justify-end opacity-0 group-hover:opacity-100 transition-all">
+                        <button 
+                          onClick={() => { setEditingCartao(c); setIsModalOpen(true); }} 
+                          className="p-2 text-slate-400 hover:text-tvde-primary hover:bg-slate-100 rounded-xl transition"
+                          title="Editar Cartão"
+                        >
+                          <Edit size={16} />
+                        </button>
+                        <button 
+                          onClick={() => handleDelete(c.id)} 
+                          className="p-2 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-xl transition"
+                          title="Eliminar Cartão"
+                        >
+                          <Trash2 size={16} />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
-        ))}
-      </div>
+        </div>
+      )}
 
       {cartoes.length === 0 && !loading && (
         <div className="text-center py-20 bg-white rounded-[3rem] border-2 border-dashed border-slate-100">
@@ -9178,7 +10051,7 @@ export default function CartoesGestao({ tipo }) {
       )}
 
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingCartao ? "Editar Cartão" : "Novo Cartão"}>
-        <CartaoForm veiculos={veiculos} onSubmit={handleSave} initialData={editingCartao || {}} onCancel={() => setIsModalOpen(false)} />
+        <CartaoForm motoristas={motoristas} onSubmit={handleSave} initialData={editingCartao || {}} onCancel={() => setIsModalOpen(false)} />
       </Modal>
 
       <JustificacaoModal isOpen={isJustifyModalOpen} onCancel={() => setIsJustifyModalOpen(false)} onConfirm={confirmarSalvamentoComLog} />
@@ -12945,8 +13818,28 @@ import { generateNextCode } from '../utils/idGenerator';
 import { logAcaoGlobal } from '../utils/logger';
 import { 
   collection, addDoc, getDocs, query, 
-  doc, deleteDoc, updateDoc, arrayUnion, onSnapshot 
+  doc, deleteDoc, updateDoc, arrayUnion, onSnapshot, writeBatch 
 } from 'firebase/firestore';
+
+/**
+ * Função Auxiliar: Formata o nome em Title Case para exibição 
+ * uniforme no título do Modal de Edição.
+ */
+const formatTitleCase = (str) => {
+  if (!str) return '';
+  const preposicoes = ['de', 'da', 'do', 'das', 'dos', 'e', 'em'];
+  return str
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .map((word, index) => {
+      if (preposicoes.includes(word) && index !== 0) {
+        return word;
+      }
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    })
+    .join(' ');
+};
 
 export default function Motoristas() {
   const { userData } = useAuth();
@@ -12957,6 +13850,8 @@ export default function Motoristas() {
   const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
   
   const [motoristas, setMotoristas] = useState([]);
+  const [veiculos, setVeiculos] = useState([]);
+  const [cartoes, setCartoes] = useState([]);
   const [funcionarios, setFuncionarios] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState(null);
@@ -13001,12 +13896,63 @@ export default function Motoristas() {
       }
     });
 
+    // Subscrever lista de veículos para atribuição [1]
+    const unsubscribeVeiculos = onSnapshot(query(collection(db, "veiculos")), (snapshot) => {
+      setVeiculos(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+
+    // Subscrever lista de cartões para atribuição [1]
+    const unsubscribeCartoes = onSnapshot(query(collection(db, "cartoes")), (snapshot) => {
+      setCartoes(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+
     getDocs(query(collection(db, "usuarios"))).then(snapU => {
       setFuncionarios(snapU.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      unsubscribeVeiculos();
+      unsubscribeCartoes();
+    };
   }, [location.search, editingId, handleEditClick]);
+
+  // Sincroniza bidirecionalmente as relações de cartões no Firestore [1]
+  const syncCartoesParaMotorista = async (motoristaId, motoristaNome, novosDados, antigosDados = null) => {
+    const batch = writeBatch(db);
+
+    // 1. Sincronização do Cartão de Abastecimento
+    const antigoAbastId = antigosDados?.cartaoAbastecimentoId || '';
+    const novoAbastId = novosDados.cartaoAbastecimentoId || '';
+
+    if (antigoAbastId !== novoAbastId) {
+      if (antigoAbastId) {
+        const antigoRef = doc(db, "cartoes", antigoAbastId);
+        batch.update(antigoRef, { motoristaId: "", motoristaNome: "" });
+      }
+      if (novoAbastId) {
+        const novoRef = doc(db, "cartoes", novoAbastId);
+        batch.update(novoRef, { motoristaId, motoristaNome });
+      }
+    }
+
+    // 2. Sincronização do Cartão de Carregamento
+    const antigoCarregId = antigosDados?.cartaoCarregamentoId || '';
+    const novoCarregId = novosDados.cartaoCarregamentoId || '';
+
+    if (antigoCarregId !== novoCarregId) {
+      if (antigoCarregId) {
+        const antigoRef = doc(db, "cartoes", antigoCarregId);
+        batch.update(antigoRef, { motoristaId: "", motoristaNome: "" });
+      }
+      if (novoCarregId) {
+        const novoRef = doc(db, "cartoes", novoCarregId);
+        batch.update(novoRef, { motoristaId, motoristaNome });
+      }
+    }
+
+    await batch.commit();
+  };
 
   // Recalcula reativamente a cada update do onSnapshot
   const motoristaEmEdicao = motoristas.find(m => m.id === editingId) || null;
@@ -13062,16 +14008,14 @@ export default function Motoristas() {
           historico: []
         });
 
+        // Sincronizar o estado dos cartões do novo motorista [1]
+        await syncCartoesParaMotorista(docRef.id, dados.nome, dados);
+
         await logAcaoGlobal(userData?.nome, "Criação", "Motoristas", dados.nome, docRef.id);
 
-        if (enviarLink) {
-          const onboardingUrl = `${window.location.origin}/onboarding/${docRef.id}`;
-          const mensagem = `Olá ${dados.nome}, utilize este link para carregar os seus documentos: ${onboardingUrl}`;
-          window.open(`https://wa.me/351${dados.telemovel}?text=${encodeURIComponent(mensagem)}`, '_blank');
-        }
-
-        setLastSavedItem({ id: docRef.id, nome: dados.nome, codigo: novoCodigo });
+        setLastSavedItem({ id: docRef.id, nome: dados.nome, codigo: 'CARD' });
         fecharModal();
+        fetchData();
         if (!enviarLink) setIsTicketModalOpen(true);
       } catch (error) {
         console.error("Erro ao criar motorista:", error);
@@ -13096,6 +14040,9 @@ export default function Motoristas() {
           descricao: motivo
         })
       });
+
+      // Sincronizar o estado dos cartões do motorista editado [1]
+      await syncCartoesParaMotorista(editingId, tempDados.nome, tempDados, motoristaEmEdicao);
 
       await logAcaoGlobal(userData?.nome, "Edição", "Motoristas", dadosLimpos.nome, editingId);
 
@@ -13158,7 +14105,6 @@ export default function Motoristas() {
 
   return (
     <div className="space-y-6">
-      {/* ◄ ALTERADO: Header empilhável responsivo e botão expandido em mobile */}
       <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-slate-800">Motoristas</h1>
@@ -13172,7 +14118,6 @@ export default function Motoristas() {
         </Button>
       </header>
 
-      {/* ◄ ALTERADO: Padding otimizado para mobile */}
       <div className="flex gap-4 bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-slate-100">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
@@ -13192,7 +14137,6 @@ export default function Motoristas() {
           <p className="text-xs sm:text-sm font-semibold">A carregar motoristas...</p>
         </div>
       ) : (
-        /* ◄ ALTERADO: Contentor de segurança de scroll lateral adicionado ao redor da tabela */
         <div className="w-full overflow-x-auto rounded-2xl border border-slate-100 shadow-sm bg-white">
           <MotoristasList 
             motoristas={motoristasFiltrados} 
@@ -13205,7 +14149,7 @@ export default function Motoristas() {
       <Modal
         isOpen={isModalOpen}
         onClose={fecharModal}
-        title={isViewOnly ? "Consulta de Motorista" : (editingId ? "Editar Motorista" : "Novo Motorista")}
+        title={isViewOnly ? "Consulta de Motorista" : (editingId ? `Ficha de ${formatTitleCase(motoristaEmEdicao?.nome)}` : "Novo Motorista")}
       >
         <MotoristaForm 
           onSubmit={handleSaveMotorista} 
@@ -13213,6 +14157,9 @@ export default function Motoristas() {
           initialData={motoristaEmEdicao || {}}
           isReadOnly={isViewOnly} 
           onCriarProprietario={handleCriarProprietario}
+          veiculos={veiculos}
+          cartoes={cartoes}
+          motoristas={motoristas} // [1]
         />
       </Modal>
 
