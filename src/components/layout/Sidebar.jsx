@@ -2,11 +2,13 @@
  * Sidebar.jsx
  * Localização: src/components/layout/Sidebar.jsx
  *
- * Menu lateral administrativo.
- * Atualizado com:
- * - Secção "Administração" simplificada, contendo o acordeão "Registos" e o link direto "Serviços".
- * - Remoção do acordeão complexo e sub-abas parametrizadas de Serviços.
- * - Responsividade fluida, auto-scroll inteligente para Registos e escuta ativa de rotas.
+ * Menu lateral administrativo flutuante e auto-retrátil.
+ * Otimizado com:
+ * - [NOVO] Ocultação total por defeito em Desktop.
+ * - [NOVO] Deteção de passagem do rato (hover) para deslizar e abrir automaticamente.
+ * - [NOVO] Gatilho de borda invisível na margem esquerda para ativação tátil.
+ * - Secção "Administração" simplificada (Registos/Serviços).
+ * - Responsividade fluida com preservação de comportamento em ecrãs móveis (Mobile).
  */
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -53,6 +55,9 @@ export default function Sidebar({ aberta, setAberta }) {
   const navigate = useNavigate();
   const { userData, logout } = useAuth();
   
+  // Estado didático para gerir a passagem do rato no Desktop
+  const [hovered, setHovered] = useState(false);
+
   // Referências para o scroll automático
   const registrosRef = useRef(null);
   const cartoesRef = useRef(null);
@@ -111,19 +116,32 @@ export default function Sidebar({ aberta, setAberta }) {
 
   return (
     <>
+      {/* Gatilho invisível na borda esquerda do ecrã para capturar o rato no Desktop */}
+      {!hovered && !aberta && (
+        <div 
+          className="hidden lg:block fixed left-0 top-0 bottom-0 w-3.5 z-[35] bg-transparent"
+          onMouseEnter={() => setHovered(true)}
+        />
+      )}
+
       {/* Backdrop de escurecimento de fundo (Apenas Mobile quando o menu está aberto) */}
       {aberta && (
         <div 
-          className="fixed inset-0 z-30 bg-slate-950/60 backdrop-blur-xs lg:hidden"
+          className="fixed inset-0 z-30 bg-slate-950/60 backdrop-blur-sm lg:hidden"
           onClick={() => setAberta(false)}
         />
       )}
 
-      {/* Classes CSS dinâmicas para ocultação e deslizamento responsivo */}
+      {/* 
+        A classe "lg:translate-x-0" fixa foi removida.
+        Agora a Sidebar só entra em cena (translate-x-0) se estiver "aberta" (mobile) ou "hovered" (passagem de rato).
+      */}
       <aside 
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
         className={`w-64 h-screen bg-tvde-dark text-white p-3 flex flex-col fixed left-0 top-0 z-40 shadow-2xl transition-transform duration-300 ease-in-out ${
-          aberta ? 'translate-x-0' : '-translate-x-full'
-        } lg:translate-x-0`}
+          aberta || hovered ? 'translate-x-0' : '-translate-x-full'
+        }`}
       >
         {/* Header Compacto */}
         <div className="mb-5 px-2 flex items-center justify-between">
@@ -229,7 +247,7 @@ export default function Sidebar({ aberta, setAberta }) {
               )}
             </div>
 
-            {/* NOVO LINK ÚNICO: Serviços (Substitui o acordeão anterior) */}
+            {/* NOVO LINK ÚNICO: Serviços */}
             <div className="pt-1">
               <MenuItem 
                 icon={Briefcase} 
