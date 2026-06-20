@@ -8,16 +8,16 @@
  * - Migrado integralmente para a arquitetura de grelha de botões táteis com sub-modais de UX.
  * - Histórico de alterações formatado com data e hora detalhadas no padrão PT-PT.
  * - Máscara de telemóvel tátil portuguesa integrada de origem.
- * - [NOVO] Integração em tempo real com a coleção de Veículos (onSnapshot local).
- * - [NOVO] Menu "Frota Associada" para visualizar, encaminhar e registar carros deste parceiro.
+ * - Sincronização e escuta em tempo real local (onSnapshot) de viaturas da frota.
+ * - [MELHORADO] Menu "Frota Associada" estruturado em linhas com motor de pesquisa integrado.
  */
 
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom'; // Importado para navegação inteligente entre abas do ERP
+import { useNavigate } from 'react-router-dom';
 import { 
   Building2, Mail, Phone, MapPin, User, Camera, History, 
   Wallet, Plus, Trash2, Euro, CheckCircle2, ChevronDown, ChevronUp, Info, X, ArrowRight, Sparkles, AlertCircle,
-  Car // Ícone Car adicionado
+  Car
 } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import DatePicker from '../../components/ui/DatePicker'; 
@@ -78,7 +78,7 @@ export default function ProprietarioForm({
   onCriarMotorista 
 }) {
   const { userData } = useAuth();
-  const navigate = useNavigate(); // Hook do React Router para navegação cross-module
+  const navigate = useNavigate();
   
   // ESTADO CENTRAL DO FORMULÁRIO (Telemóvel com máscara inicial de origem)
   const [formData, setFormData] = useState({
@@ -95,16 +95,17 @@ export default function ProprietarioForm({
   const [criarComoMotorista, setCriarComoMotorista] = useState(false);
   const [modalFinanceiroAberto, setModalFinanceiroAberto] = useState(false);
 
-  // [NOVO] Estado para armazenar as viaturas escutadas do Firestore
-  const [veiculosFrota, setVeiculosFrota] = useState([]);
-
-  // Estados de abertura para os sub-modais de UX
+  // Estados de abertura para os novos sub-modais de UX
   const [modalIdentificacaoAberto, setModalIdentificacaoAberto] = useState(false);
   const [modalContactosAberto, setModalContactosAberto] = useState(false);
   const [modalLocalizacaoAberto, setModalLocalizacaoAberto] = useState(false);
   const [modalContaCorrenteAberto, setModalContaCorrenteAberto] = useState(false);
   const [modalOnboardingAberto, setModalOnboardingAberto] = useState(false);
-  const [modalVeiculosAberto, setModalVeiculosAberto] = useState(false); // [NOVO]
+  
+  // [MELHORADO] Estados da frota de viaturas e barra de pesquisa interna
+  const [veiculosFrota, setVeiculosFrota] = useState([]);
+  const [filterVeiculoText, setFilterVeiculoText] = useState('');
+  const [modalVeiculosAberto, setModalVeiculosAberto] = useState(false);
 
   // Sincronização em tempo real da conta corrente pendente
   useEffect(() => {
@@ -121,7 +122,7 @@ export default function ProprietarioForm({
     }
   }, [initialData.id]);
 
-  // [NOVO] Escuta ativa em tempo real de todas as viaturas deste Proprietário
+  // Escuta ativa em tempo real de todas as viaturas deste Proprietário
   useEffect(() => {
     if (initialData.id) {
       const qV = query(
@@ -188,10 +189,21 @@ export default function ProprietarioForm({
 
   const inputClass = `w-full py-1.5 px-2.5 border border-slate-200 rounded-lg outline-none transition-all text-xs ${isReadOnly ? 'bg-slate-50/50 border-transparent font-semibold text-slate-700' : 'bg-white focus:ring-2 focus:ring-tvde-primary/20 hover:border-slate-300'}`;
 
+  // [MELHORADO] Filtro de pesquisa preditivo na frota do proprietário
+  const filteredVeiculos = veiculosFrota.filter(v => {
+    const q = filterVeiculoText.toLowerCase();
+    return (
+      (v.matricula || '').toLowerCase().includes(q) ||
+      (v.marca || '').toLowerCase().includes(q) ||
+      (v.modelo || '').toLowerCase().includes(q) ||
+      (v.motoristaNome || '').toLowerCase().includes(q)
+    );
+  });
+
   return (
     <form onSubmit={handleSubmit} className="space-y-1 max-h-[75vh] overflow-y-auto pr-3.5 custom-scrollbar">
       
-      {/* GRELHA DE BOTÕES TÁTEIS DO PROPRIETÁRIO (UX Unificada) */}
+      {/* GRELHA DE BOTÕES TÁTEIS DO PROPRIETÁRIO */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 my-3">
         
         {/* Botão 1: Identificação & Ficha */}
@@ -224,7 +236,7 @@ export default function ProprietarioForm({
             </div>
             <div className="truncate">
               <p className="text-xs font-black text-slate-800">Contactos Principais</p>
-              <p className="text-[9.5px] text-slate-400 truncate">Telemóvel profissional e Endereço de Email.</p>
+              <p className="text-[9.5px] text-slate-400 truncate">Telemóvel professional e Endereço de Email.</p>
             </div>
           </div>
           <ArrowRight size={12} className="text-slate-300 group-hover:text-tvde-primary transition-colors shrink-0" />
@@ -268,7 +280,7 @@ export default function ProprietarioForm({
           </button>
         )}
 
-        {/* [NOVO] Botão 5: Frota de Viaturas Associada (Visível apenas após criação) */}
+        {/* Botão 5: Frota de Viaturas Associada */}
         {initialData.id && (
           <button
             type="button"
@@ -464,14 +476,14 @@ export default function ProprietarioForm({
         </div>
       )}
 
-      {/* [NOVO] SUB-MODAL 5: Frota de Viaturas do Proprietário */}
+      {/* [NOVO / MELHORADO] SUB-MODAL 5: Frota de Viaturas do Proprietário (Em Linhas e com Pesquisa) */}
       {modalVeiculosAberto && (
         <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
-          <div className="absolute inset-0" onClick={() => setModalVeiculosAberto(false)} />
-          <div className="relative bg-white rounded-t-[2.5rem] sm:rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden p-6 sm:p-8 animate-in slide-in-from-bottom sm:zoom-in-95 duration-200 text-left">
-            <button type="button" onClick={() => setModalVeiculosAberto(false)} className="absolute top-4 right-4 p-1.5 text-slate-400 hover:bg-slate-50 hover:text-slate-600 rounded-full transition-all cursor-pointer"><X size={18} /></button>
+          <div className="absolute inset-0" onClick={() => { setModalVeiculosAberto(false); setFilterVeiculoText(''); }} />
+          <div className="relative bg-white rounded-t-[2.5rem] sm:rounded-3xl shadow-2xl w-full max-w-2xl h-[90vh] sm:max-h-[85vh] flex flex-col overflow-hidden p-6 sm:p-8 animate-in slide-in-from-bottom sm:zoom-in-95 duration-200 text-left">
+            <button type="button" onClick={() => { setModalVeiculosAberto(false); setFilterVeiculoText(''); }} className="absolute top-4 right-4 p-1.5 text-slate-400 hover:bg-slate-50 hover:text-slate-600 rounded-full transition-all cursor-pointer"><X size={18} /></button>
             
-            <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-4 select-none">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3 mb-3 select-none">
               <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-2">
                 <Car size={18} className="text-blue-500" /> Frota de Viaturas do Proprietário
               </h3>
@@ -481,7 +493,7 @@ export default function ProprietarioForm({
                   type="button" 
                   onClick={() => {
                     setModalVeiculosAberto(false);
-                    // Navegação com estado para preenchimento automático no formulário de veículos
+                    setFilterVeiculoText('');
                     navigate('/veiculos', { 
                       state: { 
                         autoOpenNew: true, 
@@ -497,15 +509,35 @@ export default function ProprietarioForm({
               )}
             </div>
 
-            <div className="space-y-3 overflow-y-auto pr-2 custom-scrollbar flex-1">
+            {/* [NOVO] Barra de Pesquisa Dinâmica para filtrar a frota */}
+            <div className="mb-4 relative shrink-0">
+              <input
+                type="text"
+                placeholder="🔍 Procurar viatura por matrícula, marca, modelo ou motorista..."
+                className="w-full p-2.5 border border-slate-200 rounded-xl text-xs outline-none focus:ring-2 focus:ring-tvde-primary/20 bg-slate-50 font-medium text-slate-700"
+                value={filterVeiculoText}
+                onChange={(e) => setFilterVeiculoText(e.target.value)}
+              />
+            </div>
+
+            {/* [MELHORADO] Listagem de Viaturas em Linhas (Rows) */}
+            <div className="space-y-2 overflow-y-auto pr-2 custom-scrollbar flex-1">
               {veiculosFrota.length > 0 ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {veiculosFrota.map((v) => (
-                    <div key={v.id} className="p-3 bg-slate-50 rounded-xl border border-slate-150 flex flex-col justify-between hover:border-blue-200 transition-colors">
-                      <div className="space-y-1.5">
-                        <div className="flex items-center justify-between">
-                          {/* Matrícula Física no formato PT */}
-                          <div className="inline-flex items-center border-[1.8px] border-slate-900 rounded-[3px] bg-white h-5 overflow-hidden text-[9px] font-black font-mono">
+                filteredVeiculos.length > 0 ? (
+                  <div className="flex flex-col gap-2">
+                    {filteredVeiculos.map((v) => (
+                      <div 
+                        key={v.id} 
+                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100 hover:bg-slate-100/50 transition-colors"
+                      >
+                        <div className="flex items-center gap-3 min-w-0 flex-1">
+                          {/* Ícone de Veículo Compacto */}
+                          <div className="w-8 h-8 bg-blue-100/60 text-tvde-primary rounded-lg flex items-center justify-center shrink-0">
+                            <Car size={16} />
+                          </div>
+                          
+                          {/* Matrícula Estilizada Real */}
+                          <div className="inline-flex items-center border-[1.5px] border-slate-900 rounded-[3px] bg-white h-5 overflow-hidden text-[9px] font-black font-mono shrink-0 select-none">
                             <span className="bg-[#003399] text-white flex flex-col items-center justify-center px-0.5 h-full text-[4px] leading-none shrink-0 border-r border-slate-200">
                               <span className="text-yellow-400 text-[3px] leading-none">★</span>
                               <span className="font-extrabold leading-none scale-90">P</span>
@@ -515,46 +547,55 @@ export default function ProprietarioForm({
                             </span>
                           </div>
 
+                          {/* Detalhes da Marca/Modelo e Condutor */}
+                          <div className="truncate min-w-0">
+                            <p className="text-xs font-bold text-slate-800 uppercase truncate">
+                              {v.marca} {v.modelo}
+                            </p>
+                            <p className="text-[10px] text-slate-400 font-medium truncate">
+                              👤 {v.motoristaNome || <span className="italic text-slate-300">Sem condutor atribuído</span>}
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Coluna Direita: Estado e Ação */}
+                        <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0 border-t sm:border-t-0 pt-2 sm:pt-0 border-slate-200/50">
                           <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md uppercase ${
                             v.status === 'Ativo' ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-400'
                           }`}>
                             {v.status || 'Inativo'}
                           </span>
-                        </div>
 
-                        <div>
-                          <p className="text-xs font-bold text-slate-800 uppercase">{v.marca} {v.modelo}</p>
-                          <p className="text-[10px] text-slate-400 font-medium">
-                            👤 {v.motoristaNome || <span className="italic">Disponível / Sem Condutor</span>}
-                          </p>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setModalVeiculosAberto(false);
+                              setFilterVeiculoText('');
+                              navigate(`/veiculos?id=${v.id}`);
+                            }}
+                            className="p-1.5 hover:bg-white border border-transparent hover:border-slate-250 rounded-lg text-tvde-primary transition-all cursor-pointer flex items-center justify-center"
+                            title="Ver Ficha do Veículo"
+                          >
+                            <ArrowRight size={14} />
+                          </button>
                         </div>
                       </div>
-
-                      <div className="mt-3 pt-2 border-t border-slate-200/50 flex justify-end">
-                        <button
-                          type="button"
-                          onClick={() => {
-                            setModalVeiculosAberto(false);
-                            // Deep linking nativo suportado em Veiculos.jsx
-                            navigate(`/veiculos?id=${v.id}`);
-                          }}
-                          className="text-[10px] font-black text-tvde-primary hover:underline uppercase tracking-wider flex items-center gap-1 cursor-pointer"
-                        >
-                          Ver Ficha <ArrowRight size={10} />
-                        </button>
-                      </div>
-                    </div>
-                  ))}
-                </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="p-8 text-center text-slate-400 text-xs italic bg-slate-50 rounded-2xl border border-slate-100">
+                    Nenhuma viatura corresponde aos critérios de pesquisa.
+                  </div>
+                )
               ) : (
-                <div className="p-8 text-center text-slate-400 text-xs italic">
+                <div className="p-8 text-center text-slate-400 text-xs italic bg-slate-50 rounded-2xl border border-slate-100">
                   Nenhuma viatura associada a este proprietário de momento.
                 </div>
               )}
             </div>
             
-            <div className="mt-6 pt-4 border-t border-slate-100 flex justify-end shrink-0">
-              <Button type="button" onClick={() => setModalVeiculosAberto(false)} className="px-6 h-10 text-xs shadow-md">Confirmar e Fechar</Button>
+            <div className="mt-4 pt-4 border-t border-slate-100 flex justify-end shrink-0">
+              <Button type="button" onClick={() => { setModalVeiculosAberto(false); setFilterVeiculoText(''); }} className="px-6 h-10 text-xs shadow-md">Confirmar e Fechar</Button>
             </div>
           </div>
         </div>
