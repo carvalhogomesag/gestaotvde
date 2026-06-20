@@ -45,6 +45,8 @@ export default function Motoristas() {
   const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
   
   const [motoristas, setMotoristas] = useState([]);
+  const [veiculos, setVeiculos] = useState([]);
+  const [cartoes, setCartoes] = useState([]);
   const [funcionarios, setFuncionarios] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState(null);
@@ -89,11 +91,25 @@ export default function Motoristas() {
       }
     });
 
+    // Subscrever lista de veículos para atribuição [1]
+    const unsubscribeVeiculos = onSnapshot(query(collection(db, "veiculos")), (snapshot) => {
+      setVeiculos(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+
+    // Subscrever lista de cartões para atribuição [1]
+    const unsubscribeCartoes = onSnapshot(query(collection(db, "cartoes")), (snapshot) => {
+      setCartoes(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+    });
+
     getDocs(query(collection(db, "usuarios"))).then(snapU => {
       setFuncionarios(snapU.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
-    return () => unsubscribe();
+    return () => {
+      unsubscribe();
+      unsubscribeVeiculos();
+      unsubscribeCartoes();
+    };
   }, [location.search, editingId, handleEditClick]);
 
   // Recalcula reativamente a cada update do onSnapshot
@@ -298,6 +314,8 @@ export default function Motoristas() {
           initialData={motoristaEmEdicao || {}}
           isReadOnly={isViewOnly} 
           onCriarProprietario={handleCriarProprietario}
+          veiculos={veiculos} // Veículos passados à Ficha [1]
+          cartoes={cartoes}   // Cartões passados à Ficha [1]
         />
       </Modal>
 

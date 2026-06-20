@@ -20,7 +20,7 @@ import {
   CheckSquare, Square, Camera, Eye, Trash2, 
   CheckCircle2, AlertCircle, History, Wallet, Plus, Minus, 
   Euro, ChevronDown, ChevronUp, FileCheck, Image as ImageIcon, Info,
-  MessageSquare, Share2, Send, Sparkles, ShieldCheck, AlertTriangle, ArrowRight, X
+  MessageSquare, Share2, Send, Sparkles, ShieldCheck, AlertTriangle, ArrowRight, X, Car
 } from 'lucide-react';
 import { db } from '../../firebase';
 import { doc, updateDoc, addDoc, collection, query, where, onSnapshot, deleteDoc } from 'firebase/firestore';
@@ -86,7 +86,15 @@ const CollapsibleSection = ({ title, icon: Icon, iconColor, defaultOpen = false,
   );
 };
 
-export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, isReadOnly = false, onCriarProprietario }) {
+export default function MotoristaForm({ 
+  onSubmit, 
+  initialData = {}, 
+  onCancel, 
+  isReadOnly = false, 
+  onCriarProprietario,
+  veiculos = [],  // Recebido via props do pai [1]
+  cartoes = []    // Recebido via props do pai [1]
+}) {
   const { userData } = useAuth();
   
   // ESTADO CENTRAL DO FORMULÁRIO (Mapeado e mascarado de origem)
@@ -124,7 +132,15 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
     validadeCriminal: initialData.validadeCriminal || '',
     observacoes_ia: initialData.observacoes_ia || '',
     alerta_inconsistencia: initialData.alerta_inconsistencia || false,
-    motivo_inconsistencia: initialData.motivo_inconsistencia || ''
+    motivo_inconsistencia: initialData.motivo_inconsistencia || '',
+    
+    // Novas chaves para atribuição de Frota e Cartões [1]
+    veiculoId: initialData.veiculoId || '',
+    veiculoMatricula: initialData.veiculoMatricula || '',
+    cartaoAbastecimentoId: initialData.cartaoAbastecimentoId || '',
+    cartaoAbastecimentoNumero: initialData.cartaoAbastecimentoNumero || '',
+    cartaoCarregamentoId: initialData.cartaoCarregamentoId || '',
+    cartaoCarregamentoNumero: initialData.cartaoCarregamentoNumero || ''
   });
 
   const [criarComoProprietario, setCriarComoProprietario] = useState(false);
@@ -135,6 +151,7 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
   const [modalMoradaAberto, setModalMoradaAberto] = useState(false);
   const [modalFaturacaoAberto, setModalFaturacaoAberto] = useState(false);
   const [modalDocumentosAberto, setModalDocumentosAberto] = useState(false);
+  const [modalFrotaAberto, setModalFrotaAberto] = useState(false); // Novo sub-modal [1]
 
   // Vínculo do campo IBAN ao seu respetivo documento de origem para auditoria visual
   const fieldToDocMap = {
@@ -476,7 +493,25 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
           <ArrowRight size={12} className="text-slate-300 group-hover:text-tvde-primary transition-colors shrink-0" />
         </button>
 
-        {/* Botão 5: Onboarding WhatsApp (Mesmo tamanho e estilo visual dos outros botões) */}
+        {/* Botão Novo 5: Atribuição de Frota & Cartões (Mesmo tamanho e estilo visual) [1] */}
+        <button
+          type="button"
+          onClick={() => setModalFrotaAberto(true)}
+          className="p-2.5 bg-slate-50 hover:bg-indigo-50/50 border border-slate-200/80 rounded-xl flex items-center justify-between transition-all cursor-pointer group text-left"
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="p-2 bg-indigo-100 text-indigo-600 rounded-lg group-hover:scale-105 transition-transform shrink-0">
+              <Car size={16} />
+            </div>
+            <div className="truncate">
+              <p className="text-xs font-black text-slate-800">Atribuição de Frota</p>
+              <p className="text-[9.5px] text-slate-400 truncate">Vincular veículo e cartões de consumo [1].</p>
+            </div>
+          </div>
+          <ArrowRight size={12} className="text-slate-300 group-hover:text-tvde-primary transition-colors shrink-0" />
+        </button>
+
+        {/* Botão 6: Onboarding WhatsApp (Mesmo tamanho e estilo visual) */}
         {initialData.id && !isReadOnly && (
           <button
             type="button"
@@ -496,13 +531,13 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
           </button>
         )}
 
-        {/* Botão 6: Gestão Financeira (Mesmo tamanho e estilo visual dos outros botões) */}
+        {/* Botão 7: Gestão Financeira (Mesmo tamanho e estilo visual) */}
         {initialData.id && (
           <button
             type="button"
             onClick={() => setModalFinanceiroAberto(true)}
             className={`p-2.5 bg-slate-50 hover:bg-emerald-50/50 border border-slate-200/80 rounded-xl flex items-center justify-between transition-all cursor-pointer group text-left ${
-              isReadOnly ? 'sm:col-span-2' : ''
+              isReadOnly ? '' : 'sm:col-span-2'
             }`}
           >
             <div className="flex items-center gap-2.5 min-w-0">
@@ -677,6 +712,102 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
             </div>
             <div className="mt-4 pt-4 border-t border-slate-100 flex justify-end shrink-0">
               <Button type="button" onClick={() => setModalDocumentosAberto(false)} className="px-6 h-10 text-xs shadow-md">Confirmar e Fechar</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* SUB-MODAL 4: Atribuição de Frota & Cartões [1] */}
+      {modalFrotaAberto && (
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="absolute inset-0" onClick={() => setModalFrotaAberto(false)} />
+          <div className="relative bg-white rounded-t-[2.5rem] sm:rounded-3xl shadow-2xl w-full max-w-xl max-h-[90vh] flex flex-col overflow-hidden p-6 sm:p-8 animate-in slide-in-from-bottom sm:zoom-in-95 duration-200 text-left">
+            <button type="button" onClick={() => setModalFrotaAberto(false)} className="absolute top-4 right-4 p-1.5 text-slate-400 hover:bg-slate-50 hover:text-slate-600 rounded-full transition-all cursor-pointer"><X size={18} /></button>
+            <h3 className="text-sm font-black text-indigo-700 uppercase tracking-wider flex items-center gap-2 mb-4 border-b border-slate-100 pb-3 select-none">
+              <Car size={18} className="text-indigo-600" /> Atribuição de Frota & Cartões
+            </h3>
+            
+            <div className="space-y-4 overflow-y-auto pr-2 custom-scrollbar">
+              
+              {/* Seleção do Veículo */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Veículo Atribuído</label>
+                <select 
+                  disabled={isReadOnly}
+                  className="w-full p-2.5 border border-slate-200 rounded-lg bg-white text-xs outline-none focus:ring-2 focus:ring-tvde-primary/20 text-slate-700 font-medium"
+                  value={formData.veiculoId || ''}
+                  onChange={(e) => {
+                    const v = veiculos.find(veic => veic.id === e.target.value);
+                    setFormData({
+                      ...formData, 
+                      veiculoId: e.target.value, 
+                      veiculoMatricula: v ? v.matricula : ''
+                    });
+                  }}
+                >
+                  <option value="">Nenhum Veículo Atribuído (Em Stock)</option>
+                  {veiculos.map(v => (
+                    <option key={v.id} value={v.id}>
+                      {v.matricula} — {v.marca} {v.modelo}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Seleção do Cartão de Abastecimento (Combustível) */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Cartão de Abastecimento (Combustível)</label>
+                <select 
+                  disabled={isReadOnly}
+                  className="w-full p-2.5 border border-slate-200 rounded-lg bg-white text-xs outline-none focus:ring-2 focus:ring-tvde-primary/20 text-slate-700 font-medium"
+                  value={formData.cartaoAbastecimentoId || ''}
+                  onChange={(e) => {
+                    const c = cartoes.find(card => card.id === e.target.value);
+                    setFormData({
+                      ...formData, 
+                      cartaoAbastecimentoId: e.target.value, 
+                      cartaoAbastecimentoNumero: c ? (c.numeroCartao || c.numero) : ''
+                    });
+                  }}
+                >
+                  <option value="">Nenhum Cartão Associado</option>
+                  {cartoes.filter(card => card.tipo === 'combustivel').map(card => (
+                    <option key={card.id} value={card.id}>
+                      {card.numeroCartao || card.numero} ({card.fornecedor})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              {/* Seleção do Cartão de Carregamento (Elétrico) */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Cartão de Carregamento (Elétrico)</label>
+                <select 
+                  disabled={isReadOnly}
+                  className="w-full p-2.5 border border-slate-200 rounded-lg bg-white text-xs outline-none focus:ring-2 focus:ring-tvde-primary/20 text-slate-700 font-medium"
+                  value={formData.cartaoCarregamentoId || ''}
+                  onChange={(e) => {
+                    const c = cartoes.find(card => card.id === e.target.value);
+                    setFormData({
+                      ...formData, 
+                      cartaoCarregamentoId: e.target.value, 
+                      cartaoCarregamentoNumero: c ? (c.numeroCartao || c.numero) : ''
+                    });
+                  }}
+                >
+                  <option value="">Nenhum Cartão Associado</option>
+                  {cartoes.filter(card => card.tipo === 'eletrico').map(card => (
+                    <option key={card.id} value={card.id}>
+                      {card.numeroCartao || card.numero} ({card.fornecedor})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+            </div>
+
+            <div className="mt-6 pt-4 border-t border-slate-100 flex justify-end">
+              <Button type="button" onClick={() => setModalFrotaAberto(false)} className="px-6 h-10 text-xs shadow-md">Confirmar e Fechar</Button>
             </div>
           </div>
         </div>
