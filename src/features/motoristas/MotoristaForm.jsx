@@ -50,6 +50,27 @@ const formatTitleCase = (str) => {
 };
 
 /**
+ * Função Auxiliar: Aplica máscara de telemóvel português (000 000 000)
+ */
+const formatPhone = (val) => {
+  if (!val) return '';
+  const clean = val.replace(/\D/g, '').substring(0, 9);
+  if (clean.length <= 3) return clean;
+  if (clean.length <= 6) return `${clean.slice(0, 3)} ${clean.slice(3)}`;
+  return `${clean.slice(0, 3)} ${clean.slice(3, 6)} ${clean.slice(6)}`;
+};
+
+/**
+ * Função Auxiliar: Aplica máscara de código postal português (0000-000)
+ */
+const formatPostalCode = (val) => {
+  if (!val) return '';
+  const clean = val.replace(/\D/g, '').substring(0, 7);
+  if (clean.length <= 4) return clean;
+  return `${clean.slice(0, 4)}-${clean.slice(4)}`;
+};
+
+/**
  * Componente Auxiliar: Secção Colapsável Compacta
  */
 const CollapsibleSection = ({ title, icon: Icon, iconColor, defaultOpen = false, children }) => {
@@ -68,19 +89,39 @@ const CollapsibleSection = ({ title, icon: Icon, iconColor, defaultOpen = false,
 export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, isReadOnly = false, onCriarProprietario }) {
   const { userData } = useAuth();
   
-  // ESTADO CENTRAL DO FORMULÁRIO
+  // ESTADO CENTRAL DO FORMULÁRIO (Mapeado e mascarado de origem)
   const [formData, setFormData] = useState({
-    nome: initialData.nome || '', email: initialData.email || '', telemovel: initialData.telemovel || '', nif: initialData.nif || '',
-    nifPagamento: initialData.nifPagamento || '', nifMesmoMotorista: initialData.nifMesmoMotorista || false, 
-    numID: initialData.numID || '', numCarta: initialData.numCarta || '', 
-    numTVDE: initialData.numTVDE || '', dataNascimento: initialData.dataNascimento || '', iban: initialData.iban || '',
-    moradaTipo: initialData.moradaTipo || '', moradaRua: initialData.moradaRua || '', moradaNumero: initialData.moradaNumero || '',
-    moradaComplemento: initialData.moradaComplemento || '', codigoPostal: initialData.codigoPostal || '', localidade: initialData.localidade || '',
-    status: initialData.status || 'Ativo', fotoPerfil: initialData.fotoPerfil || '', docIDFront: initialData.docIDFront || '',
-    docIDBack: initialData.docIDBack || '', docCartaFront: initialData.docCartaFront || '', docCartaBack: initialData.docCartaBack || '',
-    docCertificadoTVDE: initialData.docCertificadoTVDE || '', docRegistoCriminal: initialData.docRegistoCriminal || '',
-    docIBAN: initialData.docIBAN || '', docMorada: initialData.docMorada || '', validadeID: initialData.validadeID || '',
-    validadeCarta: initialData.validadeCarta || '', validadeTVDE: initialData.validadeTVDE || '', validadeCriminal: initialData.validadeCriminal || '',
+    nome: initialData.nome || '', 
+    email: initialData.email || '', 
+    telemovel: formatPhone(initialData.telemovel || ''), 
+    nif: initialData.nif || '',
+    nifPagamento: initialData.nifPagamento || '', 
+    nifMesmoMotorista: initialData.nifMesmoMotorista || false, 
+    numID: initialData.numID || '', 
+    numCarta: initialData.numCarta || '', 
+    numTVDE: initialData.numTVDE || '', 
+    dataNascimento: initialData.dataNascimento || '', 
+    iban: initialData.iban || '',
+    moradaTipo: initialData.moradaTipo || '', 
+    moradaRua: initialData.moradaRua || '', 
+    moradaNumero: initialData.moradaNumero || '',
+    moradaComplemento: initialData.moradaComplemento || '', 
+    codigoPostal: formatPostalCode(initialData.codigoPostal || ''), 
+    localidade: initialData.localidade || '',
+    status: initialData.status || 'Ativo', 
+    fotoPerfil: initialData.fotoPerfil || '', 
+    docIDFront: initialData.docIDFront || '',
+    docIDBack: initialData.docIDBack || '', 
+    docCartaFront: initialData.docCartaFront || '', 
+    docCartaBack: initialData.docCartaBack || '',
+    docCertificadoTVDE: initialData.docCertificadoTVDE || '', 
+    docRegistoCriminal: initialData.docRegistoCriminal || '',
+    docIBAN: initialData.docIBAN || '', 
+    docMorada: initialData.docMorada || '', 
+    validadeID: initialData.validadeID || '',
+    validadeCarta: initialData.validadeCarta || '', 
+    validadeTVDE: initialData.validadeTVDE || '', 
+    validadeCriminal: initialData.validadeCriminal || '',
     observacoes_ia: initialData.observacoes_ia || '',
     alerta_inconsistencia: initialData.alerta_inconsistencia || false,
     motivo_inconsistencia: initialData.motivo_inconsistencia || ''
@@ -138,6 +179,8 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
       ...prev, 
       ...initialData, 
       ...camposIA, 
+      telemovel: formatPhone(initialData.telemovel || prev.telemovel || ''),
+      codigoPostal: formatPostalCode(initialData.codigoPostal || prev.codigoPostal || ''),
       observacoes_ia: initialData.observacoes_ia || prev.observacoes_ia,
       alerta_inconsistencia: initialData.alerta_inconsistencia || prev.alerta_inconsistencia,
       motivo_inconsistencia: initialData.motivo_inconsistencia || prev.motivo_inconsistencia
@@ -158,10 +201,11 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
   };
 
   const handleEnviarLinkExistente = (metodo) => {
+    const cleanTelemovel = formData.telemovel.replace(/\D/g, '');
     const onboardingUrl = `${window.location.origin}/onboarding/${initialData.id}`;
     const mensagem = `Olá ${formData.nome}, utilize este link para carregar os seus documentos: ${onboardingUrl}`;
     if (metodo === 'whatsapp') {
-      window.open(`https://wa.me/351${formData.telemovel}?text=${encodeURIComponent(mensagem)}`, '_blank');
+      window.open(`https://wa.me/351${cleanTelemovel}?text=${encodeURIComponent(mensagem)}`, '_blank');
     } else if (metodo === 'email') {
       window.location.href = `mailto:${formData.email}?subject=Registo de Motorista - Documentação&body=${encodeURIComponent(mensagem)}`;
     }
@@ -188,7 +232,11 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
             className={`${inputClass} ${isAIFilled ? 'border-blue-300 bg-blue-50/20 ring-1 ring-blue-100 pr-14' : ''} ${forceReadOnly ? 'bg-slate-100 text-slate-400 font-medium cursor-not-allowed' : ''}`} 
             value={formData[field] || ''} 
             onChange={(e) => {
-              setFormData({...formData, [field]: e.target.value});
+              let val = e.target.value;
+              if (field === 'codigoPostal') {
+                val = formatPostalCode(val);
+              }
+              setFormData({...formData, [field]: val});
               if (isAIFilled) validarCampoIA(field);
             }} 
           />
@@ -288,56 +336,37 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
   );
 
   const handleFinalSubmit = async (enviarLink = false) => {
-    if (!formData.nome || !formData.telemovel || !formData.email) { alert("Preencha Nome, Telemóvel e Email."); return; }
-    if (criarComoProprietario && onCriarProprietario) { await onCriarProprietario({ nome: formData.nome, nif: formData.nif, iban: formData.iban, telemovel: formData.telemovel, email: formData.email }); }
-    onSubmit(formData, enviarLink);
+    // Purga de máscaras visuais para persistência consistente no Firestore
+    const cleanTelemovel = formData.telemovel.replace(/\D/g, '');
+    const cleanCodigoPostal = formData.codigoPostal.replace(/\D/g, '');
+    const cleanEmail = formData.email.trim();
+    
+    if (!formData.nome || !cleanTelemovel || !cleanEmail) { 
+      alert("Preencha Nome, Telemóvel e Email."); 
+      return; 
+    }
+
+    const dadosLimposParaGuardar = {
+      ...formData,
+      telemovel: cleanTelemovel,
+      codigoPostal: cleanCodigoPostal
+    };
+
+    if (criarComoProprietario && onCriarProprietario) { 
+      await onCriarProprietario({ 
+        nome: formData.nome, 
+        nif: formData.nif, 
+        iban: formData.iban, 
+        telemovel: cleanTelemovel, 
+        email: formData.email 
+      }); 
+    }
+    
+    onSubmit(dadosLimposParaGuardar, enviarLink);
   };
 
   return (
     <form onSubmit={(e) => e.preventDefault()} className="space-y-1 max-h-[75vh] overflow-y-auto pr-3.5 custom-scrollbar">
-      
-      {/* ◄ ADICIONADO: Quadro de Identidade do Motorista no Topo (Com Capitalização automática) */}
-      {formData.nome && (
-        <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-slate-50 to-white border border-slate-200/60 rounded-2xl mb-3 text-left">
-          <div className="w-12 h-12 rounded-full overflow-hidden border border-slate-100 bg-white flex items-center justify-center shrink-0">
-            {formData.fotoPerfil ? (
-              <img src={formData.fotoPerfil} alt="Perfil" className="w-full h-full object-cover" />
-            ) : (
-              <User size={20} className="text-slate-300" />
-            )}
-          </div>
-          <div>
-            <h2 className="text-sm font-black text-slate-800 tracking-tight">
-              {formatTitleCase(formData.nome)}
-            </h2>
-            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">
-              {formData.status || 'Ativo'} • Cadastro Consolidado
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Quadro horizontal de Onboarding Digital */}
-      {initialData.id && !isReadOnly && (
-        <div className="flex flex-col sm:flex-row items-center justify-between p-2.5 bg-blue-50/50 border border-blue-100 rounded-2xl mb-3 gap-2 text-left animate-in fade-in duration-200">
-          <div className="flex items-center gap-2.5">
-            <div className="p-2 bg-blue-100 text-blue-600 rounded-xl shrink-0">
-              <Share2 size={14} />
-            </div>
-            <div>
-              <p className="text-xs font-bold text-slate-800">Onboarding Digital</p>
-              <p className="text-[9.5px] text-slate-400">Reenvie o link de recolha de documentação e registo para o telemóvel do motorista [2].</p>
-            </div>
-          </div>
-          <button 
-            type="button" 
-            onClick={() => handleEnviarLinkExistente('whatsapp')} 
-            className="flex items-center gap-1 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-[9px] font-black uppercase tracking-wider transition-all shadow-sm hover:shadow active:scale-95 cursor-pointer shrink-0"
-          >
-            <MessageSquare size={12} /> Reenviar WhatsApp
-          </button>
-        </div>
-      )}
 
       {/* BLOCO DE ALERTAS IA (REVISÃO E INCONSISTÊNCIA) */}
       {(Object.keys(initialData).some(k => k.startsWith('ai_filled_') && initialData[k] === true) || formData.alerta_inconsistencia) && (
@@ -372,10 +401,10 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
         </div>
       )}
 
-      {/* Grelha de botões de navegação para sub-modais de UX (Colapsados de Origem) [2] */}
+      {/* Grelha de botões de navegação para sub-modais de UX (Symmetric Layout) [2] */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 my-3">
         
-        {/* Botão Novo: Identificação & Ficha Cadastral (Inicia colapsado/fechado) */}
+        {/* Botão 1: Identificação & Ficha Cadastral (Inicia colapsado/fechado) */}
         <button
           type="button"
           onClick={() => setModalIdentificacaoAberto(true)}
@@ -393,7 +422,7 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
           <ArrowRight size={12} className="text-slate-300 group-hover:text-tvde-primary transition-colors shrink-0" />
         </button>
 
-        {/* Botão: Contacto e Morada */}
+        {/* Botão 2: Contacto e Morada */}
         <button
           type="button"
           onClick={() => setModalMoradaAberto(true)}
@@ -411,7 +440,7 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
           <ArrowRight size={12} className="text-slate-300 group-hover:text-tvde-primary transition-colors shrink-0" />
         </button>
 
-        {/* Botão: Dados Financeiros */}
+        {/* Botão 3: Dados Financeiros */}
         <button
           type="button"
           onClick={() => setModalFaturacaoAberto(true)}
@@ -429,7 +458,7 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
           <ArrowRight size={12} className="text-slate-300 group-hover:text-tvde-primary transition-colors shrink-0" />
         </button>
 
-        {/* Botão: Documentação Digital */}
+        {/* Botão 4: Documentação Digital */}
         <button
           type="button"
           onClick={() => setModalDocumentosAberto(true)}
@@ -447,12 +476,34 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
           <ArrowRight size={12} className="text-slate-300 group-hover:text-tvde-primary transition-colors shrink-0" />
         </button>
 
-        {/* Botão: Gestão Financeira (Movido do rodapé para manter consistência visual do painel) */}
+        {/* Botão 5: Onboarding WhatsApp (Mesmo tamanho e estilo visual dos outros botões) */}
+        {initialData.id && !isReadOnly && (
+          <button
+            type="button"
+            onClick={() => handleEnviarLinkExistente('whatsapp')}
+            className="p-2.5 bg-slate-50 hover:bg-emerald-50/50 border border-slate-200/80 rounded-xl flex items-center justify-between transition-all cursor-pointer group text-left"
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="p-2 bg-emerald-100 text-emerald-600 rounded-lg group-hover:scale-105 transition-transform shrink-0">
+                <Share2 size={16} />
+              </div>
+              <div className="truncate">
+                <p className="text-xs font-black text-slate-800">Onboarding Digital</p>
+                <p className="text-[9.5px] text-slate-400 truncate">Reenviar WhatsApp para recolha [2].</p>
+              </div>
+            </div>
+            <ArrowRight size={12} className="text-slate-300 group-hover:text-emerald-600 transition-colors shrink-0" />
+          </button>
+        )}
+
+        {/* Botão 6: Gestão Financeira (Mesmo tamanho e estilo visual dos outros botões) */}
         {initialData.id && (
           <button
             type="button"
             onClick={() => setModalFinanceiroAberto(true)}
-            className="p-2.5 bg-slate-50 hover:bg-emerald-50/50 border border-slate-200/80 rounded-xl flex items-center justify-between transition-all cursor-pointer group text-left sm:col-span-2"
+            className={`p-2.5 bg-slate-50 hover:bg-emerald-50/50 border border-slate-200/80 rounded-xl flex items-center justify-between transition-all cursor-pointer group text-left ${
+              isReadOnly ? 'sm:col-span-2' : ''
+            }`}
           >
             <div className="flex items-center gap-2.5 min-w-0">
               <div className="p-2 bg-emerald-100 text-emerald-600 rounded-lg group-hover:scale-105 transition-transform shrink-0">
@@ -460,7 +511,7 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
               </div>
               <div className="truncate">
                 <p className="text-xs font-black text-slate-800">Gestão Financeira</p>
-                <p className="text-[9.5px] text-slate-400 truncate">Consultar saldos, cauções, adiantamentos e renegociações [2].</p>
+                <p className="text-[9.5px] text-slate-400 truncate">Saldos, cauções, adiantamentos e renegociações [2].</p>
               </div>
             </div>
             <ArrowRight size={12} className="text-slate-300 group-hover:text-emerald-600 transition-colors shrink-0" />
@@ -483,7 +534,7 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
         </CollapsibleSection>
       )}
 
-      {/* SUB-MODAL 0: Identificação e Dados Cadastrais Vinteis */}
+      {/* SUB-MODAL 0: Identificação e Dados Cadastrais */}
       {modalIdentificacaoAberto && (
         <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
           <div className="absolute inset-0" onClick={() => setModalIdentificacaoAberto(false)} />
@@ -536,7 +587,7 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
             <div className="space-y-4 overflow-y-auto pr-2 custom-scrollbar">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
                 <div><label className="block text-xs font-medium text-slate-700 mb-1">Email *</label><input type="email" required readOnly={isReadOnly} className={inputClass} value={formData.email || ''} onChange={(e) => setFormData({...formData, email: e.target.value})} /></div>
-                <div><label className="block text-xs font-medium text-slate-700 mb-1">Telemóvel *</label><div className="flex"><span className="inline-flex items-center px-2 rounded-l-xl border border-r-0 border-slate-200 bg-slate-100 text-slate-500 font-bold text-[10px]">+351</span><input required readOnly={isReadOnly} className={`${inputClass} rounded-l-none font-mono`} value={formData.telemovel || ''} onChange={(e) => setFormData({...formData, telemovel: e.target.value.replace(/\D/g, '').substring(0,9)})} /></div></div>
+                <div><label className="block text-xs font-medium text-slate-700 mb-1">Telemóvel *</label><div className="flex"><span className="inline-flex items-center px-2 rounded-l-xl border border-r-0 border-slate-200 bg-slate-100 text-slate-500 font-bold text-[10px]">+351</span><input required readOnly={isReadOnly} className={`${inputClass} rounded-l-none font-mono`} value={formData.telemovel || ''} onChange={(e) => setFormData({...formData, telemovel: formatPhone(e.target.value)})} /></div></div>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-4 gap-3.5 pt-2">
                 <div className="sm:col-span-2">{renderInputIA("Rua / Avenida", "moradaRua")}</div>
