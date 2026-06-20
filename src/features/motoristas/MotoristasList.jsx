@@ -4,16 +4,17 @@
  *
  * Listagem tabular compacta de motoristas.
  * Otimizado com:
- * - Interruptor de estado (Ativo/Inativo) com trava de segurança para pendentes [1, 2].
- * - Auto-corretor em segundo plano para manter conformidade de estado no Firestore [1].
- * - Filtros rápidos no cabeçalho integrados [2].
+ * - Interruptor de estado (Ativo/Inativo) com trava de segurança para pendentes.
+ * - Auto-corretor em segundo plano para manter conformidade de estado no Firestore.
+ * - Filtros rápidos no cabeçalho integrados.
+ * - [NOVO] Layout atualizado: Contactos sob o nome do motorista; nova coluna para Veículo Atribuído.
  */
 
 import React, { useState, useEffect } from 'react';
 import { 
   Edit, Trash2, User, FileText, CreditCard, 
   ShieldAlert, BadgeCheck, Home, Eye, AlertCircle, 
-  Sparkles 
+  Sparkles, Car, Wallet // Importações de Car e Wallet adicionadas
 } from 'lucide-react';
 import { db } from '../../firebase';
 import { doc, updateDoc } from 'firebase/firestore';
@@ -24,8 +25,8 @@ export default function MotoristasList({ motoristas, onEdit, onDelete }) {
   const { userData } = useAuth();
 
   // ESTADOS LOCAIS PARA OS FILTROS DE CADA COLUNA
-  const [filterNome, setFilterNome] = useState('');
-  const [filterContacto, setFilterContacto] = useState('');
+  const [filterPesquisaGlobal, setFilterPesquisaGlobal] = useState(''); // Substitui filterNome e filterContacto
+  const [filterVeiculo, setFilterVeiculo] = useState(''); // Novo filtro para a coluna de veículos
   const [filterStatus, setFilterStatus] = useState('todos');
   const [filterDocs, setFilterDocs] = useState('todos');
 
@@ -60,7 +61,7 @@ export default function MotoristasList({ motoristas, onEdit, onDelete }) {
     return Object.keys(m).some(key => key.startsWith('ai_filled_') && m[key] === true);
   };
 
-  // ◄ ADICIONADO: Auto-corretor de conformidade regulamentar em segundo plano [1]
+  // Auto-corretor de conformidade regulamentar em segundo plano
   useEffect(() => {
     motoristas.forEach(async (m) => {
       if (isProfileIncomplete(m) && m.status === 'Ativo') {
@@ -75,7 +76,7 @@ export default function MotoristasList({ motoristas, onEdit, onDelete }) {
     });
   }, [motoristas]);
 
-  // ◄ ADICIONADO: Função para alternar o estado diretamente na lista [1, 2]
+  // Função para alternar o estado diretamente na lista
   const handleToggleStatus = async (motoristaId, nome, currentStatus, incomplete) => {
     if (incomplete) {
       alert("Operação bloqueada: Não é possível ativar um motorista com documentação pendente.");
@@ -105,19 +106,22 @@ export default function MotoristasList({ motoristas, onEdit, onDelete }) {
       const incomplete = isProfileIncomplete(m);
       const effectiveStatus = incomplete ? 'Inativo' : (m.status || 'Inativo');
 
-      // 1. Filtragem por Nome ou Código
-      const queryNome = filterNome.toLowerCase();
-      const matchesNome = 
-        (m.nome || '').toLowerCase().includes(queryNome) ||
-        (m.codigoInterno || '').toLowerCase().includes(queryNome);
+      // 1. Filtragem por Motorista (Nome, Código, Tlf, NIF) - Agrupado
+      const queryGlobal = filterPesquisaGlobal.toLowerCase();
+      const matchesMotorista = 
+        (m.nome || '').toLowerCase().includes(queryGlobal) ||
+        (m.codigoInterno || '').toLowerCase().includes(queryGlobal) ||
+        (m.telemovel || '').toLowerCase().includes(queryGlobal) ||
+        (m.nif || '').toLowerCase().includes(queryGlobal);
 
-      // 2. Filtragem por Telemóvel ou NIF
-      const queryContacto = filterContacto.toLowerCase();
-      const matchesContacto = 
-        (m.telemovel || '').toLowerCase().includes(queryContacto) ||
-        (m.nif || '').toLowerCase().includes(queryContacto);
+      // 2. Filtragem por Veículo Atribuído (Matrícula ou Marca/Modelo)
+      const queryVeiculo = filterVeiculo.toLowerCase();
+      const matchesVeiculo = 
+        (m.veiculoMatricula || '').toLowerCase().includes(queryVeiculo) ||
+        (m.veiculoMarca || '').toLowerCase().includes(queryVeiculo) ||
+        (m.veiculoModelo || '').toLowerCase().includes(queryVeiculo);
 
-      // 3. Filtragem por Status (Alinhado com a trava de pendentes)
+      // 3. Filtragem por Status
       const matchesStatus = filterStatus === 'todos' || effectiveStatus === filterStatus;
 
       // 4. Filtragem pelo Estado dos Documentos
@@ -130,17 +134,17 @@ export default function MotoristasList({ motoristas, onEdit, onDelete }) {
         matchesDocs = needsAIValidation(m);
       }
 
-      return matchesNome && matchesContacto && matchesStatus && matchesDocs;
+      return matchesMotorista && matchesVeiculo && matchesStatus && matchesDocs;
     });
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-x-auto w-full custom-scrollbar">
-      <table className="w-full text-left border-collapse min-w-[750px]">
+      <table className="w-full text-left border-collapse min-w-[850px]">
         <thead>
           {/* Cabeçalho de Títulos Principal */}
           <tr className="bg-slate-50 border-b border-slate-100">
-            <th className="p-4 font-semibold text-slate-600 text-sm">Motorista</th>
-            <th className="p-4 font-semibold text-slate-600 text-sm">Contacto / NIF</th>
+            <th className="p-4 font-semibold text-slate-600 text-sm">Motorista / Contacto</th>
+            <th className="p-4 font-semibold text-slate-600 text-sm">Veículo Atribuído</th>
             <th className="p-4 font-semibold text-slate-600 text-sm">Status</th>
             <th className="p-4 font-semibold text-slate-600 text-sm">Documentos</th>
             <th className="p-4 font-semibold text-slate-600 text-sm text-right">Ações</th>
@@ -148,23 +152,23 @@ export default function MotoristasList({ motoristas, onEdit, onDelete }) {
           
           {/* Linha de Filtros Dinâmicos Individuais por Coluna */}
           <tr className="bg-slate-50/50 border-b border-slate-100">
-            {/* Filtro: Motorista */}
+            {/* Filtro: Motorista / Contactos */}
             <td className="px-4 py-2">
               <input 
                 type="text" 
-                placeholder="🔍 Pesquisar por nome/ID..." 
-                value={filterNome} 
-                onChange={(e) => setFilterNome(e.target.value)}
+                placeholder="🔍 Nome, Tlf ou NIF..." 
+                value={filterPesquisaGlobal} 
+                onChange={(e) => setFilterPesquisaGlobal(e.target.value)}
                 className="w-full p-1.5 border border-slate-200 rounded-lg text-[11px] outline-none focus:ring-1 focus:ring-tvde-primary text-slate-700 bg-white font-medium"
               />
             </td>
-            {/* Filtro: Contacto / NIF */}
+            {/* Filtro: Veículo */}
             <td className="px-4 py-2">
               <input 
                 type="text" 
-                placeholder="🔍 Pesquisar tlf/NIF..." 
-                value={filterContacto} 
-                onChange={(e) => setFilterContacto(e.target.value)}
+                placeholder="🔍 Matrícula, marca..." 
+                value={filterVeiculo} 
+                onChange={(e) => setFilterVeiculo(e.target.value)}
                 className="w-full p-1.5 border border-slate-200 rounded-lg text-[11px] outline-none focus:ring-1 focus:ring-tvde-primary text-slate-700 bg-white font-medium"
               />
             </td>
@@ -204,6 +208,8 @@ export default function MotoristasList({ motoristas, onEdit, onDelete }) {
             
             return (
               <tr key={m.id} className="hover:bg-slate-50/50 transition-colors">
+                
+                {/* COLUNA 1: Motorista (Avatar + Nome + Contactos) */}
                 <td className="p-4">
                   <div className="flex items-center gap-3">
                     {m.fotoPerfil ? (
@@ -220,20 +226,43 @@ export default function MotoristasList({ motoristas, onEdit, onDelete }) {
                         </span>
                         <p className="font-bold text-slate-800">{m.nome}</p>
                       </div>
-                      <p className="text-[10px] text-slate-400 font-mono uppercase tracking-tighter">ID Sistema: {m.id.substring(0, 5)}...</p>
+                      {/* O ID Sistema foi substituído pelos contactos aqui */}
+                      <p className="text-[11px] text-slate-500 font-medium">
+                        {m.telemovel || 'S/Tlf'} <span className="text-slate-300 mx-1">•</span> NIF: <span className="font-mono">{m.nif || 'S/NIF'}</span>
+                      </p>
                     </div>
                   </div>
                 </td>
-                <td className="p-4 text-sm text-slate-600">
-                  <p className="font-medium">{m.telemovel || '---'}</p>
-                  <p className="text-[10px] text-slate-400 font-bold">NIF: {m.nif || '---'}</p>
+                
+                {/* COLUNA 2: Veículo Atribuído (Nova Posição) */}
+                <td className="p-4 text-sm">
+                  {m.veiculoId ? (
+                    <div className="flex items-center gap-2">
+                      <div className="w-7 h-7 bg-blue-50 rounded-lg flex items-center justify-center text-tvde-primary shadow-sm border border-blue-100 shrink-0">
+                        <Car size={14} />
+                      </div>
+                      <div className="flex flex-col">
+                        {/* Matrícula em formato realçado */}
+                        <span className="font-black text-slate-800 text-xs font-mono tracking-widest uppercase">
+                          {m.veiculoMatricula || 'S/MAT'}
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-bold truncate max-w-[120px]">
+                          {m.veiculoMarca || 'Veículo'} {m.veiculoModelo || ''}
+                        </span>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 text-slate-400 italic text-xs">
+                      <Car size={14} className="opacity-50" />
+                      Sem veículo atribuído
+                    </div>
+                  )}
                 </td>
                 
-                {/* ◄ ALTERADO: Coluna de Status Interativa (Toggle Switch) com Trava de Segurança */}
+                {/* COLUNA 3: Status Interativo */}
                 <td className="p-4">
                   <div className="flex flex-col gap-1.5 text-left justify-center">
                     <div className="flex items-center gap-2.5">
-                      {/* Botão Interruptor (Switch) */}
                       <button
                         type="button"
                         disabled={incomplete}
@@ -252,7 +281,6 @@ export default function MotoristasList({ motoristas, onEdit, onDelete }) {
                         />
                       </button>
                       
-                      {/* Texto de Estado */}
                       <span className={`text-[10px] font-black uppercase tracking-wider ${
                         incomplete 
                           ? 'text-red-500 font-extrabold' 
@@ -262,7 +290,6 @@ export default function MotoristasList({ motoristas, onEdit, onDelete }) {
                       </span>
                     </div>
                     
-                    {/* INDICADOR DE REVISÃO IA */}
                     {aiReview && (
                       <span className="flex items-center gap-1 text-[9px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-md font-black uppercase border border-blue-100 animate-pulse w-fit mt-1">
                         <Sparkles size={10} /> Revisão IA
@@ -271,6 +298,7 @@ export default function MotoristasList({ motoristas, onEdit, onDelete }) {
                   </div>
                 </td>
                 
+                {/* COLUNA 4: Documentos */}
                 <td className="p-4">
                   <div className="flex flex-col gap-2">
                     <div className="flex gap-3">
@@ -292,14 +320,12 @@ export default function MotoristasList({ motoristas, onEdit, onDelete }) {
                       </div>
 
                       <div className="flex -space-x-2">
-                        {m.docCertificadoTVDE} {
-                          m.docCertificadoTVDE && (
-                            <a href={m.docCertificadoTVDE} target="_blank" rel="noreferrer" 
-                              className={`w-8 h-8 rounded-full border flex items-center justify-center shadow-sm z-10 transition-all ${checkStatusColor(m.validadeTVDE)}`} title="TVDE">
-                              <BadgeCheck size={14} />
-                            </a>
-                          )
-                        }
+                        {m.docCertificadoTVDE && (
+                          <a href={m.docCertificadoTVDE} target="_blank" rel="noreferrer" 
+                            className={`w-8 h-8 rounded-full border flex items-center justify-center shadow-sm z-10 transition-all ${checkStatusColor(m.validadeTVDE)}`} title="TVDE">
+                            <BadgeCheck size={14} />
+                          </a>
+                        )}
                         {m.docRegistoCriminal && (
                           <a href={m.docRegistoCriminal} target="_blank" rel="noreferrer" 
                             className={`w-8 h-8 rounded-full border flex items-center justify-center shadow-sm z-20 ${checkStatusColor(m.validadeCriminal)}`} title="Criminal">
@@ -310,7 +336,7 @@ export default function MotoristasList({ motoristas, onEdit, onDelete }) {
 
                       <div className="flex -space-x-2">
                         {m.docIBAN && <a href={m.docIBAN} target="_blank" className="w-8 h-8 flex items-center justify-center bg-slate-50 border border-slate-100 rounded-full text-slate-400 hover:text-tvde-primary transition" title="Comprovativo IBAN"><Wallet size={12} /></a>}
-                        {m.docMorada && <a href={formData.docMorada} target="_blank" rel="noreferrer" className="w-8 h-8 flex items-center justify-center bg-slate-50 border border-slate-200 rounded-full text-slate-400 hover:text-indigo-500 transition" title="Comprovativo Morada"><Home size={12} /></a>}
+                        {m.docMorada && <a href={m.docMorada} target="_blank" rel="noreferrer" className="w-8 h-8 flex items-center justify-center bg-slate-50 border border-slate-200 rounded-full text-slate-400 hover:text-indigo-500 transition" title="Comprovativo Morada"><Home size={12} /></a>}
                       </div>
                     </div>
 
@@ -322,6 +348,7 @@ export default function MotoristasList({ motoristas, onEdit, onDelete }) {
                   </div>
                 </td>
 
+                {/* COLUNA 5: Ações */}
                 <td className="p-4 text-right">
                   <div className="flex justify-end gap-2">
                     <button onClick={() => onEdit(m, true)} className="p-2 text-slate-400 hover:text-indigo-600 transition-colors bg-slate-50 rounded-lg hover:bg-indigo-50 cursor-pointer" title="Visualizar"><Eye size={18} /></button>
