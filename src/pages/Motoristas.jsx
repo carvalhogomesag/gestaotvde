@@ -314,8 +314,9 @@ export default function Motoristas() {
           initialData={motoristaEmEdicao || {}}
           isReadOnly={isViewOnly} 
           onCriarProprietario={handleCriarProprietario}
-          veiculos={veiculos} // Veículos passados à Ficha [1]
-          cartoes={cartoes}   // Cartões passados à Ficha [1]
+          veiculos={veiculos}
+          cartoes={cartoes}
+          motoristas={motoristas} // Passamos todos os motoristas registados para validação cruzada [1]
         />
       </Modal>
 

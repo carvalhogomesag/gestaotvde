@@ -92,8 +92,9 @@ export default function MotoristaForm({
   onCancel, 
   isReadOnly = false, 
   onCriarProprietario,
-  veiculos = [],  // Recebido via props do pai [1]
-  cartoes = []    // Recebido via props do pai [1]
+  veiculos = [],  
+  cartoes = [],    
+  motoristas = [] // Recebemos a lista para calcular a trava de cartões ocupados [1]
 }) {
   const { userData } = useAuth();
   
@@ -134,7 +135,7 @@ export default function MotoristaForm({
     alerta_inconsistencia: initialData.alerta_inconsistencia || false,
     motivo_inconsistencia: initialData.motivo_inconsistencia || '',
     
-    // Novas chaves para atribuição de Frota e Cartões [1]
+    // Atribuição de Frota e Cartões
     veiculoId: initialData.veiculoId || '',
     veiculoMatricula: initialData.veiculoMatricula || '',
     cartaoAbastecimentoId: initialData.cartaoAbastecimentoId || '',
@@ -151,7 +152,29 @@ export default function MotoristaForm({
   const [modalMoradaAberto, setModalMoradaAberto] = useState(false);
   const [modalFaturacaoAberto, setModalFaturacaoAberto] = useState(false);
   const [modalDocumentosAberto, setModalDocumentosAberto] = useState(false);
-  const [modalFrotaAberto, setModalFrotaAberto] = useState(false); // Novo sub-modal [1]
+  const [modalFrotaAberto, setModalFrotaAberto] = useState(false); 
+
+  // LÓGICA DA TRAVA: Mapeia cartões já atribuídos a OUTROS motoristas para bloqueá-los [1]
+  const cartoesAbastecimentoOcupados = motoristas
+    .filter(m => m.id !== initialData.id && m.cartaoAbastecimentoId)
+    .map(m => m.cartaoAbastecimentoId);
+
+  const cartoesCarregamentoOcupados = motoristas
+    .filter(m => m.id !== initialData.id && m.cartaoCarregamentoId)
+    .map(m => m.cartaoCarregamentoId);
+
+  // Filtrar os cartões que estão livres na base de dados para atribuição [1]
+  const cartoesCombustivelDisponiveis = cartoes.filter(card => {
+    const isCombustivel = card.tipo === 'combustivel';
+    const isOcupadoPorOutro = cartoesAbastecimentoOcupados.includes(card.id);
+    return isCombustivel && !isOcupadoPorOutro;
+  });
+
+  const cartoesEletricosDisponiveis = cartoes.filter(card => {
+    const isEletrico = card.tipo === 'eletrico';
+    const isOcupadoPorOutro = cartoesCarregamentoOcupados.includes(card.id);
+    return isEletrico && !isOcupadoPorOutro;
+  });
 
   // Vínculo do campo IBAN ao seu respetivo documento de origem para auditoria visual
   const fieldToDocMap = {
@@ -421,7 +444,7 @@ export default function MotoristaForm({
       {/* Grelha de botões de navegação para sub-modais de UX (Symmetric Layout) [2] */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 my-3">
         
-        {/* Botão 1: Identificação & Ficha Cadastral (Inicia colapsado/fechado) */}
+        {/* Botão 1: Identificação & Ficha Cadastral */}
         <button
           type="button"
           onClick={() => setModalIdentificacaoAberto(true)}
@@ -493,7 +516,7 @@ export default function MotoristaForm({
           <ArrowRight size={12} className="text-slate-300 group-hover:text-tvde-primary transition-colors shrink-0" />
         </button>
 
-        {/* Botão Novo 5: Atribuição de Frota & Cartões (Mesmo tamanho e estilo visual) [1] */}
+        {/* Botão 5: Atribuição de Frota & Cartões [1] */}
         <button
           type="button"
           onClick={() => setModalFrotaAberto(true)}
@@ -511,7 +534,7 @@ export default function MotoristaForm({
           <ArrowRight size={12} className="text-slate-300 group-hover:text-tvde-primary transition-colors shrink-0" />
         </button>
 
-        {/* Botão 6: Onboarding WhatsApp (Mesmo tamanho e estilo visual) */}
+        {/* Botão 6: Onboarding WhatsApp */}
         {initialData.id && !isReadOnly && (
           <button
             type="button"
@@ -531,7 +554,7 @@ export default function MotoristaForm({
           </button>
         )}
 
-        {/* Botão 7: Gestão Financeira (Mesmo tamanho e estilo visual) */}
+        {/* Botão 7: Gestão Financeira */}
         {initialData.id && (
           <button
             type="button"
@@ -762,7 +785,7 @@ export default function MotoristaForm({
                   className="w-full p-2.5 border border-slate-200 rounded-lg bg-white text-xs outline-none focus:ring-2 focus:ring-tvde-primary/20 text-slate-700 font-medium"
                   value={formData.cartaoAbastecimentoId || ''}
                   onChange={(e) => {
-                    const c = cartoes.find(card => card.id === e.target.value);
+                    const c = cartoesCombustivelDisponiveis.find(card => card.id === e.target.value);
                     setFormData({
                       ...formData, 
                       cartaoAbastecimentoId: e.target.value, 
@@ -771,7 +794,7 @@ export default function MotoristaForm({
                   }}
                 >
                   <option value="">Nenhum Cartão Associado</option>
-                  {cartoes.filter(card => card.tipo === 'combustivel').map(card => (
+                  {cartoesCombustivelDisponiveis.map(card => (
                     <option key={card.id} value={card.id}>
                       {card.numeroCartao || card.numero} ({card.fornecedor})
                     </option>
@@ -787,7 +810,7 @@ export default function MotoristaForm({
                   className="w-full p-2.5 border border-slate-200 rounded-lg bg-white text-xs outline-none focus:ring-2 focus:ring-tvde-primary/20 text-slate-700 font-medium"
                   value={formData.cartaoCarregamentoId || ''}
                   onChange={(e) => {
-                    const c = cartoes.find(card => card.id === e.target.value);
+                    const c = cartoesEletricosDisponiveis.find(card => card.id === e.target.value);
                     setFormData({
                       ...formData, 
                       cartaoCarregamentoId: e.target.value, 
@@ -796,7 +819,7 @@ export default function MotoristaForm({
                   }}
                 >
                   <option value="">Nenhum Cartão Associado</option>
-                  {cartoes.filter(card => card.tipo === 'eletrico').map(card => (
+                  {cartoesEletricosDisponiveis.map(card => (
                     <option key={card.id} value={card.id}>
                       {card.numeroCartao || card.numero} ({card.fornecedor})
                     </option>
