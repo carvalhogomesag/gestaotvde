@@ -157,7 +157,7 @@ export default function Motoristas() {
       batch.update(cartaoRef, { motoristaNome });
     }
 
-    // 3. Sincronização do Veículo (NOVA FUNCIONALIDADE)
+    // 3. Sincronização do Veículo
     const antigoVeiculoId = antigosDados?.veiculoId || '';
     const novoVeiculoId = novosDados.veiculoId || '';
 
@@ -253,7 +253,16 @@ export default function Motoristas() {
     }
   };
 
+  /**
+   * [ATUALIZADO] TRAVA DE SEGURANÇA OPERACIONAL:
+   * Valida obrigatoriamente a existência de motivo antes de prosseguir com a gravação.
+   */
   const confirmarSalvamentoComLog = async (motivo) => {
+    if (!motivo || !motivo.trim()) {
+      alert("Operação bloqueada: É estritamente obrigatório indicar uma justificação para guardar as alterações.");
+      return;
+    }
+
     try {
       setLoading(true);
       const docRef = doc(db, "motoristas", editingId);
@@ -263,7 +272,7 @@ export default function Motoristas() {
         ...dadosLimpos,
         historico: arrayUnion({
           usuario: userData?.nome || 'Utilizador',
-          data: new Date().toISOString(),
+          data: new Date().toISOString(), // Grava data e hora completa para o histórico
           descricao: motivo
         })
       });

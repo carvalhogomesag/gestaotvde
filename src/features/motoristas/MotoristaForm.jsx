@@ -9,7 +9,7 @@
  * - Remoção definitiva e purga da Conta Corrente órfã e do useEffect setMovimentos.
  * - Compactação extrema de paddings, margins, gaps e inputs para evitar scroll no desktop.
  * - Preservação estrita das integrações do Firestore, IA Vision, alertas e conformidade regulamentar.
- * - [NOVO] Captura integral de dados do Veículo Atribuído (ID, Matrícula, Marca e Modelo) para sync bidirecional.
+ * - [NOVO] Histórico formatado com Data e Hora detalhadas em Português (PT-PT).
  */
 
 import React, { useState, useEffect } from 'react';
@@ -69,6 +69,21 @@ const formatPostalCode = (val) => {
   const clean = val.replace(/\D/g, '').substring(0, 7);
   if (clean.length <= 4) return clean;
   return `${clean.slice(0, 4)}-${clean.slice(4)}`;
+};
+
+/**
+ * [NOVO] Função Auxiliar didática para formatar data e hora em PT-PT
+ */
+const formatDataHora = (isoString) => {
+  if (!isoString) return '';
+  try {
+    const dataObj = new Date(isoString);
+    const data = dataObj.toLocaleDateString('pt-PT', { day: '2-digit', month: '2-digit', year: 'numeric' });
+    const hora = dataObj.toLocaleTimeString('pt-PT', { hour: '2-digit', minute: '2-digit' });
+    return `${data} às ${hora}`;
+  } catch (e) {
+    return isoString;
+  }
 };
 
 /**
@@ -136,7 +151,7 @@ export default function MotoristaForm({
     alerta_inconsistencia: initialData.alerta_inconsistencia || false,
     motivo_inconsistencia: initialData.motivo_inconsistencia || '',
     
-    // Atribuição de Frota e Cartões (AGORA COM MARCA E MODELO)
+    // Atribuição de Frota e Cartões
     veiculoId: initialData.veiculoId || '',
     veiculoMatricula: initialData.veiculoMatricula || '',
     veiculoMarca: initialData.veiculoMarca || '',
@@ -406,7 +421,6 @@ export default function MotoristaForm({
   );
 
   const handleFinalSubmit = async (enviarLink = false) => {
-    // Purga de máscaras visuais para persistência consistente no Firestore
     const cleanTelemovel = formData.telemovel.replace(/\D/g, '');
     const cleanCodigoPostal = formData.codigoPostal.replace(/\D/g, '');
     const cleanEmail = formData.email.trim();
@@ -438,10 +452,9 @@ export default function MotoristaForm({
   return (
     <form onSubmit={(e) => e.preventDefault()} className="space-y-1 max-h-[75vh] overflow-y-auto pr-3.5 custom-scrollbar">
 
-      {/* BLOCO DE ALERTAS IA (REVISÃO E INCONSISTÊNCIA) */}
+      {/* BLOCO DE ALERTAS IA */}
       {(Object.keys(initialData).some(k => k.startsWith('ai_filled_') && initialData[k] === true) || formData.alerta_inconsistencia) && (
         <div className="space-y-2 mb-3">
-          {/* Alerta de Inconsistência (Crítico) */}
           {formData.alerta_inconsistencia && (
             <div className="bg-orange-50 border border-orange-200 p-3 rounded-2xl shadow-sm animate-in fade-in slide-in-from-top-2 text-left">
               <div className="flex items-start gap-3 text-orange-600">
@@ -456,7 +469,6 @@ export default function MotoristaForm({
             </div>
           )}
 
-          {/* Aviso de Preenchimento Automático */}
           {Object.keys(initialData).some(k => k.startsWith('ai_filled_') && initialData[k] === true) && (
             <div className="bg-blue-50 border border-blue-200 p-3 rounded-2xl shadow-sm animate-in fade-in slide-in-from-top-2 text-left">
               <div className="flex items-start gap-3 text-blue-600">
@@ -474,7 +486,6 @@ export default function MotoristaForm({
       {/* Grelha de botões de navegação para sub-modais de UX */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 my-3">
         
-        {/* Botão 1: Identificação & Ficha Cadastral */}
         <button
           type="button"
           onClick={() => setModalIdentificacaoAberto(true)}
@@ -492,7 +503,6 @@ export default function MotoristaForm({
           <ArrowRight size={12} className="text-slate-300 group-hover:text-tvde-primary transition-colors shrink-0" />
         </button>
 
-        {/* Botão 2: Contacto e Morada */}
         <button
           type="button"
           onClick={() => setModalMoradaAberto(true)}
@@ -510,7 +520,6 @@ export default function MotoristaForm({
           <ArrowRight size={12} className="text-slate-300 group-hover:text-tvde-primary transition-colors shrink-0" />
         </button>
 
-        {/* Botão 3: Dados Financeiros */}
         <button
           type="button"
           onClick={() => setModalFaturacaoAberto(true)}
@@ -528,7 +537,6 @@ export default function MotoristaForm({
           <ArrowRight size={12} className="text-slate-300 group-hover:text-tvde-primary transition-colors shrink-0" />
         </button>
 
-        {/* Botão 4: Documentação Digital */}
         <button
           type="button"
           onClick={() => setModalDocumentosAberto(true)}
@@ -546,7 +554,6 @@ export default function MotoristaForm({
           <ArrowRight size={12} className="text-slate-300 group-hover:text-tvde-primary transition-colors shrink-0" />
         </button>
 
-        {/* Botão 5: Atribuição de Frota & Cartões */}
         <button
           type="button"
           onClick={() => setModalFrotaAberto(true)}
@@ -564,7 +571,6 @@ export default function MotoristaForm({
           <ArrowRight size={12} className="text-slate-300 group-hover:text-tvde-primary transition-colors shrink-0" />
         </button>
 
-        {/* Botão 6: Onboarding WhatsApp */}
         {initialData.id && !isReadOnly && (
           <button
             type="button"
@@ -584,7 +590,6 @@ export default function MotoristaForm({
           </button>
         )}
 
-        {/* Botão 7: Gestão Financeira */}
         {initialData.id && (
           <button
             type="button"
@@ -607,14 +612,20 @@ export default function MotoristaForm({
         )}
       </div>
 
+      {/* [ATUALIZADO] SEÇÃO DO HISTÓRICO DE EDIÇÕES COM DATA E HORA COMPLETAS (PT-PT) */}
       {initialData.historico && initialData.historico.length > 0 && (
         <CollapsibleSection title="Histórico de Edições" icon={History} iconColor="text-slate-400" defaultOpen={false}>
-          <div className="space-y-1.5">
+          <div className="space-y-1.5 text-left">
             {[...initialData.historico].reverse().map((log, index) => (
-              <div key={index} className="flex gap-3 p-2 bg-slate-50 rounded-xl border border-slate-100 text-[10px]">
+              <div key={index} className="flex gap-3 p-2.5 bg-slate-50 rounded-xl border border-slate-100 text-[10px]">
                 <div className="flex-1">
-                  <div className="flex justify-between font-bold text-slate-700 mb-1"><span>{log.usuario}</span><span>{new Date(log.data).toLocaleDateString('pt-PT')}</span></div>
-                  <p className="text-slate-500 italic">"{log.descricao}"</p>
+                  <div className="flex justify-between font-bold text-slate-700 mb-1">
+                    <span>👤 {log.usuario}</span>
+                    <span className="text-slate-400">📅 {formatDataHora(log.data)}</span>
+                  </div>
+                  <p className="text-slate-500 italic bg-white p-2 rounded-lg border border-slate-100 mt-1">
+                    "{log.descricao}"
+                  </p>
                 </div>
               </div>
             ))}
@@ -782,7 +793,6 @@ export default function MotoristaForm({
             
             <div className="space-y-4 overflow-y-auto pr-2 custom-scrollbar">
               
-              {/* Seleção do Veículo */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">Veículo Atribuído</label>
                 <select 
@@ -795,8 +805,8 @@ export default function MotoristaForm({
                       ...formData, 
                       veiculoId: e.target.value, 
                       veiculoMatricula: v ? v.matricula : '',
-                      veiculoMarca: v ? v.marca : '',      // NOVO: Captura a marca
-                      veiculoModelo: v ? v.modelo : ''     // NOVO: Captura o modelo
+                      veiculoMarca: v ? v.marca : '',      
+                      veiculoModelo: v ? v.modelo : ''     
                     });
                   }}
                 >
@@ -809,7 +819,6 @@ export default function MotoristaForm({
                 </select>
               </div>
 
-              {/* Escolher primeiro o tipo de cartão que será atribuído */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">Tipo de Cartão de Consumo</label>
                 <select 
@@ -824,7 +833,6 @@ export default function MotoristaForm({
                 </select>
               </div>
 
-              {/* Abre a caixa com os cartões disponíveis daquela categoria de forma dinâmica */}
               {tipoCartaoAtribuido === 'combustivel' && (
                 <div className="animate-in fade-in slide-in-from-top-1 duration-200">
                   <label className="block text-xs font-semibold text-slate-700 mb-1">Cartão de Abastecimento Disponível</label>
