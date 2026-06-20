@@ -29,6 +29,26 @@ const CARTOES_ELETRICOS = [
   "OCE088", "OCE089", "OCE090", "OCE091", "OCE095", "OCE096", "OCE097", "OCE098", "OCE099"
 ];
 
+/**
+ * Função Auxiliar: Formata o nome em Title Case para exibição 
+ * uniforme na tabela de cartões.
+ */
+const formatTitleCase = (str) => {
+  if (!str) return '';
+  const preposicoes = ['de', 'da', 'do', 'das', 'dos', 'e', 'em'];
+  return str
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .map((word, index) => {
+      if (preposicoes.includes(word) && index !== 0) {
+        return word;
+      }
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    })
+    .join(' ');
+};
+
 export default function CartoesGestao({ tipo }) {
   const { userData } = useAuth();
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -36,7 +56,7 @@ export default function CartoesGestao({ tipo }) {
   const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
   
   const [cartoes, setCartoes] = useState([]);
-  const [veiculos, setVeiculos] = useState([]);
+  const [motoristas, setMotoristas] = useState([]); // Mudança de Veículos para Motoristas [1]
   const [funcionarios, setFuncionarios] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editingCartao, setEditingCartao] = useState(null);
@@ -51,14 +71,14 @@ export default function CartoesGestao({ tipo }) {
     setLoading(true);
     try {
       const q = query(collection(db, "cartoes"), where("tipo", "==", tipo));
-      const [snapC, snapV, snapU] = await Promise.all([
+      const [snapC, snapM, snapU] = await Promise.all([
         getDocs(q),
-        getDocs(collection(db, "veiculos")),
+        getDocs(collection(db, "motoristas")), // Carregar motoristas [1]
         getDocs(collection(db, "usuarios"))
       ]);
 
       setCartoes(snapC.docs.map(d => ({ id: d.id, ...d.data() })));
-      setVeiculos(snapV.docs.map(d => ({ id: d.id, ...d.data() })));
+      setMotoristas(snapM.docs.map(d => ({ id: d.id, ...d.data() })));
       setFuncionarios(snapU.docs.map(d => ({ id: d.id, ...d.data() })));
     } catch (error) {
       console.error("Erro ao carregar cartões:", error);
@@ -98,13 +118,13 @@ export default function CartoesGestao({ tipo }) {
           const docRef = doc(db, "cartoes", nomeLimpo);
           
           batch.set(docRef, {
-            numero: nomeLimpo,               // Compatibilidade com outras pesquisas do sistema
-            numeroCartao: nomeLimpo,         // Compatibilidade com listagem interna [1]
+            numero: nomeLimpo,               
+            numeroCartao: nomeLimpo,         
             fornecedor: fornecedorPadrao,
             tipo: tipo,
-            plafond: 100,                    // Plafond padrão inicial sugerido
-            pin: "0000",                     // PIN genérico inicial
-            PIN: "0000",                     // Compatibilidade de caixa alta/baixa
+            plafond: 100,                    
+            pin: "0000",                     
+            PIN: "0000",                     
             estado: "Disponível",
             historico: [],
             dataCriacao: new Date().toISOString(),
@@ -154,8 +174,8 @@ export default function CartoesGestao({ tipo }) {
 
         const payload = { 
           ...dados, 
-          numero: cardId,             // Uniformização de campos [1]
-          numeroCartao: cardId,       // Uniformização de campos [1]
+          numero: cardId,             
+          numeroCartao: cardId,       
           tipo: tipo,
           historico: [],
           dataCriacao: new Date().toISOString(),
@@ -271,7 +291,8 @@ export default function CartoesGestao({ tipo }) {
                   <th className="py-4 px-6">Fornecedor</th>
                   <th className="py-4 px-6">PIN</th>
                   <th className="py-4 px-6">Plafond Semanal</th>
-                  <th className="py-4 px-6">Veículo Associado</th>
+                  {/* ◄ ALTERADO: Cabeçalho de Veículo para Motorista */}
+                  <th className="py-4 px-6">Motorista Associado</th>
                   <th className="py-4 px-6 text-right">Ações</th>
                 </tr>
               </thead>
@@ -307,15 +328,15 @@ export default function CartoesGestao({ tipo }) {
                       </span>
                     </td>
 
-                    {/* Veículo Associado */}
+                    {/* ◄ ALTERADO: Motorista Associado na listagem de Cartões */}
                     <td className="py-4 px-6">
                       <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${
-                        c.vinculoMatricula 
+                        c.motoristaNome 
                           ? 'bg-indigo-50 text-indigo-700 border-indigo-100' 
                           : 'bg-emerald-50 text-emerald-700 border-emerald-100'
                       }`}>
-                        <span className={`h-1.5 w-1.5 rounded-full ${c.vinculoMatricula ? 'bg-indigo-600' : 'bg-emerald-600'}`} />
-                        {c.vinculoMatricula || 'Em Stock'}
+                        <span className={`h-1.5 w-1.5 rounded-full ${c.motoristaNome ? 'bg-indigo-600' : 'bg-emerald-600'}`} />
+                        {c.motoristaNome ? formatTitleCase(c.motoristaNome) : 'Em Stock'}
                       </span>
                     </td>
 
@@ -353,7 +374,7 @@ export default function CartoesGestao({ tipo }) {
       )}
 
       <Modal isOpen={isModalOpen} onClose={() => setIsModalOpen(false)} title={editingCartao ? "Editar Cartão" : "Novo Cartão"}>
-        <CartaoForm veiculos={veiculos} onSubmit={handleSave} initialData={editingCartao || {}} onCancel={() => setIsModalOpen(false)} />
+        <CartaoForm motoristas={motoristas} onSubmit={handleSave} initialData={editingCartao || {}} onCancel={() => setIsModalOpen(false)} />
       </Modal>
 
       <JustificacaoModal isOpen={isJustifyModalOpen} onCancel={() => setIsJustifyModalOpen(false)} onConfirm={confirmarSalvamentoComLog} />
