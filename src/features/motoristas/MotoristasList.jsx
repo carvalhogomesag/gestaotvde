@@ -4,9 +4,10 @@
  *
  * Lista de motoristas em formato de tabela.
  * Atualizado com suporte responsivo autocapsulado (Horizontal Scroll-Safe)
+ * Otimizado com ordenação alfabética automática e filtros individuais por coluna.
  */
 
-import React from 'react';
+import React, { useState } from 'react';
 import { 
   Edit, Trash2, User, FileText, CreditCard, 
   ShieldAlert, BadgeCheck, Home, Eye, AlertCircle, 
@@ -15,6 +16,12 @@ import {
 
 export default function MotoristasList({ motoristas, onEdit, onDelete }) {
   
+  // ESTADOS LOCAIS PARA OS FILTROS DE CADA COLUNA
+  const [filterNome, setFilterNome] = useState('');
+  const [filterContacto, setFilterContacto] = useState('');
+  const [filterStatus, setFilterStatus] = useState('todos');
+  const [filterDocs, setFilterDocs] = useState('todos');
+
   /**
    * Determina a cor do ícone baseada na validade do documento
    */
@@ -46,12 +53,49 @@ export default function MotoristasList({ motoristas, onEdit, onDelete }) {
     return Object.keys(m).some(key => key.startsWith('ai_filled_') && m[key] === true);
   };
 
+  // ◄ APLICADO: Ordenação Alfabética Nativa por Defeito + Filtragem Multi-Coluna
+  const sortedAndFilteredMotoristas = [...motoristas]
+    .sort((a, b) => {
+      const nomeA = a.nome || '';
+      const nomeB = b.nome || '';
+      return nomeA.localeCompare(nomeB, 'pt', { sensitivity: 'base' });
+    })
+    .filter((m) => {
+      // 1. Filtragem por Nome ou Código
+      const queryNome = filterNome.toLowerCase();
+      const matchesNome = 
+        (m.nome || '').toLowerCase().includes(queryNome) ||
+        (m.codigoInterno || '').toLowerCase().includes(queryNome);
+
+      // 2. Filtragem por Telemóvel ou NIF
+      const queryContacto = filterContacto.toLowerCase();
+      const matchesContacto = 
+        (m.telemovel || '').toLowerCase().includes(queryContacto) ||
+        (m.nif || '').toLowerCase().includes(queryContacto);
+
+      // 3. Filtragem por Status
+      const matchesStatus = filterStatus === 'todos' || m.status === filterStatus;
+
+      // 4. Filtragem pelo Estado dos Documentos
+      let matchesDocs = true;
+      if (filterDocs === 'pendente') {
+        matchesDocs = isProfileIncomplete(m);
+      } else if (filterDocs === 'completo') {
+        matchesDocs = !isProfileIncomplete(m);
+      } else if (filterDocs === 'ia') {
+        matchesDocs = needsAIValidation(m);
+      }
+
+      return matchesNome && matchesContacto && matchesStatus && matchesDocs;
+    });
+
   return (
     // ◄ ALTERADO: Contentor agora é auto-rolável mantendo os cantos arredondados do cartão
     <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-x-auto w-full custom-scrollbar">
       {/* ◄ ALTERADO: min-w-[750px] adicionado para proteger colunas em telemóveis */}
       <table className="w-full text-left border-collapse min-w-[750px]">
         <thead>
+          {/* Cabeçalho de Títulos Principal */}
           <tr className="bg-slate-50 border-b border-slate-100">
             <th className="p-4 font-semibold text-slate-600 text-sm">Motorista</th>
             <th className="p-4 font-semibold text-slate-600 text-sm">Contacto / NIF</th>
@@ -59,9 +103,60 @@ export default function MotoristasList({ motoristas, onEdit, onDelete }) {
             <th className="p-4 font-semibold text-slate-600 text-sm">Documentos</th>
             <th className="p-4 font-semibold text-slate-600 text-sm text-right">Ações</th>
           </tr>
+          
+          {/* ◄ ADICIONADO: Linha de Filtros Dinâmicos Individuais por Coluna */}
+          <tr className="bg-slate-50/50 border-b border-slate-100">
+            {/* Filtro: Motorista */}
+            <td className="px-4 py-2">
+              <input 
+                type="text" 
+                placeholder="🔍 Pesquisar por nome/ID..." 
+                value={filterNome} 
+                onChange={(e) => setFilterNome(e.target.value)}
+                className="w-full p-1.5 border border-slate-200 rounded-lg text-[11px] outline-none focus:ring-1 focus:ring-tvde-primary text-slate-700 bg-white font-medium"
+              />
+            </td>
+            {/* Filtro: Contacto / NIF */}
+            <td className="px-4 py-2">
+              <input 
+                type="text" 
+                placeholder="🔍 Pesquisar tlf/NIF..." 
+                value={filterContacto} 
+                onChange={(e) => setFilterContacto(e.target.value)}
+                className="w-full p-1.5 border border-slate-200 rounded-lg text-[11px] outline-none focus:ring-1 focus:ring-tvde-primary text-slate-700 bg-white font-medium"
+              />
+            </td>
+            {/* Filtro: Status */}
+            <td className="px-4 py-2">
+              <select 
+                value={filterStatus} 
+                onChange={(e) => setFilterStatus(e.target.value)}
+                className="w-full p-1.5 border border-slate-200 rounded-lg text-[11px] outline-none focus:ring-1 focus:ring-tvde-primary text-slate-700 bg-white font-medium cursor-pointer"
+              >
+                <option value="todos">Todos</option>
+                <option value="Ativo">Ativo</option>
+                <option value="Inativo">Inativo</option>
+              </select>
+            </td>
+            {/* Filtro: Documentos */}
+            <td className="px-4 py-2">
+              <select 
+                value={filterDocs} 
+                onChange={(e) => setFilterDocs(e.target.value)}
+                className="w-full p-1.5 border border-slate-200 rounded-lg text-[11px] outline-none focus:ring-1 focus:ring-tvde-primary text-slate-700 bg-white font-medium cursor-pointer"
+              >
+                <option value="todos">Todos</option>
+                <option value="pendente">Pendente</option>
+                <option value="completo">Completo</option>
+                <option value="ia">Revisão IA</option>
+              </select>
+            </td>
+            {/* Sem filtro para ações */}
+            <td className="px-4 py-2"></td>
+          </tr>
         </thead>
         <tbody className="divide-y divide-slate-50">
-          {motoristas.map((m) => {
+          {sortedAndFilteredMotoristas.map((m) => {
             const incomplete = isProfileIncomplete(m);
             const aiReview = needsAIValidation(m);
             
@@ -169,9 +264,9 @@ export default function MotoristasList({ motoristas, onEdit, onDelete }) {
           })}
         </tbody>
       </table>
-      {motoristas.length === 0 && (
+      {sortedAndFilteredMotoristas.length === 0 && (
         <div className="p-10 text-center text-slate-400 text-sm italic">
-          Nenhum motorista registado no sistema.
+          Nenhum motorista corresponde aos critérios de pesquisa ou seleção.
         </div>
       )}
     </div>
