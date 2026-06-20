@@ -52,11 +52,11 @@ export default function VeiculosList({
     return camposEssenciais.some(campo => !v[campo] || v[campo] === '');
   };
 
-  // ◄ APLICADO: Ordenação Alfabética Nativa (A-Z) + Filtros por Coluna
+  // Ordenação Alfabética Nativa (A-Z) + Filtros por Coluna
   const sortedAndFilteredVeiculos = [...veiculos]
     .sort((a, b) => {
       const nomeA = `${a.marca || ''} ${a.modelo || ''}`.trim();
-      const nomeB = b.marca || '';
+      const nomeB = `${b.marca || ''} ${b.modelo || ''}`.trim();
       return nomeA.localeCompare(nomeB, 'pt', { sensitivity: 'base' });
     })
     .filter((v) => {
@@ -116,7 +116,7 @@ export default function VeiculosList({
             <th className="p-4 font-semibold text-slate-600 text-sm text-right">Ações</th>
           </tr>
           
-          {/* ◄ ADICIONADO: Filtros Rápidos de Coluna */}
+          {/* Filtros Rápidos de Coluna */}
           <tr className="bg-slate-50/50 border-b border-slate-100">
             {/* Filtro: Veículo */}
             <td className="px-4 py-2">
@@ -199,7 +199,7 @@ export default function VeiculosList({
                   </div>
                 </td>
                 
-                {/* ◄ ALTERADO: Célula renderizada como uma matrícula física real portuguesa */}
+                {/* Célula renderizada como uma matrícula física real portuguesa */}
                 <td className="p-4 text-center select-none">
                   <div className="inline-flex items-center border-[2.2px] border-slate-900 rounded-[4px] bg-white overflow-hidden shadow-sm h-7 text-xs font-black font-mono">
                     {/* Eurobanda Azul Portuguesa à esquerda */}
@@ -284,7 +284,7 @@ export default function VeiculosList({
           })}
         </tbody>
       </table>
-      {sortedAndFilteredMotoristas.length === 0 && (
+      {sortedAndFilteredVeiculos.length === 0 && (
         <div className="p-10 text-center text-slate-400 text-sm italic">
           Nenhum veículo corresponde aos critérios de pesquisa ou seleção.
         </div>
