@@ -2,20 +2,27 @@
  * MotoristasList.jsx
  * Localização: src/features/motoristas/MotoristasList.jsx
  *
- * Lista de motoristas em formato de tabela.
- * Atualizado com suporte responsivo autocapsulado (Horizontal Scroll-Safe)
- * Otimizado com ordenação alfabética automática e filtros individuais por coluna.
+ * Listagem tabular compacta de motoristas.
+ * Otimizado com:
+ * - Interruptor de estado (Ativo/Inativo) com trava de segurança para pendentes [1, 2].
+ * - Auto-corretor em segundo plano para manter conformidade de estado no Firestore [1].
+ * - Filtros rápidos no cabeçalho integrados [2].
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Edit, Trash2, User, FileText, CreditCard, 
   ShieldAlert, BadgeCheck, Home, Eye, AlertCircle, 
   Sparkles 
 } from 'lucide-react';
+import { db } from '../../firebase';
+import { doc, updateDoc } from 'firebase/firestore';
+import { logAcaoGlobal } from '../../utils/logger';
+import { useAuth } from '../../context/AuthContext';
 
 export default function MotoristasList({ motoristas, onEdit, onDelete }) {
-  
+  const { userData } = useAuth();
+
   // ESTADOS LOCAIS PARA OS FILTROS DE CADA COLUNA
   const [filterNome, setFilterNome] = useState('');
   const [filterContacto, setFilterContacto] = useState('');
@@ -53,7 +60,41 @@ export default function MotoristasList({ motoristas, onEdit, onDelete }) {
     return Object.keys(m).some(key => key.startsWith('ai_filled_') && m[key] === true);
   };
 
-  // ◄ APLICADO: Ordenação Alfabética Nativa por Defeito + Filtragem Multi-Coluna
+  // ◄ ADICIONADO: Auto-corretor de conformidade regulamentar em segundo plano [1]
+  useEffect(() => {
+    motoristas.forEach(async (m) => {
+      if (isProfileIncomplete(m) && m.status === 'Ativo') {
+        try {
+          const docRef = doc(db, "motoristas", m.id);
+          await updateDoc(docRef, { status: "Inativo" });
+          await logAcaoGlobal("Sistema", "Auto-Correção", "Motoristas", `Estado de ${m.nome} forçado a Inativo por documentação pendente`, m.id);
+        } catch (e) {
+          console.error("Erro ao auto-corrigir estado de conformidade:", e);
+        }
+      }
+    });
+  }, [motoristas]);
+
+  // ◄ ADICIONADO: Função para alternar o estado diretamente na lista [1, 2]
+  const handleToggleStatus = async (motoristaId, nome, currentStatus, incomplete) => {
+    if (incomplete) {
+      alert("Operação bloqueada: Não é possível ativar um motorista com documentação pendente.");
+      return;
+    }
+
+    const novoEstado = currentStatus === 'Ativo' ? 'Inativo' : 'Ativo';
+    
+    try {
+      const docRef = doc(db, "motoristas", motoristaId);
+      await updateDoc(docRef, { status: novoEstado });
+      await logAcaoGlobal(userData?.nome || 'Sistema', "Alteração de Estado", "Motoristas", `Status de ${nome} alterado para ${novoEstado}`, motoristaId);
+    } catch (error) {
+      console.error("Erro ao alterar estado do motorista:", error);
+      alert("Erro ao alterar o estado do motorista.");
+    }
+  };
+
+  // Ordenação Alfabética Nativa por Defeito + Filtragem Multi-Coluna
   const sortedAndFilteredMotoristas = [...motoristas]
     .sort((a, b) => {
       const nomeA = a.nome || '';
@@ -61,6 +102,9 @@ export default function MotoristasList({ motoristas, onEdit, onDelete }) {
       return nomeA.localeCompare(nomeB, 'pt', { sensitivity: 'base' });
     })
     .filter((m) => {
+      const incomplete = isProfileIncomplete(m);
+      const effectiveStatus = incomplete ? 'Inativo' : (m.status || 'Inativo');
+
       // 1. Filtragem por Nome ou Código
       const queryNome = filterNome.toLowerCase();
       const matchesNome = 
@@ -73,15 +117,15 @@ export default function MotoristasList({ motoristas, onEdit, onDelete }) {
         (m.telemovel || '').toLowerCase().includes(queryContacto) ||
         (m.nif || '').toLowerCase().includes(queryContacto);
 
-      // 3. Filtragem por Status
-      const matchesStatus = filterStatus === 'todos' || m.status === filterStatus;
+      // 3. Filtragem por Status (Alinhado com a trava de pendentes)
+      const matchesStatus = filterStatus === 'todos' || effectiveStatus === filterStatus;
 
       // 4. Filtragem pelo Estado dos Documentos
       let matchesDocs = true;
       if (filterDocs === 'pendente') {
-        matchesDocs = isProfileIncomplete(m);
+        matchesDocs = incomplete;
       } else if (filterDocs === 'completo') {
-        matchesDocs = !isProfileIncomplete(m);
+        matchesDocs = !incomplete;
       } else if (filterDocs === 'ia') {
         matchesDocs = needsAIValidation(m);
       }
@@ -90,9 +134,7 @@ export default function MotoristasList({ motoristas, onEdit, onDelete }) {
     });
 
   return (
-    // ◄ ALTERADO: Contentor agora é auto-rolável mantendo os cantos arredondados do cartão
     <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-x-auto w-full custom-scrollbar">
-      {/* ◄ ALTERADO: min-w-[750px] adicionado para proteger colunas em telemóveis */}
       <table className="w-full text-left border-collapse min-w-[750px]">
         <thead>
           {/* Cabeçalho de Títulos Principal */}
@@ -104,7 +146,7 @@ export default function MotoristasList({ motoristas, onEdit, onDelete }) {
             <th className="p-4 font-semibold text-slate-600 text-sm text-right">Ações</th>
           </tr>
           
-          {/* ◄ ADICIONADO: Linha de Filtros Dinâmicos Individuais por Coluna */}
+          {/* Linha de Filtros Dinâmicos Individuais por Coluna */}
           <tr className="bg-slate-50/50 border-b border-slate-100">
             {/* Filtro: Motorista */}
             <td className="px-4 py-2">
@@ -151,7 +193,6 @@ export default function MotoristasList({ motoristas, onEdit, onDelete }) {
                 <option value="ia">Revisão IA</option>
               </select>
             </td>
-            {/* Sem filtro para ações */}
             <td className="px-4 py-2"></td>
           </tr>
         </thead>
@@ -159,6 +200,7 @@ export default function MotoristasList({ motoristas, onEdit, onDelete }) {
           {sortedAndFilteredMotoristas.map((m) => {
             const incomplete = isProfileIncomplete(m);
             const aiReview = needsAIValidation(m);
+            const isDriverActive = m.status === 'Ativo' && !incomplete;
             
             return (
               <tr key={m.id} className="hover:bg-slate-50/50 transition-colors">
@@ -186,17 +228,43 @@ export default function MotoristasList({ motoristas, onEdit, onDelete }) {
                   <p className="font-medium">{m.telemovel || '---'}</p>
                   <p className="text-[10px] text-slate-400 font-bold">NIF: {m.nif || '---'}</p>
                 </td>
+                
+                {/* ◄ ALTERADO: Coluna de Status Interativa (Toggle Switch) com Trava de Segurança */}
                 <td className="p-4">
-                  <div className="flex flex-col gap-1.5">
-                    <span className={`w-fit px-2 py-1 rounded-full text-[10px] font-bold uppercase ${
-                      m.status === 'Ativo' ? 'bg-green-100 text-green-600' : 'bg-red-100 text-red-600'
-                    }`}>
-                      {m.status}
-                    </span>
+                  <div className="flex flex-col gap-1.5 text-left justify-center">
+                    <div className="flex items-center gap-2.5">
+                      {/* Botão Interruptor (Switch) */}
+                      <button
+                        type="button"
+                        disabled={incomplete}
+                        onClick={() => handleToggleStatus(m.id, m.nome, m.status, incomplete)}
+                        className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                          incomplete 
+                            ? 'bg-slate-200 cursor-not-allowed opacity-50' 
+                            : (isDriverActive ? 'bg-emerald-500' : 'bg-slate-300')
+                        }`}
+                        title={incomplete ? "Bloqueado: Documentação Pendente" : `Alternar para ${isDriverActive ? 'Inativo' : 'Ativo'}`}
+                      >
+                        <span
+                          className={`pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow-md ring-0 transition duration-200 ease-in-out ${
+                            isDriverActive ? 'translate-x-4' : 'translate-x-0'
+                          }`}
+                        />
+                      </button>
+                      
+                      {/* Texto de Estado */}
+                      <span className={`text-[10px] font-black uppercase tracking-wider ${
+                        incomplete 
+                          ? 'text-red-500 font-extrabold' 
+                          : (isDriverActive ? 'text-emerald-600' : 'text-slate-500')
+                      }`}>
+                        {incomplete ? 'Inativo (Pendente)' : m.status}
+                      </span>
+                    </div>
                     
                     {/* INDICADOR DE REVISÃO IA */}
                     {aiReview && (
-                      <span className="flex items-center gap-1 text-[9px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-md font-black uppercase border border-blue-100 animate-pulse">
+                      <span className="flex items-center gap-1 text-[9px] bg-blue-50 text-blue-600 px-2 py-0.5 rounded-md font-black uppercase border border-blue-100 animate-pulse w-fit mt-1">
                         <Sparkles size={10} /> Revisão IA
                       </span>
                     )}
@@ -224,12 +292,14 @@ export default function MotoristasList({ motoristas, onEdit, onDelete }) {
                       </div>
 
                       <div className="flex -space-x-2">
-                        {m.docCertificadoTVDE && (
-                          <a href={m.docCertificadoTVDE} target="_blank" rel="noreferrer" 
-                            className={`w-8 h-8 rounded-full border flex items-center justify-center shadow-sm z-10 ${checkStatusColor(m.validadeTVDE)}`} title="TVDE">
-                            <BadgeCheck size={14} />
-                          </a>
-                        )}
+                        {m.docCertificadoTVDE} {
+                          m.docCertificadoTVDE && (
+                            <a href={m.docCertificadoTVDE} target="_blank" rel="noreferrer" 
+                              className={`w-8 h-8 rounded-full border flex items-center justify-center shadow-sm z-10 transition-all ${checkStatusColor(m.validadeTVDE)}`} title="TVDE">
+                              <BadgeCheck size={14} />
+                            </a>
+                          )
+                        }
                         {m.docRegistoCriminal && (
                           <a href={m.docRegistoCriminal} target="_blank" rel="noreferrer" 
                             className={`w-8 h-8 rounded-full border flex items-center justify-center shadow-sm z-20 ${checkStatusColor(m.validadeCriminal)}`} title="Criminal">
@@ -239,8 +309,8 @@ export default function MotoristasList({ motoristas, onEdit, onDelete }) {
                       </div>
 
                       <div className="flex -space-x-2">
-                        {m.docIBAN && <a href={m.docIBAN} target="_blank" className="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:text-indigo-500 shadow-sm z-10" title="IBAN"><CreditCard size={14} /></a>}
-                        {m.docMorada && <a href={m.docMorada} target="_blank" className="w-8 h-8 rounded-full bg-white border border-slate-200 flex items-center justify-center text-slate-400 hover:text-indigo-500 shadow-sm z-20" title="Morada"><Home size={14} /></a>}
+                        {m.docIBAN && <a href={m.docIBAN} target="_blank" className="w-8 h-8 flex items-center justify-center bg-slate-50 border border-slate-100 rounded-full text-slate-400 hover:text-tvde-primary transition" title="Comprovativo IBAN"><Wallet size={12} /></a>}
+                        {m.docMorada && <a href={formData.docMorada} target="_blank" rel="noreferrer" className="w-8 h-8 flex items-center justify-center bg-slate-50 border border-slate-200 rounded-full text-slate-400 hover:text-indigo-500 transition" title="Comprovativo Morada"><Home size={12} /></a>}
                       </div>
                     </div>
 
