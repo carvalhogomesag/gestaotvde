@@ -4,6 +4,11 @@
  *
  * Formulário de edição e criação de viaturas.
  * Atualizado com suporte a carregamento de fotografia do veículo, tarifa semanal, região, combustível e categoria múltipla.
+ * 
+ * [LÓGICA DIDÁTICA DE SINCRONIZAÇÃO]:
+ * Este formulário envia para o componente pai (Veiculos.jsx) os campos "motoristaId" e "motoristaNome".
+ * O pai, por sua vez, deteta se houve alteração e aciona o lote transacional (Batch) para sincronizar
+ * o veículo diretamente no documento do motorista correspondente, garantindo integridade bidirecional.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -57,12 +62,11 @@ export default function VeiculoForm({
     validadeDUA: initialData.validadeDUA || '', 
     validadeSeguro: initialData.validadeSeguro || '', 
     validadeIPO: initialData.validadeIPO || '',
-    // Novos campos do catálogo público de anúncios
     fotoUrl: initialData.fotoUrl || '', 
     precoSemanal: initialData.precoSemanal || '', 
     cidade: initialData.cidade || 'Lisboa',
     combustivel: initialData.combustivel || 'Gasóleo',
-    categoria: initialData.categoria || 'Standard' // ◄ Mapeamento da string de categoria
+    categoria: initialData.categoria || 'Standard' 
   });
 
   // Estado local para gerir os botões de categorias ativas (Checkbox múltipla)
@@ -171,7 +175,6 @@ export default function VeiculoForm({
         )}
       </div>
       
-      {/* Mini-visualização (Thumbnail) se for a fotografia do veículo */}
       {fileUrl && uploadField === "fotoUrl" && (
         <div className="my-2 w-full h-24 rounded-xl overflow-hidden border border-slate-100 bg-slate-100 flex items-center justify-center shrink-0">
           <img src={fileUrl} alt="Viatura" className="w-full h-full object-cover" />
@@ -193,19 +196,27 @@ export default function VeiculoForm({
 
   const cartoesAtribuidos = cartoes.filter(c => c.veiculoId === initialData.id);
 
+  /**
+   * ENVIO DE DADOS INTEGRAL:
+   * Processa os dados do formulário e cria novos proprietários ou motoristas em linha
+   * caso tenham sido criados no formulário rápido, retornando os IDs corretos.
+   */
   const handleSubmit = async (e) => {
     e.preventDefault();
     let dadosFinais = { ...formData };
+    
     if (modoProprietario === 'novo' && novoProprietario.nome && onCriarProprietario) {
       const novoId = await onCriarProprietario(novoProprietario);
       dadosFinais.proprietarioId = novoId;
       dadosFinais.proprietarioNome = novoProprietario.nome;
     }
+    
     if (modoMotorista === 'novo' && novoMotorista.nome && onCriarMotorista) {
       const novoId = await onCriarMotorista(novoMotorista);
       dadosFinais.motoristaId = novoId;
       dadosFinais.motoristaNome = novoMotorista.nome;
     }
+    
     onSubmit(dadosFinais);
   };
 
@@ -270,7 +281,7 @@ export default function VeiculoForm({
           </div>
         </div>
 
-        {/* ◄ ADICIONADO: Seleção Múltipla de Categorias TVDE */}
+        {/* Seleção Múltipla de Categorias TVDE */}
         <div className="border-t border-slate-200/50 pt-4 space-y-2 text-left">
           <label className="block text-[9px] font-black text-slate-400 uppercase ml-1">
             Categorias Ativas nas Aplicações (Uber / Bolt)
@@ -324,6 +335,8 @@ export default function VeiculoForm({
               </div>
             )}
           </div>
+          
+          {/* SECÇÃO DO MOTORISTA HABITUAL - GERA OS DADOS QUE DISPARAL O BATCH NO PAI */}
           <div className="space-y-2">
             <label className="block text-sm font-bold text-slate-700">Motorista Habitual</label>
             {!isReadOnly && !initialData.id && (
@@ -418,7 +431,6 @@ export default function VeiculoForm({
           <DocumentCard label="DUA" folder="veiculos/dua" uploadField="docDUA" fileUrl={formData.docDUA} />
           <DocumentCard label="Seguro" folder="veiculos/seguros" uploadField="docSeguro" fileUrl={formData.docSeguro} dateField="validadeSeguro" />
           <DocumentCard label="IPO" folder="veiculos/ipo" uploadField="docIPO" fileUrl={formData.docIPO} dateField="validadeIPO" />
-          {/* Novo campo de carregamento de fotografia real para o catálogo público */}
           <DocumentCard label="Foto da Viatura" folder="veiculos/fotos" uploadField="fotoUrl" fileUrl={formData.fotoUrl} />
         </div>
       </CollapsibleSection>

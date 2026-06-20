@@ -91,12 +91,12 @@ export default function Motoristas() {
       }
     });
 
-    // Subscrever lista de veículos para atribuição [1]
+    // Subscrever lista de veículos para atribuição
     const unsubscribeVeiculos = onSnapshot(query(collection(db, "veiculos")), (snapshot) => {
       setVeiculos(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
-    // Subscrever lista de cartões para atribuição [1]
+    // Subscrever lista de cartões para atribuição
     const unsubscribeCartoes = onSnapshot(query(collection(db, "cartoes")), (snapshot) => {
       setCartoes(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
     });
@@ -112,9 +112,14 @@ export default function Motoristas() {
     };
   }, [location.search, editingId, handleEditClick]);
 
-  // Sincroniza bidirecionalmente as relações de cartões no Firestore [1]
-  const syncCartoesParaMotorista = async (motoristaId, motoristaNome, novosDados, antigosDados = null) => {
+  /**
+   * ATUALIZAÇÃO BIDIRECIONAL (BATCH)
+   * Garante que quando um motorista recebe um veículo ou cartão, 
+   * a base de dados vai ao respetivo veículo/cartão e escreve que agora pertence a este motorista.
+   */
+  const syncRelacoesMotorista = async (motoristaId, motoristaNome, novosDados, antigosDados = null) => {
     const batch = writeBatch(db);
+    const nomeMudou = antigosDados && antigosDados.nome !== motoristaNome;
 
     // 1. Sincronização do Cartão de Abastecimento
     const antigoAbastId = antigosDados?.cartaoAbastecimentoId || '';
@@ -129,6 +134,9 @@ export default function Motoristas() {
         const novoRef = doc(db, "cartoes", novoAbastId);
         batch.update(novoRef, { motoristaId, motoristaNome });
       }
+    } else if (novoAbastId && nomeMudou) {
+      const cartaoRef = doc(db, "cartoes", novoAbastId);
+      batch.update(cartaoRef, { motoristaNome });
     }
 
     // 2. Sincronização do Cartão de Carregamento
@@ -144,6 +152,30 @@ export default function Motoristas() {
         const novoRef = doc(db, "cartoes", novoCarregId);
         batch.update(novoRef, { motoristaId, motoristaNome });
       }
+    } else if (novoCarregId && nomeMudou) {
+      const cartaoRef = doc(db, "cartoes", novoCarregId);
+      batch.update(cartaoRef, { motoristaNome });
+    }
+
+    // 3. Sincronização do Veículo (NOVA FUNCIONALIDADE)
+    const antigoVeiculoId = antigosDados?.veiculoId || '';
+    const novoVeiculoId = novosDados.veiculoId || '';
+
+    if (antigoVeiculoId !== novoVeiculoId) {
+      if (antigoVeiculoId) {
+        // Remove a atribuição do veículo antigo
+        const antigoRef = doc(db, "veiculos", antigoVeiculoId);
+        batch.update(antigoRef, { motoristaId: "", motoristaNome: "" });
+      }
+      if (novoVeiculoId) {
+        // Atribui o veículo novo ao motorista
+        const novoRef = doc(db, "veiculos", novoVeiculoId);
+        batch.update(novoRef, { motoristaId, motoristaNome });
+      }
+    } else if (novoVeiculoId && nomeMudou) {
+      // Se não mudou de veículo, mas mudou o nome do condutor, atualiza no documento do veículo
+      const veiculoRef = doc(db, "veiculos", novoVeiculoId);
+      batch.update(veiculoRef, { motoristaNome });
     }
 
     await batch.commit();
@@ -203,14 +235,14 @@ export default function Motoristas() {
           historico: []
         });
 
-        // Sincronizar o estado dos cartões do novo motorista [1]
-        await syncCartoesParaMotorista(docRef.id, dados.nome, dados);
+        // Sincronizar bidirecionalmente Veículos e Cartões
+        await syncRelacoesMotorista(docRef.id, dados.nome, dados);
 
         await logAcaoGlobal(userData?.nome, "Criação", "Motoristas", dados.nome, docRef.id);
 
-        setLastSavedItem({ id: docRef.id, nome: dados.nome, codigo: 'CARD' });
+        setLastSavedItem({ id: docRef.id, nome: dados.nome, codigo: novoCodigo });
         fecharModal();
-        fetchData();
+        
         if (!enviarLink) setIsTicketModalOpen(true);
       } catch (error) {
         console.error("Erro ao criar motorista:", error);
@@ -236,8 +268,8 @@ export default function Motoristas() {
         })
       });
 
-      // Sincronizar o estado dos cartões do motorista editado [1]
-      await syncCartoesParaMotorista(editingId, tempDados.nome, tempDados, motoristaEmEdicao);
+      // Sincronizar bidirecionalmente Veículos e Cartões
+      await syncRelacoesMotorista(editingId, tempDados.nome, tempDados, motoristaEmEdicao);
 
       await logAcaoGlobal(userData?.nome, "Edição", "Motoristas", dadosLimpos.nome, editingId);
 
@@ -354,7 +386,7 @@ export default function Motoristas() {
           onCriarProprietario={handleCriarProprietario}
           veiculos={veiculos}
           cartoes={cartoes}
-          motoristas={motoristas} // [1]
+          motoristas={motoristas}
         />
       </Modal>
 

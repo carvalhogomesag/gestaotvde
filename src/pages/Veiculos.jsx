@@ -14,7 +14,7 @@ import { logAcaoGlobal } from '../utils/logger';
 import { alternarEstadoAnuncioViatura } from '../services/veiculoService'; // Novo serviço importado
 import { 
   collection, addDoc, getDocs, query, 
-  doc, deleteDoc, updateDoc, arrayUnion 
+  doc, deleteDoc, updateDoc, arrayUnion, writeBatch // writeBatch importado para sync reversa
 } from 'firebase/firestore';
 
 export default function Veiculos() {
@@ -25,7 +25,6 @@ export default function Veiculos() {
   const [isJustifyModalOpen, setIsJustifyModalOpen] = useState(false);
   const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
   
-  // ◄ CORRIGIDO: Todos os estados originais restaurados com sucesso
   const [veiculos, setVeiculos] = useState([]);
   const [motoristas, setMotoristas] = useState([]);
   const [proprietarios, setProprietarios] = useState([]);
@@ -72,7 +71,6 @@ export default function Veiculos() {
 
     try {
       setLoading(true);
-      // 1. Procurar as viaturas que já existem para evitar duplicados
       const querySnapshot = await getDocs(collection(db, "veiculos"));
       const matriculasExistentes = querySnapshot.docs.map(doc => doc.data().matricula);
 
@@ -186,6 +184,61 @@ export default function Veiculos() {
     fetchData(); 
   }, [location.search]);
 
+  /**
+   * SINCRONIZAÇÃO REVERSA BIDIRECIONAL
+   * Atualiza a coleção de "motoristas" quando um veículo recebe ou troca de motorista.
+   */
+  const syncMotoristaParaVeiculo = async (veiculoId, novosDados, antigosDados = null) => {
+    const batch = writeBatch(db);
+
+    const antigoMotoristaId = antigosDados?.motoristaId || '';
+    const novoMotoristaId = novosDados.motoristaId || '';
+    
+    const matricula = novosDados.matricula || '';
+    const marca = novosDados.marca || '';
+    const modelo = novosDados.modelo || '';
+
+    const dadosMudaram = antigosDados && (
+      antigosDados.matricula !== matricula ||
+      antigosDados.marca !== marca ||
+      antigosDados.modelo !== modelo
+    );
+
+    // Se houve alteração de motorista atribuído à viatura
+    if (antigoMotoristaId !== novoMotoristaId) {
+      // 1. Limpar as informações do veículo no motorista que perdeu o carro
+      if (antigoMotoristaId) {
+        const antigoRef = doc(db, "motoristas", antigoMotoristaId);
+        batch.update(antigoRef, {
+          veiculoId: "",
+          veiculoMatricula: "",
+          veiculoMarca: "",
+          veiculoModelo: ""
+        });
+      }
+      // 2. Registar o novo veículo no perfil do motorista que ganhou o carro
+      if (novoMotoristaId) {
+        const novoRef = doc(db, "motoristas", novoMotoristaId);
+        batch.update(novoRef, {
+          veiculoId: veiculoId,
+          veiculoMatricula: matricula,
+          veiculoMarca: marca,
+          veiculoModelo: modelo
+        });
+      }
+    } else if (novoMotoristaId && dadosMudaram) {
+      // Se manteve o motorista, mas editou os dados da viatura (ex: corrigiu erro ortográfico na marca)
+      const motoristaRef = doc(db, "motoristas", novoMotoristaId);
+      batch.update(motoristaRef, {
+        veiculoMatricula: matricula,
+        veiculoMarca: marca,
+        veiculoModelo: modelo
+      });
+    }
+
+    await batch.commit();
+  };
+
   const handleSave = async (dados) => {
     if (editingVeiculo && !isViewOnly) {
       setTempDados(dados);
@@ -203,6 +256,9 @@ export default function Veiculos() {
           dataCriacao: new Date().toISOString(),
           historico: []
         });
+
+        // Sincronizar o motorista ao criar um veículo com motorista já atribuído
+        await syncMotoristaParaVeiculo(docRef.id, dadosLimpos);
 
         await logAcaoGlobal(userData?.nome, "Criação", "Veículos", dadosLimpos.matricula, docRef.id);
 
@@ -262,6 +318,9 @@ export default function Veiculos() {
         ...dadosLimpos,
         historico: arrayUnion(novoLog)
       });
+
+      // Sincronizar motorista ao salvar as alterações do veículo
+      await syncMotoristaParaVeiculo(editingVeiculo.id, dadosLimpos, editingVeiculo);
 
       await logAcaoGlobal(userData?.nome, "Edição", "Veículos", dadosLimpos.matricula, editingVeiculo.id);
 
@@ -347,14 +406,12 @@ export default function Veiculos() {
 
   return (
     <div className="space-y-6">
-      {/* Header empilhável responsivo e botão de registo expandido em mobile */}
       <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-slate-800">Veículos</h1>
           <p className="text-slate-500 text-xs sm:text-sm">Gestão da frota, condutores e tarefas.</p>
         </div>
         
-        {/* Agrupamento de botões de acção do Cabeçalho */}
         <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
           <Button 
             onClick={preencherMatriculasProducao}
@@ -372,7 +429,6 @@ export default function Veiculos() {
         </div>
       </header>
 
-      {/* Padding otimizado para telemóveis */}
       <div className="flex gap-4 bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-slate-100">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
@@ -390,7 +446,6 @@ export default function Veiculos() {
           <p className="text-xs sm:text-sm font-semibold">A carregar frota...</p>
         </div>
       ) : (
-        /* Contentor de segurança de scroll lateral adicionado ao redor da tabela */
         <div className="w-full overflow-x-auto rounded-2xl border border-slate-100 shadow-sm bg-white">
           <VeiculosList 
             veiculos={veiculos} 

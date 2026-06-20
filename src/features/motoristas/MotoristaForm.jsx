@@ -4,11 +4,12 @@
  *
  * Formulário e ficha cadastral otimizada do motorista.
  * Otimizado com:
- * - Redução de ruído visual: campos secundários movidos para sub-modais dedicados [2].
- * - Botões táteis com ícones e legendas para navegação rápida de ecrã [2].
- * - ◄ CORRIGIDO: Remoção definitiva e purga da Conta Corrente órfã e do useEffect setMovimentos [2].
- * - Compactação extrema de paddings, margins, gaps e inputs para evitar scroll no desktop [2].
- * - Preservação estrita das integrações do Firestore, IA Vision, alertas e conformidade regulamentar [2].
+ * - Redução de ruído visual: campos secundários movidos para sub-modais dedicados.
+ * - Botões táteis com ícones e legendas para navegação rápida de ecrã.
+ * - Remoção definitiva e purga da Conta Corrente órfã e do useEffect setMovimentos.
+ * - Compactação extrema de paddings, margins, gaps e inputs para evitar scroll no desktop.
+ * - Preservação estrita das integrações do Firestore, IA Vision, alertas e conformidade regulamentar.
+ * - [NOVO] Captura integral de dados do Veículo Atribuído (ID, Matrícula, Marca e Modelo) para sync bidirecional.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -135,9 +136,11 @@ export default function MotoristaForm({
     alerta_inconsistencia: initialData.alerta_inconsistencia || false,
     motivo_inconsistencia: initialData.motivo_inconsistencia || '',
     
-    // Atribuição de Frota e Cartões
+    // Atribuição de Frota e Cartões (AGORA COM MARCA E MODELO)
     veiculoId: initialData.veiculoId || '',
     veiculoMatricula: initialData.veiculoMatricula || '',
+    veiculoMarca: initialData.veiculoMarca || '',
+    veiculoModelo: initialData.veiculoModelo || '',
     cartaoAbastecimentoId: initialData.cartaoAbastecimentoId || '',
     cartaoAbastecimentoNumero: initialData.cartaoAbastecimentoNumero || '',
     cartaoCarregamentoId: initialData.cartaoCarregamentoId || '',
@@ -154,10 +157,10 @@ export default function MotoristaForm({
   const [modalDocumentosAberto, setModalDocumentosAberto] = useState(false);
   const [modalFrotaAberto, setModalFrotaAberto] = useState(false); 
 
-  // Novo estado para controlar dinamicamente a exibição das categorias de cartões [1]
+  // Novo estado para controlar dinamicamente a exibição das categorias de cartões
   const [tipoCartaoAtribuido, setTipoCartaoAtribuido] = useState('');
 
-  // TRAVA DE SEGURANÇA OPERACIONAL: Filtra motoristas que já têm outro cartão deste tipo [1]
+  // TRAVA DE SEGURANÇA OPERACIONAL: Filtra motoristas que já têm outro cartão deste tipo
   const cartoesAbastecimentoOcupados = motoristas
     .filter(m => m.id !== initialData.id && m.cartaoAbastecimentoId)
     .map(m => m.cartaoAbastecimentoId);
@@ -166,7 +169,7 @@ export default function MotoristaForm({
     .filter(m => m.id !== initialData.id && m.cartaoCarregamentoId)
     .map(m => m.cartaoCarregamentoId);
 
-  // Filtrar os cartões que estão livres na base de dados para atribuição [1]
+  // Filtrar os cartões que estão livres na base de dados para atribuição
   const cartoesCombustivelDisponiveis = cartoes.filter(card => {
     const isCombustivel = card.tipo === 'combustivel';
     const isOcupadoPorOutro = cartoesAbastecimentoOcupados.includes(card.id);
@@ -229,7 +232,7 @@ export default function MotoristaForm({
       motivo_inconsistencia: initialData.motivo_inconsistencia || prev.motivo_inconsistencia
     }));
 
-    // Determina o tipo de cartão inicial na montagem dos dados [1]
+    // Determina o tipo de cartão inicial na montagem dos dados
     if (initialData.cartaoAbastecimentoId) {
       setTipoCartaoAtribuido('combustivel');
     } else if (initialData.cartaoCarregamentoId) {
@@ -241,7 +244,7 @@ export default function MotoristaForm({
 
   useEffect(() => { if (formData.nifMesmoMotorista) { setFormData(prev => ({ ...prev, nifPagamento: prev.nif })); } }, [formData.nif, formData.nifMesmoMotorista]);
 
-  // Função para controlar a mudança de categoria e limpar resíduos do outro tipo [1]
+  // Função para controlar a mudança de categoria e limpar resíduos do outro tipo
   const handleTipoCartaoChange = (novoTipo) => {
     setTipoCartaoAtribuido(novoTipo);
     
@@ -468,7 +471,7 @@ export default function MotoristaForm({
         </div>
       )}
 
-      {/* Grelha de botões de navegação para sub-modais de UX (Symmetric Layout) [2] */}
+      {/* Grelha de botões de navegação para sub-modais de UX */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 my-3">
         
         {/* Botão 1: Identificação & Ficha Cadastral */}
@@ -483,7 +486,7 @@ export default function MotoristaForm({
             </div>
             <div className="truncate">
               <p className="text-xs font-black text-slate-800">Identificação & Ficha</p>
-              <p className="text-[9.5px] text-slate-400 truncate">Nome, NIF, nascimento, carta de condução [2].</p>
+              <p className="text-[9.5px] text-slate-400 truncate">Nome, NIF, nascimento, carta de condução.</p>
             </div>
           </div>
           <ArrowRight size={12} className="text-slate-300 group-hover:text-tvde-primary transition-colors shrink-0" />
@@ -501,7 +504,7 @@ export default function MotoristaForm({
             </div>
             <div className="truncate">
               <p className="text-xs font-black text-slate-800">Contacto & Morada</p>
-              <p className="text-[9.5px] text-slate-400 truncate">Telemóvel, e-mail e morada fiscal [2].</p>
+              <p className="text-[9.5px] text-slate-400 truncate">Telemóvel, e-mail e morada fiscal.</p>
             </div>
           </div>
           <ArrowRight size={12} className="text-slate-300 group-hover:text-tvde-primary transition-colors shrink-0" />
@@ -519,7 +522,7 @@ export default function MotoristaForm({
             </div>
             <div className="truncate">
               <p className="text-xs font-black text-slate-800">Dados Financeiros</p>
-              <p className="text-[9.5px] text-slate-400 truncate">IBAN, NIF e payout de faturamento [2].</p>
+              <p className="text-[9.5px] text-slate-400 truncate">IBAN, NIF e payout de faturamento.</p>
             </div>
           </div>
           <ArrowRight size={12} className="text-slate-300 group-hover:text-tvde-primary transition-colors shrink-0" />
@@ -537,13 +540,13 @@ export default function MotoristaForm({
             </div>
             <div className="truncate">
               <p className="text-xs font-black text-slate-800">Documentação</p>
-              <p className="text-[9.5px] text-slate-400 truncate">Validação, fotos e histórico de IA [2].</p>
+              <p className="text-[9.5px] text-slate-400 truncate">Validação, fotos e histórico de IA.</p>
             </div>
           </div>
           <ArrowRight size={12} className="text-slate-300 group-hover:text-tvde-primary transition-colors shrink-0" />
         </button>
 
-        {/* Botão 5: Atribuição de Frota & Cartões [1] */}
+        {/* Botão 5: Atribuição de Frota & Cartões */}
         <button
           type="button"
           onClick={() => setModalFrotaAberto(true)}
@@ -555,7 +558,7 @@ export default function MotoristaForm({
             </div>
             <div className="truncate">
               <p className="text-xs font-black text-slate-800">Atribuição de Frota</p>
-              <p className="text-[9.5px] text-slate-400 truncate">Vincular veículo e cartões de consumo [1].</p>
+              <p className="text-[9.5px] text-slate-400 truncate">Vincular veículo e cartões de consumo.</p>
             </div>
           </div>
           <ArrowRight size={12} className="text-slate-300 group-hover:text-tvde-primary transition-colors shrink-0" />
@@ -574,7 +577,7 @@ export default function MotoristaForm({
               </div>
               <div className="truncate">
                 <p className="text-xs font-black text-slate-800">Onboarding Digital</p>
-                <p className="text-[9.5px] text-slate-400 truncate">Reenviar WhatsApp para recolha [2].</p>
+                <p className="text-[9.5px] text-slate-400 truncate">Reenviar WhatsApp para recolha.</p>
               </div>
             </div>
             <ArrowRight size={12} className="text-slate-300 group-hover:text-emerald-600 transition-colors shrink-0" />
@@ -596,7 +599,7 @@ export default function MotoristaForm({
               </div>
               <div className="truncate">
                 <p className="text-xs font-black text-slate-800">Gestão Financeira</p>
-                <p className="text-[9.5px] text-slate-400 truncate">Saldos, cauções, adiantamentos e renegociações [2].</p>
+                <p className="text-[9.5px] text-slate-400 truncate">Saldos, cauções, adiantamentos e renegociações.</p>
               </div>
             </div>
             <ArrowRight size={12} className="text-slate-300 group-hover:text-emerald-600 transition-colors shrink-0" />
@@ -639,7 +642,7 @@ export default function MotoristaForm({
                 </div>
                 <div>
                   <p className="text-xs font-bold text-slate-800">Fotografia de Perfil</p>
-                  <p className="text-[10px] text-slate-400">Carregue uma imagem clara do rosto em formato quadrado ou proporções 1:1 [2].</p>
+                  <p className="text-[10px] text-slate-400">Carregue uma imagem clara do rosto em formato quadrado ou proporções 1:1.</p>
                 </div>
               </div>
 
@@ -767,7 +770,7 @@ export default function MotoristaForm({
         </div>
       )}
 
-      {/* SUB-MODAL 4: Atribuição de Frota & Cartões [1] */}
+      {/* SUB-MODAL 4: Atribuição de Frota & Cartões */}
       {modalFrotaAberto && (
         <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
           <div className="absolute inset-0" onClick={() => setModalFrotaAberto(false)} />
@@ -791,7 +794,9 @@ export default function MotoristaForm({
                     setFormData({
                       ...formData, 
                       veiculoId: e.target.value, 
-                      veiculoMatricula: v ? v.matricula : ''
+                      veiculoMatricula: v ? v.matricula : '',
+                      veiculoMarca: v ? v.marca : '',      // NOVO: Captura a marca
+                      veiculoModelo: v ? v.modelo : ''     // NOVO: Captura o modelo
                     });
                   }}
                 >
@@ -804,7 +809,7 @@ export default function MotoristaForm({
                 </select>
               </div>
 
-              {/* Escolher primeiro o tipo de cartão que será atribuído [1] */}
+              {/* Escolher primeiro o tipo de cartão que será atribuído */}
               <div>
                 <label className="block text-xs font-semibold text-slate-700 mb-1">Tipo de Cartão de Consumo</label>
                 <select 
@@ -819,7 +824,7 @@ export default function MotoristaForm({
                 </select>
               </div>
 
-              {/* Abre a caixa com os cartões disponíveis daquela categoria de forma dinâmica [1] */}
+              {/* Abre a caixa com os cartões disponíveis daquela categoria de forma dinâmica */}
               {tipoCartaoAtribuido === 'combustivel' && (
                 <div className="animate-in fade-in slide-in-from-top-1 duration-200">
                   <label className="block text-xs font-semibold text-slate-700 mb-1">Cartão de Abastecimento Disponível</label>
