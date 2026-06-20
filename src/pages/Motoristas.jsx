@@ -16,6 +16,26 @@ import {
   doc, deleteDoc, updateDoc, arrayUnion, onSnapshot 
 } from 'firebase/firestore';
 
+/**
+ * Função Auxiliar: Formata o nome em Title Case para exibição 
+ * uniforme no título do Modal de Edição.
+ */
+const formatTitleCase = (str) => {
+  if (!str) return '';
+  const preposicoes = ['de', 'da', 'do', 'das', 'dos', 'e', 'em'];
+  return str
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .map((word, index) => {
+      if (preposicoes.includes(word) && index !== 0) {
+        return word;
+      }
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    })
+    .join(' ');
+};
+
 export default function Motoristas() {
   const { userData } = useAuth();
   const location = useLocation();
@@ -226,7 +246,6 @@ export default function Motoristas() {
 
   return (
     <div className="space-y-6">
-      {/* ◄ ALTERADO: Header empilhável responsivo e botão expandido em mobile */}
       <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-slate-800">Motoristas</h1>
@@ -240,7 +259,6 @@ export default function Motoristas() {
         </Button>
       </header>
 
-      {/* ◄ ALTERADO: Padding otimizado para mobile */}
       <div className="flex gap-4 bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-slate-100">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
@@ -260,7 +278,6 @@ export default function Motoristas() {
           <p className="text-xs sm:text-sm font-semibold">A carregar motoristas...</p>
         </div>
       ) : (
-        /* ◄ ALTERADO: Contentor de segurança de scroll lateral adicionado ao redor da tabela */
         <div className="w-full overflow-x-auto rounded-2xl border border-slate-100 shadow-sm bg-white">
           <MotoristasList 
             motoristas={motoristasFiltrados} 
@@ -273,7 +290,7 @@ export default function Motoristas() {
       <Modal
         isOpen={isModalOpen}
         onClose={fecharModal}
-        title={isViewOnly ? "Consulta de Motorista" : (editingId ? "Editar Motorista" : "Novo Motorista")}
+        title={isViewOnly ? "Consulta de Motorista" : (editingId ? `Ficha de ${formatTitleCase(motoristaEmEdicao?.nome)}` : "Novo Motorista")}
       >
         <MotoristaForm 
           onSubmit={handleSaveMotorista} 

@@ -30,6 +30,26 @@ import { formatCurrency } from '../../utils/formatters';
 import ModalFinanceiro from '../financeiro/ModalFinanceiro';
 
 /**
+ * Função Auxiliar: Formata qualquer texto em Title Case,
+ * mantendo as preposições portuguesas comuns em minúsculas.
+ */
+const formatTitleCase = (str) => {
+  if (!str) return '';
+  const preposicoes = ['de', 'da', 'do', 'das', 'dos', 'e', 'em'];
+  return str
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .map((word, index) => {
+      if (preposicoes.includes(word) && index !== 0) {
+        return word;
+      }
+      return word.charAt(0).toUpperCase() + word.slice(1);
+    })
+    .join(' ');
+};
+
+/**
  * Componente Auxiliar: Secção Colapsável Compacta
  */
 const CollapsibleSection = ({ title, icon: Icon, iconColor, defaultOpen = false, children }) => {
@@ -69,7 +89,8 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
   const [criarComoProprietario, setCriarComoProprietario] = useState(false);
   const [modalFinanceiroAberto, setModalFinanceiroAberto] = useState(false);
 
-  // ◄ ADICIONADO: Estados em falta para controlar os sub-modais de UX
+  // Estados para controlo dos sub-modais de UX
+  const [modalIdentificacaoAberto, setModalIdentificacaoAberto] = useState(false);
   const [modalMoradaAberto, setModalMoradaAberto] = useState(false);
   const [modalFaturacaoAberto, setModalFaturacaoAberto] = useState(false);
   const [modalDocumentosAberto, setModalDocumentosAberto] = useState(false);
@@ -149,10 +170,8 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
 
   const handleRemoveFile = (field) => { if (window.confirm("Deseja remover este documento?")) { setFormData(prev => ({ ...prev, [field]: '' })); } };
 
-  // py-1.5 px-3 e rounded-lg no inputClass para economizar espaço de ecrã [2]
   const inputClass = `w-full py-1.5 px-2.5 border border-slate-200 rounded-lg outline-none transition-all text-xs ${isReadOnly ? 'bg-slate-50/50 border-transparent font-semibold text-slate-700' : 'bg-white focus:ring-2 focus:ring-tvde-primary/20 hover:border-slate-300'}`;
 
-  // Suporte a parâmetro forceReadOnly para bloquear campos autogeridos
   const renderInputIA = (label, field, required = false, forceReadOnly = false) => {
     const isAIFilled = initialData[`ai_filled_${field}`];
     const docUrl = fieldToDocMap[field];
@@ -277,7 +296,28 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
   return (
     <form onSubmit={(e) => e.preventDefault()} className="space-y-1 max-h-[75vh] overflow-y-auto pr-3.5 custom-scrollbar">
       
-      {/* Quadro horizontal de Onboarding Digital (Padding otimizado para economizar espaço) [2] */}
+      {/* ◄ ADICIONADO: Quadro de Identidade do Motorista no Topo (Com Capitalização automática) */}
+      {formData.nome && (
+        <div className="flex items-center gap-3 p-3 bg-gradient-to-r from-slate-50 to-white border border-slate-200/60 rounded-2xl mb-3 text-left">
+          <div className="w-12 h-12 rounded-full overflow-hidden border border-slate-100 bg-white flex items-center justify-center shrink-0">
+            {formData.fotoPerfil ? (
+              <img src={formData.fotoPerfil} alt="Perfil" className="w-full h-full object-cover" />
+            ) : (
+              <User size={20} className="text-slate-300" />
+            )}
+          </div>
+          <div>
+            <h2 className="text-sm font-black text-slate-800 tracking-tight">
+              {formatTitleCase(formData.nome)}
+            </h2>
+            <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">
+              {formData.status || 'Ativo'} • Cadastro Consolidado
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Quadro horizontal de Onboarding Digital */}
       {initialData.id && !isReadOnly && (
         <div className="flex flex-col sm:flex-row items-center justify-between p-2.5 bg-blue-50/50 border border-blue-100 rounded-2xl mb-3 gap-2 text-left animate-in fade-in duration-200">
           <div className="flex items-center gap-2.5">
@@ -332,25 +372,28 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
         </div>
       )}
 
-      {/* DADOS VITAIS E DE IDENTIFICAÇÃO (Padding e margem otimizados de p-5 para p-3.5) [2] */}
-      <div className="flex flex-col md:flex-row gap-4 items-center bg-slate-50 p-3.5 rounded-2xl border border-slate-100 mb-3">
-        <div className="relative">
-          <div className="w-20 h-20 rounded-full overflow-hidden border-4 border-white shadow-lg bg-white flex items-center justify-center shrink-0">{formData.fotoPerfil ? <img src={formData.fotoPerfil} alt="Perfil" className="w-full h-full object-cover" /> : <User size={28} className="text-slate-200" />}</div>
-          {!isReadOnly && <FileUpload mode="minimal" label={<div className="p-1 bg-tvde-primary text-white rounded-full shadow-md cursor-pointer border-2 border-white"><Camera size={10}/></div>} folder="motoristas/fotos" onUploadComplete={(url) => setFormData({...formData, fotoPerfil: url})} />}
-        </div>
-        <div className="flex-1 grid grid-cols-1 md:grid-cols-3 gap-2 w-full">
-          <div className="md:col-span-3">{renderInputIA("Nome Completo", "nome", true)}</div>
-          <div><DatePicker label="Nascimento" value={formData.dataNascimento} onChange={(val) => { setFormData({...formData, dataNascimento: val}); if (initialData.ai_filled_dataNascimento) validarCampoIA('dataNascimento'); }} isReadOnly={isReadOnly} /></div>
-          <div>{renderInputIA("NIF", "nif")}</div>
-          <div>{renderInputIA("ID Documento", "numID")}</div>
-          <div>{renderInputIA("Nº Carta Condução", "numCarta")}</div>
-          <div>{renderInputIA("Cért. TVDE", "numTVDE")}</div>
-        </div>
-      </div>
+      {/* Grelha de botões de navegação para sub-modais de UX (Colapsados de Origem) [2] */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 my-3">
+        
+        {/* Botão Novo: Identificação & Ficha Cadastral (Inicia colapsado/fechado) */}
+        <button
+          type="button"
+          onClick={() => setModalIdentificacaoAberto(true)}
+          className="p-2.5 bg-slate-50 hover:bg-blue-50/50 border border-slate-200/80 rounded-xl flex items-center justify-between transition-all cursor-pointer group text-left"
+        >
+          <div className="flex items-center gap-2.5 min-w-0">
+            <div className="p-2 bg-blue-100 text-blue-600 rounded-lg group-hover:scale-105 transition-transform shrink-0">
+              <User size={16} />
+            </div>
+            <div className="truncate">
+              <p className="text-xs font-black text-slate-800">Identificação & Ficha</p>
+              <p className="text-[9.5px] text-slate-400 truncate">Nome, NIF, nascimento, carta de condução [2].</p>
+            </div>
+          </div>
+          <ArrowRight size={12} className="text-slate-300 group-hover:text-tvde-primary transition-colors shrink-0" />
+        </button>
 
-      {/* Grelha de botões de navegação para sub-modais de UX (Padding otimizado de p-4 para p-2.5 e my-3) [2] */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 my-3">
-        {/* Botão 1: Contacto e Morada */}
+        {/* Botão: Contacto e Morada */}
         <button
           type="button"
           onClick={() => setModalMoradaAberto(true)}
@@ -368,7 +411,7 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
           <ArrowRight size={12} className="text-slate-300 group-hover:text-tvde-primary transition-colors shrink-0" />
         </button>
 
-        {/* Botão 2: Dados Financeiros */}
+        {/* Botão: Dados Financeiros */}
         <button
           type="button"
           onClick={() => setModalFaturacaoAberto(true)}
@@ -386,7 +429,7 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
           <ArrowRight size={12} className="text-slate-300 group-hover:text-tvde-primary transition-colors shrink-0" />
         </button>
 
-        {/* Botão 3: Documentação Digital */}
+        {/* Botão: Documentação Digital */}
         <button
           type="button"
           onClick={() => setModalDocumentosAberto(true)}
@@ -403,6 +446,26 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
           </div>
           <ArrowRight size={12} className="text-slate-300 group-hover:text-tvde-primary transition-colors shrink-0" />
         </button>
+
+        {/* Botão: Gestão Financeira (Movido do rodapé para manter consistência visual do painel) */}
+        {initialData.id && (
+          <button
+            type="button"
+            onClick={() => setModalFinanceiroAberto(true)}
+            className="p-2.5 bg-slate-50 hover:bg-emerald-50/50 border border-slate-200/80 rounded-xl flex items-center justify-between transition-all cursor-pointer group text-left sm:col-span-2"
+          >
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="p-2 bg-emerald-100 text-emerald-600 rounded-lg group-hover:scale-105 transition-transform shrink-0">
+                <Euro size={16} />
+              </div>
+              <div className="truncate">
+                <p className="text-xs font-black text-slate-800">Gestão Financeira</p>
+                <p className="text-[9.5px] text-slate-400 truncate">Consultar saldos, cauções, adiantamentos e renegociações [2].</p>
+              </div>
+            </div>
+            <ArrowRight size={12} className="text-slate-300 group-hover:text-emerald-600 transition-colors shrink-0" />
+          </button>
+        )}
       </div>
 
       {initialData.historico && initialData.historico.length > 0 && (
@@ -418,6 +481,47 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
             ))}
           </div>
         </CollapsibleSection>
+      )}
+
+      {/* SUB-MODAL 0: Identificação e Dados Cadastrais Vinteis */}
+      {modalIdentificacaoAberto && (
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
+          <div className="absolute inset-0" onClick={() => setModalIdentificacaoAberto(false)} />
+          <div className="relative bg-white rounded-t-[2.5rem] sm:rounded-3xl shadow-2xl w-full max-w-2xl max-h-[90vh] flex flex-col overflow-hidden p-6 sm:p-8 animate-in slide-in-from-bottom sm:zoom-in-95 duration-200 text-left">
+            <button type="button" onClick={() => setModalIdentificacaoAberto(false)} className="absolute top-4 right-4 p-1.5 text-slate-400 hover:bg-slate-50 hover:text-slate-600 rounded-full transition-all cursor-pointer"><X size={18} /></button>
+            <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-2 mb-4 border-b border-slate-100 pb-3 select-none">
+              <User size={18} className="text-blue-500" /> Identificação & Ficha Cadastral
+            </h3>
+            <div className="space-y-4 overflow-y-auto pr-2 custom-scrollbar">
+              
+              <div className="flex flex-col sm:flex-row gap-4 items-center bg-slate-50 p-3.5 rounded-2xl border border-slate-100">
+                <div className="relative">
+                  <div className="w-20 h-20 rounded-full overflow-hidden border-4 border-white shadow-lg bg-white flex items-center justify-center shrink-0">
+                    {formData.fotoPerfil ? <img src={formData.fotoPerfil} alt="Perfil" className="w-full h-full object-cover" /> : <User size={28} className="text-slate-200" />}
+                  </div>
+                  {!isReadOnly && <FileUpload mode="minimal" label={<div className="p-1 bg-tvde-primary text-white rounded-full shadow-md cursor-pointer border-2 border-white"><Camera size={10}/></div>} folder="motoristas/fotos" onUploadComplete={(url) => setFormData({...formData, fotoPerfil: url})} />}
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-slate-800">Fotografia de Perfil</p>
+                  <p className="text-[10px] text-slate-400">Carregue uma imagem clara do rosto em formato quadrado ou proporções 1:1 [2].</p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 w-full pt-1">
+                <div className="md:col-span-3">{renderInputIA("Nome Completo", "nome", true)}</div>
+                <div><DatePicker label="Nascimento" value={formData.dataNascimento} onChange={(val) => { setFormData({...formData, dataNascimento: val}); if (initialData.ai_filled_dataNascimento) validarCampoIA('dataNascimento'); }} isReadOnly={isReadOnly} /></div>
+                <div>{renderInputIA("NIF", "nif")}</div>
+                <div>{renderInputIA("ID Documento", "numID")}</div>
+                <div>{renderInputIA("Nº Carta Condução", "numCarta")}</div>
+                <div className="md:col-span-2">{renderInputIA("Certificado TVDE", "numTVDE")}</div>
+              </div>
+
+            </div>
+            <div className="mt-6 pt-4 border-t border-slate-100 flex justify-end">
+              <Button type="button" onClick={() => setModalIdentificacaoAberto(false)} className="px-6 h-10 text-xs">Confirmar e Fechar</Button>
+            </div>
+          </div>
+        </div>
       )}
 
       {/* SUB-MODAL 1: Contacto e Morada */}
@@ -527,19 +631,9 @@ export default function MotoristaForm({ onSubmit, initialData = {}, onCancel, is
         </div>
       )}
 
-      {/* BOTÕES FIXOS NO RODAPÉ (mt-3.5 pt-3 e h-10 para manter scroll zero no desktop) [2] */}
+      {/* BOTÕES FIXOS NO RODAPÉ */}
       <div className="flex flex-col md:flex-row gap-2 mt-3.5 sticky bottom-0 bg-white pt-3 border-t border-slate-100">
         <Button variant="secondary" className="flex-1 h-10 text-xs" onClick={onCancel}>{isReadOnly ? 'Fechar' : 'Cancelar'}</Button>
-        {initialData.id && (
-          <Button
-            type="button"
-            variant="outline"
-            className="flex-1 h-10 text-xs border-emerald-500 text-emerald-600 hover:bg-emerald-50"
-            onClick={() => setModalFinanceiroAberto(true)}
-          >
-            💰 Gestão Financeira
-          </Button>
-        )}
         {!isReadOnly && (
           <>
             <Button type="button" variant="outline" className="flex-1 h-10 text-xs border-tvde-primary text-tvde-primary hover:bg-blue-50" onClick={() => handleFinalSubmit(true)}><MessageSquare size={14} /> Guardar e Enviar Link</Button>
