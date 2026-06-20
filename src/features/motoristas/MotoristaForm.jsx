@@ -94,7 +94,7 @@ export default function MotoristaForm({
   onCriarProprietario,
   veiculos = [],  
   cartoes = [],    
-  motoristas = [] // Recebemos a lista para calcular a trava de cartões ocupados [1]
+  motoristas = [] 
 }) {
   const { userData } = useAuth();
   
@@ -154,7 +154,10 @@ export default function MotoristaForm({
   const [modalDocumentosAberto, setModalDocumentosAberto] = useState(false);
   const [modalFrotaAberto, setModalFrotaAberto] = useState(false); 
 
-  // LÓGICA DA TRAVA: Mapeia cartões já atribuídos a OUTROS motoristas para bloqueá-los [1]
+  // Novo estado para controlar dinamicamente a exibição das categorias de cartões [1]
+  const [tipoCartaoAtribuido, setTipoCartaoAtribuido] = useState('');
+
+  // TRAVA DE SEGURANÇA OPERACIONAL: Filtra motoristas que já têm outro cartão deste tipo [1]
   const cartoesAbastecimentoOcupados = motoristas
     .filter(m => m.id !== initialData.id && m.cartaoAbastecimentoId)
     .map(m => m.cartaoAbastecimentoId);
@@ -225,9 +228,45 @@ export default function MotoristaForm({
       alerta_inconsistencia: initialData.alerta_inconsistencia || prev.alerta_inconsistencia,
       motivo_inconsistencia: initialData.motivo_inconsistencia || prev.motivo_inconsistencia
     }));
+
+    // Determina o tipo de cartão inicial na montagem dos dados [1]
+    if (initialData.cartaoAbastecimentoId) {
+      setTipoCartaoAtribuido('combustivel');
+    } else if (initialData.cartaoCarregamentoId) {
+      setTipoCartaoAtribuido('eletrico');
+    } else {
+      setTipoCartaoAtribuido('');
+    }
   }, [initialData]);
 
   useEffect(() => { if (formData.nifMesmoMotorista) { setFormData(prev => ({ ...prev, nifPagamento: prev.nif })); } }, [formData.nif, formData.nifMesmoMotorista]);
+
+  // Função para controlar a mudança de categoria e limpar resíduos do outro tipo [1]
+  const handleTipoCartaoChange = (novoTipo) => {
+    setTipoCartaoAtribuido(novoTipo);
+    
+    if (novoTipo === 'combustivel') {
+      setFormData(prev => ({
+        ...prev,
+        cartaoCarregamentoId: '',
+        cartaoCarregamentoNumero: ''
+      }));
+    } else if (novoTipo === 'eletrico') {
+      setFormData(prev => ({
+        ...prev,
+        cartaoAbastecimentoId: '',
+        cartaoAbastecimentoNumero: ''
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        cartaoAbastecimentoId: '',
+        cartaoAbastecimentoNumero: '',
+        cartaoCarregamentoId: '',
+        cartaoCarregamentoNumero: ''
+      }));
+    }
+  };
 
   const validarCampoIA = async (campo) => {
     const motoristaId = initialData.id || formData.id;
@@ -238,18 +277,6 @@ export default function MotoristaForm({
     } catch (error) {
       console.error("Erro ao validar campo:", error);
     }
-  };
-
-  const handleEnviarLinkExistente = (metodo) => {
-    const cleanTelemovel = formData.telemovel.replace(/\D/g, '');
-    const onboardingUrl = `${window.location.origin}/onboarding/${initialData.id}`;
-    const mensagem = `Olá ${formData.nome}, utilize este link para carregar os seus documentos: ${onboardingUrl}`;
-    if (metodo === 'whatsapp') {
-      window.open(`https://wa.me/351${cleanTelemovel}?text=${encodeURIComponent(mensagem)}`, '_blank');
-    } else if (metodo === 'email') {
-      window.location.href = `mailto:${formData.email}?subject=Registo de Motorista - Documentação&body=${encodeURIComponent(mensagem)}`;
-    }
-    logAcaoGlobal(userData.nome, "Reenvio de Link Onboarding", "Motoristas", formData.nome, initialData.id);
   };
 
   const handleRemoveFile = (field) => { if (window.confirm("Deseja remover este documento?")) { setFormData(prev => ({ ...prev, [field]: '' })); } };
@@ -777,55 +804,73 @@ export default function MotoristaForm({
                 </select>
               </div>
 
-              {/* Seleção do Cartão de Abastecimento (Combustível) */}
+              {/* Escolher primeiro o tipo de cartão que será atribuído [1] */}
               <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Cartão de Abastecimento (Combustível)</label>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Tipo de Cartão de Consumo</label>
                 <select 
                   disabled={isReadOnly}
                   className="w-full p-2.5 border border-slate-200 rounded-lg bg-white text-xs outline-none focus:ring-2 focus:ring-tvde-primary/20 text-slate-700 font-medium"
-                  value={formData.cartaoAbastecimentoId || ''}
-                  onChange={(e) => {
-                    const c = cartoesCombustivelDisponiveis.find(card => card.id === e.target.value);
-                    setFormData({
-                      ...formData, 
-                      cartaoAbastecimentoId: e.target.value, 
-                      cartaoAbastecimentoNumero: c ? (c.numeroCartao || c.numero) : ''
-                    });
-                  }}
+                  value={tipoCartaoAtribuido}
+                  onChange={(e) => handleTipoCartaoChange(e.target.value)}
                 >
                   <option value="">Nenhum Cartão Associado</option>
-                  {cartoesCombustivelDisponiveis.map(card => (
-                    <option key={card.id} value={card.id}>
-                      {card.numeroCartao || card.numero} ({card.fornecedor})
-                    </option>
-                  ))}
+                  <option value="combustivel">Abastecimento (Combustível)</option>
+                  <option value="eletrico">Carregamento (Elétrico)</option>
                 </select>
               </div>
 
-              {/* Seleção do Cartão de Carregamento (Elétrico) */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Cartão de Carregamento (Elétrico)</label>
-                <select 
-                  disabled={isReadOnly}
-                  className="w-full p-2.5 border border-slate-200 rounded-lg bg-white text-xs outline-none focus:ring-2 focus:ring-tvde-primary/20 text-slate-700 font-medium"
-                  value={formData.cartaoCarregamentoId || ''}
-                  onChange={(e) => {
-                    const c = cartoesEletricosDisponiveis.find(card => card.id === e.target.value);
-                    setFormData({
-                      ...formData, 
-                      cartaoCarregamentoId: e.target.value, 
-                      cartaoCarregamentoNumero: c ? (c.numeroCartao || c.numero) : ''
-                    });
-                  }}
-                >
-                  <option value="">Nenhum Cartão Associado</option>
-                  {cartoesEletricosDisponiveis.map(card => (
-                    <option key={card.id} value={card.id}>
-                      {card.numeroCartao || card.numero} ({card.fornecedor})
-                    </option>
-                  ))}
-                </select>
-              </div>
+              {/* Abre a caixa com os cartões disponíveis daquela categoria de forma dinâmica [1] */}
+              {tipoCartaoAtribuido === 'combustivel' && (
+                <div className="animate-in fade-in slide-in-from-top-1 duration-200">
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Cartão de Abastecimento Disponível</label>
+                  <select 
+                    disabled={isReadOnly}
+                    className="w-full p-2.5 border border-slate-200 rounded-lg bg-white text-xs outline-none focus:ring-2 focus:ring-tvde-primary/20 text-slate-700 font-medium font-mono"
+                    value={formData.cartaoAbastecimentoId || ''}
+                    onChange={(e) => {
+                      const c = cartoesCombustivelDisponiveis.find(card => card.id === e.target.value);
+                      setFormData({
+                        ...formData, 
+                        cartaoAbastecimentoId: e.target.value, 
+                        cartaoAbastecimentoNumero: c ? (c.numeroCartao || c.numero) : ''
+                      });
+                    }}
+                  >
+                    <option value="">-- Selecione o Cartão de Combustível --</option>
+                    {cartoesCombustivelDisponiveis.map(card => (
+                      <option key={card.id} value={card.id}>
+                        {card.numeroCartao || card.numero} ({card.fornecedor})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {tipoCartaoAtribuido === 'eletrico' && (
+                <div className="animate-in fade-in slide-in-from-top-1 duration-200">
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Cartão de Carregamento Disponível</label>
+                  <select 
+                    disabled={isReadOnly}
+                    className="w-full p-2.5 border border-slate-200 rounded-lg bg-white text-xs outline-none focus:ring-2 focus:ring-tvde-primary/20 text-slate-700 font-medium font-mono"
+                    value={formData.cartaoCarregamentoId || ''}
+                    onChange={(e) => {
+                      const c = cartoesEletricosDisponiveis.find(card => card.id === e.target.value);
+                      setFormData({
+                        ...formData, 
+                        cartaoCarregamentoId: e.target.value, 
+                        cartaoCarregamentoNumero: c ? (c.numeroCartao || c.numero) : ''
+                      });
+                    }}
+                  >
+                    <option value="">-- Selecione o Cartão Elétrico --</option>
+                    {cartoesEletricosDisponiveis.map(card => (
+                      <option key={card.id} value={card.id}>
+                        {card.numeroCartao || card.numero} ({card.fornecedor})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
 
             </div>
 
