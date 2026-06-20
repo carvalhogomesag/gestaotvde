@@ -13,7 +13,7 @@ import { generateNextCode } from '../utils/idGenerator';
 import { logAcaoGlobal } from '../utils/logger';
 import { 
   collection, addDoc, getDocs, query, 
-  doc, deleteDoc, updateDoc, arrayUnion, onSnapshot 
+  doc, deleteDoc, updateDoc, arrayUnion, onSnapshot, writeBatch 
 } from 'firebase/firestore';
 
 /**
@@ -112,6 +112,43 @@ export default function Motoristas() {
     };
   }, [location.search, editingId, handleEditClick]);
 
+  // Sincroniza bidirecionalmente as relações de cartões no Firestore [1]
+  const syncCartoesParaMotorista = async (motoristaId, motoristaNome, novosDados, antigosDados = null) => {
+    const batch = writeBatch(db);
+
+    // 1. Sincronização do Cartão de Abastecimento
+    const antigoAbastId = antigosDados?.cartaoAbastecimentoId || '';
+    const novoAbastId = novosDados.cartaoAbastecimentoId || '';
+
+    if (antigoAbastId !== novoAbastId) {
+      if (antigoAbastId) {
+        const antigoRef = doc(db, "cartoes", antigoAbastId);
+        batch.update(antigoRef, { motoristaId: "", motoristaNome: "" });
+      }
+      if (novoAbastId) {
+        const novoRef = doc(db, "cartoes", novoAbastId);
+        batch.update(novoRef, { motoristaId, motoristaNome });
+      }
+    }
+
+    // 2. Sincronização do Cartão de Carregamento
+    const antigoCarregId = antigosDados?.cartaoCarregamentoId || '';
+    const novoCarregId = novosDados.cartaoCarregamentoId || '';
+
+    if (antigoCarregId !== novoCarregId) {
+      if (antigoCarregId) {
+        const antigoRef = doc(db, "cartoes", antigoCarregId);
+        batch.update(antigoRef, { motoristaId: "", motoristaNome: "" });
+      }
+      if (novoCarregId) {
+        const novoRef = doc(db, "cartoes", novoCarregId);
+        batch.update(novoRef, { motoristaId, motoristaNome });
+      }
+    }
+
+    await batch.commit();
+  };
+
   // Recalcula reativamente a cada update do onSnapshot
   const motoristaEmEdicao = motoristas.find(m => m.id === editingId) || null;
 
@@ -166,16 +203,14 @@ export default function Motoristas() {
           historico: []
         });
 
+        // Sincronizar o estado dos cartões do novo motorista [1]
+        await syncCartoesParaMotorista(docRef.id, dados.nome, dados);
+
         await logAcaoGlobal(userData?.nome, "Criação", "Motoristas", dados.nome, docRef.id);
 
-        if (enviarLink) {
-          const onboardingUrl = `${window.location.origin}/onboarding/${docRef.id}`;
-          const mensagem = `Olá ${dados.nome}, utilize este link para carregar os seus documentos: ${onboardingUrl}`;
-          window.open(`https://wa.me/351${dados.telemovel}?text=${encodeURIComponent(mensagem)}`, '_blank');
-        }
-
-        setLastSavedItem({ id: docRef.id, nome: dados.nome, codigo: novoCodigo });
+        setLastSavedItem({ id: docRef.id, nome: dados.nome, codigo: 'CARD' });
         fecharModal();
+        fetchData();
         if (!enviarLink) setIsTicketModalOpen(true);
       } catch (error) {
         console.error("Erro ao criar motorista:", error);
@@ -200,6 +235,9 @@ export default function Motoristas() {
           descricao: motivo
         })
       });
+
+      // Sincronizar o estado dos cartões do motorista editado [1]
+      await syncCartoesParaMotorista(editingId, tempDados.nome, tempDados, motoristaEmEdicao);
 
       await logAcaoGlobal(userData?.nome, "Edição", "Motoristas", dadosLimpos.nome, editingId);
 
@@ -316,7 +354,7 @@ export default function Motoristas() {
           onCriarProprietario={handleCriarProprietario}
           veiculos={veiculos}
           cartoes={cartoes}
-          motoristas={motoristas} // Passamos todos os motoristas registados para validação cruzada [1]
+          motoristas={motoristas} // [1]
         />
       </Modal>
 

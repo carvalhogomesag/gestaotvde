@@ -89,6 +89,30 @@ export default function CartoesGestao({ tipo }) {
 
   useEffect(() => { fetchData(); }, [tipo]);
 
+  // Sincroniza bidirecionalmente as relações no motorista quando edita um cartão [1]
+  const syncMotoristaParaCartao = async (cardId, cardNumero, cardTipo, novosDados, antigosDados = null) => {
+    const batch = writeBatch(db);
+
+    const antigoMotoristaId = antigosDados?.motoristaId || '';
+    const novoMotoristaId = novosDados.motoristaId || '';
+
+    const campoCardId = cardTipo === 'combustivel' ? 'cartaoAbastecimentoId' : 'cartaoCarregamentoId';
+    const campoCardNumero = cardTipo === 'combustivel' ? 'cartaoAbastecimentoNumero' : 'cartaoCarregamentoNumero';
+
+    if (antigoMotoristaId !== novoMotoristaId) {
+      if (antigoMotoristaId) {
+        const antigoRef = doc(db, "motoristas", antigoMotoristaId);
+        batch.update(antigoRef, { [campoCardId]: "", [campoCardNumero]: "" });
+      }
+      if (novoMotoristaId) {
+        const novoRef = doc(db, "motoristas", novoMotoristaId);
+        batch.update(novoRef, { [campoCardId]: cardId, [campoCardNumero]: cardNumero });
+      }
+    }
+
+    await batch.commit();
+  };
+
   // Executa a sementeira inteligente em lote de acordo com o tipo atual do ecrã
   const handleSementeiraLote = async () => {
     const cardsToSeed = tipo === 'combustivel' ? CARTOES_COMBUSTIVEL : CARTOES_ELETRICOS;
@@ -184,6 +208,9 @@ export default function CartoesGestao({ tipo }) {
 
         await setDoc(docRef, payload);
 
+        // Sincronizar o motorista novo [1]
+        await syncMotoristaParaCartao(cardId, cardId, tipo, dados);
+
         await logAcaoGlobal(userData?.nome, "Criação", "Cartões", `${dados.fornecedor} (${cardId})`, cardId);
         
         setLastSavedItem({ id: cardId, nome: `${dados.fornecedor} - ${cardId}`, codigo: 'CARD' });
@@ -215,6 +242,9 @@ export default function CartoesGestao({ tipo }) {
         tipo: tipo,
         historico: arrayUnion(novoLog)
       });
+
+      // Sincronizar motorista alterado [1]
+      await syncMotoristaParaCartao(cardId, cardId, tipo, tempDados, editingCartao);
 
       await logAcaoGlobal(userData?.nome, "Edição", "Cartões", tempDados.fornecedor, editingCartao.id);
 
@@ -270,7 +300,7 @@ export default function CartoesGestao({ tipo }) {
         <div className="flex gap-3">
           {/* Botão de Sementeira Contextualizado */}
           <Button onClick={handleSementeiraLote} disabled={isImporting || loading}>
-            <Database size={20} className={isImporting ? "animate-spin" : ""} />
+            <Database size={20} className="isImporting ? 'animate-spin' : ''" />
             {isImporting ? 'A Importar...' : 'Sementeira em Lote'}
           </Button>
 
@@ -284,14 +314,14 @@ export default function CartoesGestao({ tipo }) {
       {cartoes.length > 0 && !loading && (
         <div className="bg-white border border-slate-200 rounded-[2rem] overflow-hidden shadow-sm">
           <div className="overflow-x-auto">
-            <table className="w-full text-left border-collapse">
+            <table className="w-full text-left border-collapse text-sm">
               <thead className="bg-slate-50 border-b border-slate-100 text-slate-400 text-[10px] font-black uppercase tracking-widest">
                 <tr>
                   <th className="py-4 px-6">Identificador / Número</th>
                   <th className="py-4 px-6">Fornecedor</th>
                   <th className="py-4 px-6">PIN</th>
                   <th className="py-4 px-6">Plafond Semanal</th>
-                  {/* ◄ ALTERADO: Cabeçalho de Veículo para Motorista */}
+                  {/* Cabeçalho de Motorista */}
                   <th className="py-4 px-6">Motorista Associado</th>
                   <th className="py-4 px-6 text-right">Ações</th>
                 </tr>
@@ -328,7 +358,7 @@ export default function CartoesGestao({ tipo }) {
                       </span>
                     </td>
 
-                    {/* ◄ ALTERADO: Motorista Associado na listagem de Cartões */}
+                    {/* Motorista Associado na listagem de Cartões */}
                     <td className="py-4 px-6">
                       <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${
                         c.motoristaNome 
