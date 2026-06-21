@@ -1,7 +1,7 @@
 import React from 'react';
 import { Edit, Trash2, Building2, Phone, Mail, Eye, AlertCircle } from 'lucide-react';
 
-export default function ProprietariosList({ proprietarios, onEdit, onDelete }) {
+export default function ProprietariosList({ proprietarios, onEdit, onDelete, onToggleStatus }) {
   
   // Função para verificar se o registo está incompleto
   const isProfileIncomplete = (p) => {
@@ -18,12 +18,14 @@ export default function ProprietariosList({ proprietarios, onEdit, onDelete }) {
             <th className="p-4 font-semibold text-slate-600 text-sm">ID Interno</th>
             <th className="p-4 font-semibold text-slate-600 text-sm">NIF / NIPC</th>
             <th className="p-4 font-semibold text-slate-600 text-sm">Contacto</th>
+            <th className="p-4 font-semibold text-slate-600 text-sm">Estado</th>
             <th className="p-4 font-semibold text-slate-600 text-sm text-right">Ações</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-50">
           {proprietarios.map((p) => {
             const incomplete = isProfileIncomplete(p);
+            const isAtivo = p.ativo !== false;
 
             return (
               <tr key={p.id} className="hover:bg-slate-50/50 transition-colors">
@@ -39,7 +41,7 @@ export default function ProprietariosList({ proprietarios, onEdit, onDelete }) {
                   </div>
                 </td>
 
-                {/* NOVA COLUNA: ID INTERNO */}
+                {/* COLUNA: ID INTERNO */}
                 <td className="p-4">
                   <span className="bg-slate-800 text-white text-[10px] font-black px-2 py-1 rounded shadow-sm tracking-wider font-mono">
                     {p.codigoInterno || 'S/ID'}
@@ -71,25 +73,42 @@ export default function ProprietariosList({ proprietarios, onEdit, onDelete }) {
                     </div>
                   </div>
                 </td>
+
+                {/* NOVA COLUNA: ESTADO (ATIVO / INATIVO) */}
+                <td className="p-4">
+                  <button
+                    onClick={() => onToggleStatus && onToggleStatus(p)}
+                    className="flex items-center gap-2 focus:outline-none group cursor-pointer"
+                    title={isAtivo ? "Clique para desativar proprietário" : "Clique para ativar proprietário"}
+                  >
+                    <div className={`w-10 h-6 flex items-center rounded-full p-1 transition-colors duration-200 ease-in-out ${isAtivo ? 'bg-emerald-500' : 'bg-slate-300'}`}>
+                      <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-200 ease-in-out ${isAtivo ? 'translate-x-4' : 'translate-x-0'}`} />
+                    </div>
+                    <span className={`text-xs font-bold uppercase tracking-wider transition-colors duration-200 ${isAtivo ? 'text-emerald-600' : 'text-slate-400'}`}>
+                      {isAtivo ? 'Ativo' : 'Inativo'}
+                    </span>
+                  </button>
+                </td>
+
                 <td className="p-4 text-right">
                   <div className="flex justify-end gap-2">
                     <button 
                       onClick={() => onEdit(p, true)} 
-                      className="p-2 text-slate-400 hover:text-indigo-600 transition-colors bg-slate-50 rounded-lg hover:bg-indigo-50"
+                      className="p-2 text-slate-400 hover:text-indigo-600 transition-colors bg-slate-50 rounded-lg hover:bg-indigo-50 cursor-pointer"
                       title="Visualizar Ficha"
                     >
                       <Eye size={18} />
                     </button>
                     <button 
                       onClick={() => onEdit(p, false)} 
-                      className="p-2 text-slate-400 hover:text-tvde-primary transition-colors bg-slate-50 rounded-lg hover:bg-blue-50"
+                      className="p-2 text-slate-400 hover:text-tvde-primary transition-colors bg-slate-50 rounded-lg hover:bg-blue-50 cursor-pointer"
                       title="Editar"
                     >
                       <Edit size={18} />
                     </button>
                     <button 
                       onClick={() => onDelete(p.id)} 
-                      className="p-2 text-slate-400 hover:text-tvde-danger transition-colors bg-slate-50 rounded-lg hover:bg-red-50"
+                      className="p-2 text-slate-400 hover:text-tvde-danger transition-colors bg-slate-50 rounded-lg hover:bg-red-50 cursor-pointer"
                       title="Eliminar"
                     >
                       <Trash2 size={18} />

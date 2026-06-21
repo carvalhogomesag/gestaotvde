@@ -5,11 +5,13 @@
  * Janela flutuante (modal) de justificação para logs de histórico e segurança.
  * Otimizado com:
  * - Correção de persistência indesejada limpando o estado ao cancelar.
- * - [NOVO] Bloqueio contra justificações vazias ou insignificantes (Mínimo de 5 caracteres).
- * - [NOVO] Contador visual interativo e estilização de botão desativado para UX profissional.
+ * - Bloqueio contra justificações vazias ou insignificantes (Mínimo de 5 caracteres) [2].
+ * - Contador visual interativo e estilização de botão desativado para UX profissional.
+ * - [NOVO] Suporte ao fecho por tecla "Escape" (ESC) para máxima acessibilidade.
+ * - [NOVO] Limpeza defensiva de estado automática ao inicializar a modal para evitar resíduos.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MessageSquare, Send, AlertCircle } from 'lucide-react';
 import Button from './Button';
 
@@ -18,6 +20,25 @@ export default function JustificacaoModal({ isOpen, onConfirm, onCancel }) {
   
   // Mínimo de caracteres exigido para que o log tenha utilidade na auditoria [2]
   const minLength = 5; 
+
+  // Efeito colateral para controlo de acessibilidade (ESC) e limpeza defensiva de estado
+  useEffect(() => {
+    if (!isOpen) return;
+
+    // Garante que o campo inicia totalmente limpo sempre que a modal é aberta
+    setMotivo(''); 
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && onCancel) {
+        onCancel();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, onCancel]);
 
   if (!isOpen) return null;
 

@@ -7,8 +7,9 @@
  * - Filtros rápidos e ordenação integrada.
  * - Sincronização e criação inline de condutores de frotas.
  * - Injeção de Título e Botão "Novo Proprietário" via React Portal diretamente no Header.
- * - [NOVO] Mini-Dashboard analítico super compacto com KPIs de frotas em tempo real.
- * - [NOVO] Remoção da barra de pesquisa redundante para máximo ganho de espaço vertical.
+ * - Mini-Dashboard analítico super compacto com KPIs de frotas em tempo real.
+ * - Remoção da barra de pesquisa redundante para máximo ganho de espaço vertical.
+ * - [ATUALIZADO] Ativação e desativação com barreira de justificação e logs confidenciais.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -41,6 +42,7 @@ export default function Proprietarios() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isJustifyModalOpen, setIsJustifyModalOpen] = useState(false);
   const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
+  const [isToggleAction, setIsToggleAction] = useState(false); // Flag para evitar modal de tickets na mudança de estado
   
   const [proprietarios, setProprietarios] = useState([]);
   const [funcionarios, setFuncionarios] = useState([]);
@@ -130,6 +132,7 @@ export default function Proprietarios() {
   const handleSave = async (dados) => {
     if (editingProp && !isViewOnly) {
       setTempDados(dados);
+      setIsToggleAction(false);
       setIsJustifyModalOpen(true);
     } else {
       try {
@@ -139,6 +142,8 @@ export default function Proprietarios() {
         
         const docRef = await addDoc(collection(db, "proprietarios"), {
           ...dadosLimpos,
+          ativo: true,
+          status: 'Ativo',
           codigoInterno: novoCodigo,
           criadoPor: userData?.nome || 'Sistema',
           dataCriacao: new Date().toISOString(),
@@ -160,6 +165,25 @@ export default function Proprietarios() {
     }
   };
 
+  /**
+   * FUNÇÃO: Lida com a mudança de Estado (Ativo/Inativo) vinda da tabela
+   */
+  const handleToggleStatus = (p) => {
+    const novoEstadoAtivo = !(p.ativo !== false);
+    const novoStatus = novoEstadoAtivo ? 'Ativo' : 'Inativo';
+    
+    const dadosAtualizados = {
+      ...p,
+      ativo: novoEstadoAtivo,
+      status: novoStatus
+    };
+    
+    setEditingProp(p);
+    setTempDados(dadosAtualizados);
+    setIsToggleAction(true);
+    setIsJustifyModalOpen(true);
+  };
+
   const confirmarSalvamentoComLog = async (motivo) => {
     try {
       setLoading(true);
@@ -177,7 +201,8 @@ export default function Proprietarios() {
         historico: arrayUnion(novoLog)
       });
 
-      await logAcaoGlobal(userData?.nome, "Edição", "Proprietários", dadosLimpos.nome, editingProp.id);
+      const acaoLog = isToggleAction ? "Alteração de Estado" : "Edição";
+      await logAcaoGlobal(userData?.nome, acaoLog, "Proprietários", dadosLimpos.nome, editingProp.id);
 
       setLastSavedItem({ 
         id: editingProp.id, 
@@ -188,12 +213,17 @@ export default function Proprietarios() {
       setIsJustifyModalOpen(false);
       fecharModal();
       fetchData();
-      setIsTicketModalOpen(true);
+      
+      // Abre a modal de tarefas apenas se for uma edição convencional de formulário
+      if (!isToggleAction) {
+        setIsTicketModalOpen(true);
+      }
     } catch (error) {
       console.error("Erro ao atualizar proprietário:", error);
       alert("Erro ao atualizar registo.");
     } finally {
       setLoading(false);
+      setIsToggleAction(false);
     }
   };
 
@@ -257,18 +287,19 @@ export default function Proprietarios() {
     setEditingProp(null);
     setIsViewOnly(false);
     setTempDados(null);
+    setIsToggleAction(false);
   };
 
-  // Cálculos dinâmicos e atómicos para os mini-cards do Dashboard de Proprietários
+  // Cálculos dinâmicos e atómicos com suporte a retrocompatibilidade
   const totalCount = proprietarios.length;
-  const activeCount = proprietarios.filter(p => p.status === 'Ativo').length;
+  const activeCount = proprietarios.filter(p => p.status === 'Ativo' || (p.status !== 'Inativo' && p.ativo !== false)).length;
   const inactiveCount = totalCount - activeCount;
 
   return (
     <div className="space-y-4">
       
       {/* 
-        [ATUALIZADO] PORTAL DINÂMICO DE CABEÇALHO PARA PROPRIETÁRIOS:
+        PORTAL DINÂMICO DE CABEÇALHO PARA PROPRIETÁRIOS:
         Injeta o título "Proprietários" e o botão "+ Novo Proprietário" diretamente no
         slot dinâmico do Header global do topo, poupando espaço vertical valioso!
       */}
@@ -291,7 +322,7 @@ export default function Proprietarios() {
         Gestão de parceiros e frotas de veículos.
       </p>
 
-      {/* [NOVO] DASHBOARD DE KPIs ANALÍTICO E SUPER COMPACTO PARA PROPRIETÁRIOS */}
+      {/* DASHBOARD DE KPIs ANALÍTICO E SUPER COMPACTO PARA PROPRIETÁRIOS */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 select-none">
         {/* Card 1: Registados */}
         <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex items-center gap-3">
@@ -338,6 +369,7 @@ export default function Proprietarios() {
             proprietarios={proprietarios} 
             onEdit={handleEditClick} 
             onDelete={handleDelete} 
+            onToggleStatus={handleToggleStatus}
           />
         </div>
       )}
@@ -358,7 +390,10 @@ export default function Proprietarios() {
 
       <JustificacaoModal 
         isOpen={isJustifyModalOpen}
-        onCancel={() => setIsJustifyModalOpen(false)}
+        onCancel={() => {
+          setIsJustifyModalOpen(false);
+          setIsToggleAction(false);
+        }}
         onConfirm={confirmarSalvamentoComLog}
       />
 
