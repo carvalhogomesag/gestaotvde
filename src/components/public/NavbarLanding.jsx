@@ -7,7 +7,7 @@
  * - Detecção automática de links especiais / redirecionamentos (ex: /gerador-distico) [2].
  * - Organização visual premium em duas colunas (Motoristas vs Proprietários) [2].
  * - Suporte mobile completo com listagem tátil hierárquica.
- * - [CORRIGIDO] Botão "Área de Clientes" estilizado com HEX absoluto para evitar o bug de ecrã/botão branco.
+ * - [CORRIGIDO] Botão "Área de Clientes" blindado com estilo prioritário e HEX absoluto para evitar o bug do botão branco.
  */
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -146,6 +146,23 @@ export default function NavbarLanding() {
 
   return (
     <nav className="sticky top-0 z-50 bg-white/95 backdrop-blur-md border-b border-slate-200 shadow-sm">
+      {/* 
+        [MÉTODO SEGURO]: Bloco de estilo prioritário para contornar heranças
+        de CSS globais que possam estar a pintar o fundo e texto do botão de branco.
+      */}
+      <style dangerouslySetInnerHTML={{__html: `
+        .btn-area-clientes-landing {
+          background-color: #0f172a !important;
+          color: #ffffff !important;
+          border: 1px solid #0f172a !important;
+        }
+        .btn-area-clientes-landing:hover {
+          background-color: #2563eb !important;
+          border-color: #2563eb !important;
+          color: #ffffff !important;
+        }
+      `}} />
+
       <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex justify-between items-center">
         
         {/* Logo */}
@@ -284,10 +301,10 @@ export default function NavbarLanding() {
 
         {/* Botão Área de Clientes + Hamburger */}
         <div className="flex items-center gap-3">
-          {/* [MODIFICADO] Estilização com HEX absoluto para evitar o bug de botão invisível/branco */}
+          {/* [MODIFICADO] Associada a nova classe prioritária btn-area-clientes-landing */}
           <Link 
             to="/login" 
-            className="px-4 py-2 bg-[#0f172a] text-[#ffffff] border border-[#0f172a] rounded-xl text-xs font-bold hover:bg-blue-600 hover:border-blue-600 hover:text-white transition-all shadow-sm shrink-0 cursor-pointer"
+            className="btn-area-clientes-landing px-4 py-2 border rounded-xl text-xs font-bold transition-all shadow-sm shrink-0 cursor-pointer text-center"
           >
             Área de Clientes
           </Link>
