@@ -5,11 +5,13 @@
  * Página de controlo e monitorização de veículos da frota.
  * Otimizado com:
  * - Filtros rápidos e ordenação integrada.
- * - [ATUALIZADO] Sincronização bidirecional dupla robusta (Turno A e Turno B).
- * - [NOVO] Limpeza e purga da funcionalidade de semeadura automática de frota em lote (desnecessária em produção).
+ * - Sincronização bidirecional dupla robusta (Turno A e Turno B).
+ * - Remoção definitiva da sementeira automática de frota em lote.
+ * - [NOVO] Injeção de Título e Botão "Novo Veículo" via React Portal diretamente no Header.
  */
 
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom'; // Importado para suporte a Portais dinâmicos no Header
 import { useLocation } from 'react-router-dom';
 import { Plus, Search, Loader2 } from 'lucide-react';
 import Button from '../components/ui/Button';
@@ -22,7 +24,7 @@ import { db } from '../firebase';
 import { useAuth } from '../context/AuthContext';
 import { generateNextCode } from '../utils/idGenerator';
 import { logAcaoGlobal } from '../utils/logger';
-import { alternarEstadoAnuncioViatura } from '../services/veiculoService'; // Novo serviço importado
+import { alternarEstadoAnuncioViatura } from '../services/veiculoService';
 import { 
   collection, addDoc, getDocs, query, 
   doc, deleteDoc, updateDoc, arrayUnion, writeBatch 
@@ -31,6 +33,9 @@ import {
 export default function Veiculos() {
   const { userData } = useAuth();
   const location = useLocation();
+  
+  // Estado didático de montagem para garantir integridade do Portal React
+  const [mounted, setMounted] = useState(false);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isJustifyModalOpen, setIsJustifyModalOpen] = useState(false);
@@ -46,6 +51,12 @@ export default function Veiculos() {
   const [isViewOnly, setIsViewOnly] = useState(false);
   const [tempDados, setTempDados] = useState(null);
   const [lastSavedItem, setLastSavedItem] = useState(null);
+
+  // Ativa a montagem segura do portal no mount inicial do componente
+  useEffect(() => {
+    setMounted(true);
+    return () => setMounted(false);
+  }, []);
 
   /**
    * FUNÇÃO DE LIMPEZA: Impede erros de "undefined" no Firestore.
@@ -395,23 +406,31 @@ export default function Veiculos() {
   };
 
   return (
-    <div className="space-y-6">
-      <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-        <div>
-          <h1 className="text-xl sm:text-2xl font-bold text-slate-800">Veículos</h1>
-          <p className="text-slate-500 text-xs sm:text-sm">Gestão da frota, condutores e tarefas.</p>
-        </div>
-        
-        {/* Painel de acções limpo de sementes estáticas de desenvolvimento */}
-        <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
+    <div className="space-y-4">
+      
+      {/* 
+        [ATUALIZADO] PORTAL DINÂMICO DE CABEÇALHO PARA VEÍCULOS:
+        Injeta o título "Veículos" e o botão "+ Novo Veículo" diretamente no slot dinâmico
+        do Header, exatamente como fizemos na página de Motoristas!
+      */}
+      {mounted && document.getElementById('header-dynamic-slot') && createPortal(
+        <div className="flex items-center gap-3 animate-in fade-in duration-200">
+          <div className="h-4 w-[1.5px] bg-slate-200 hidden lg:block select-none" /> {/* Separador discreto */}
+          <h2 className="text-xs font-black text-slate-800 uppercase tracking-wider hidden sm:block select-none">Veículos</h2>
           <Button 
             onClick={() => setIsModalOpen(true)}
-            className="w-full sm:w-auto justify-center text-xs sm:text-sm"
+            className="text-[10px] font-black uppercase py-1 px-2.5 h-8 gap-1 shadow-sm shrink-0"
           >
-            <Plus size={18} /> Novo Veículo
+            <Plus size={12} /> Novo Veículo
           </Button>
-        </div>
-      </header>
+        </div>,
+        document.getElementById('header-dynamic-slot')
+      )}
+
+      {/* Subtítulo Discreto e compacto no topo da página de conteúdo */}
+      <p className="text-slate-500 text-xs font-medium select-none -mt-1 pb-1">
+        Gestão da frota, condutores e tarefas.
+      </p>
 
       <div className="flex gap-4 bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-slate-100">
         <div className="relative flex-1">
