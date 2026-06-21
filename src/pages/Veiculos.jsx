@@ -1,3 +1,14 @@
+/**
+ * Veiculos.jsx
+ * Localização: src/pages/Veiculos.jsx
+ *
+ * Página de controlo e monitorização de veículos da frota.
+ * Otimizado com:
+ * - Filtros rápidos e ordenação integrada.
+ * - [ATUALIZADO] Sincronização bidirecional dupla robusta (Turno A e Turno B).
+ * - [NOVO] Limpeza e purga da funcionalidade de semeadura automática de frota em lote (desnecessária em produção).
+ */
+
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { Plus, Search, Loader2 } from 'lucide-react';
@@ -14,7 +25,7 @@ import { logAcaoGlobal } from '../utils/logger';
 import { alternarEstadoAnuncioViatura } from '../services/veiculoService'; // Novo serviço importado
 import { 
   collection, addDoc, getDocs, query, 
-  doc, deleteDoc, updateDoc, arrayUnion, writeBatch // writeBatch importado para sync reversa dupla
+  doc, deleteDoc, updateDoc, arrayUnion, writeBatch 
 } from 'firebase/firestore';
 
 export default function Veiculos() {
@@ -48,56 +59,6 @@ export default function Veiculos() {
       }
     });
     return novoObj;
-  };
-
-  /**
-   * SEMEADOR AUTOMÁTICO EM LOTE PARA PRODUÇÃO:
-   * Grava as 49 matrículas da lista da frota original.
-   */
-  const preencherMatriculasProducao = async () => {
-    const listaMatriculas = [
-      "22-ZR-30", "69-RI-58", "AA-80-HJ", "AD-69-RI", "AF-02-FS", "AN-43-NA", "AO-73-SJ", 
-      "AS-36-RC", "AZ-39-MM", "AZ-59-PS", "BB-17-HA", "BC-43-10", "BM-84-XQ", "BO-44-VT", 
-      "BO-72-SX", "BP-35-EH", "BQ-10-ER", "BQ-20-LS", "BQ-61-LR", "BQ-71-LT", "BR-31-FO", 
-      "BS-10-HH", "BS-23-IT", "BS-26-JG", "BS-69-LS", "BS-79-HF", "BU-21-VR", "BV-25-NE", 
-      "BV-98-ZJ", "BZ-13-UE", "BZ-19-TD", "BZ-21-TC", "BZ-28-UG", "BZ-35-TC", "BZ-46-UD", 
-      "BZ-48-SZ", "BZ-54-TD", "BZ-58-UG", "BZ-97-SX", "CA-71-EQ", "CB-54-OX", "CE-04-LH", 
-      "CE-35-LD", "CE-38-OS", "CF-52-GH", "CF-91-FQ", "CG-16-LG", "CG-64-LC", "CG-74-ZE"
-    ];
-
-    if (!window.confirm(`Deseja importar as ${listaMatriculas.length} viaturas reais diretamente para a Produção?`)) {
-      return;
-    }
-
-    try {
-      setLoading(true);
-      const querySnapshot = await getDocs(collection(db, "veiculos"));
-      const matriculasExistentes = querySnapshot.docs.map(doc => doc.data().matricula);
-
-      let criadasCount = 0;
-
-      for (const matricula of listaMatriculas) {
-        if (!matriculasExistentes.includes(matricula)) {
-          await addDoc(collection(db, "veiculos"), {
-            matricula: matricula,
-            marca: "Viatura Oficial", 
-            modelo: "TVDE",            
-            motoristaId: "",           
-            status: "Ativo",
-            dataCriacao: new Date().toISOString()
-          });
-          criadasCount++;
-        }
-      }
-
-      alert(`Concluído com sucesso!\n\nForam criadas ${criadasCount} novas viaturas (das ${listaMatriculas.length} da lista).`);
-      fetchData(); 
-    } catch (err) {
-      console.error("Erro na sementeira de viaturas:", err);
-      alert("Erro ao gravar os dados no Firestore de Produção.");
-    } finally {
-      setLoading(false);
-    }
   };
 
   /**
@@ -185,17 +146,15 @@ export default function Veiculos() {
   }, [location.search]);
 
   /**
-   * [ATUALIZADO] SINCRONIZAÇÃO REVERSA BIDIRECIONAL DUPLA (TURNO DIA E NOITE)
-   * Atualiza a coleção de "motoristas" para Turno A (Diurno) e Turno B (Noturno).
+   * SINCRONIZAÇÃO REVERSA BIDIRECIONAL DUPLA (TURNO DIA E NOITE)
+   * Sincroniza a associação do carro nos documentos do condutor diurno e noturno.
    */
   const syncMotoristaParaVeiculo = async (veiculoId, novosDados, antigosDados = null) => {
     const batch = writeBatch(db);
 
-    // Turno Diurno (1)
     const antigoMotoristaId = antigosDados?.motoristaId || '';
     const novoMotoristaId = novosDados.motoristaId || '';
     
-    // Turno Noturno (2)
     const antigoMotoristaId2 = antigosDados?.motoristaId2 || '';
     const novoMotoristaId2 = novosDados.motoristaId2 || '';
 
@@ -443,14 +402,8 @@ export default function Veiculos() {
           <p className="text-slate-500 text-xs sm:text-sm">Gestão da frota, condutores e tarefas.</p>
         </div>
         
+        {/* Painel de acções limpo de sementes estáticas de desenvolvimento */}
         <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
-          <Button 
-            onClick={preencherMatriculasProducao}
-            disabled={loading}
-            className="w-full sm:w-auto justify-center text-xs sm:text-sm bg-emerald-600 hover:bg-emerald-700"
-          >
-            🚗 Registar Frota (Lote)
-          </Button>
           <Button 
             onClick={() => setIsModalOpen(true)}
             className="w-full sm:w-auto justify-center text-xs sm:text-sm"
