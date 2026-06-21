@@ -9,7 +9,7 @@
  * - Migrado integralmente para a arquitetura de grelha de botões táteis com sub-modais de UX.
  * - Histórico de alterações formatado com data e hora detalhadas no padrão PT-PT.
  * - Preservação total das ações de criação inline de Motoristas/Proprietários e Sincronização.
- * - [NOVO] Suporte a atribuição de dois motoristas em turnos diários (Turno Diurno A / Turno Noturno B).
+ * - [NOVO] Suporte a Regimes de Aluguer: Integral (1 Condutor) ou Partilhado por Turnos (2 Condutores).
  */
 
 import React, { useState, useEffect } from 'react';
@@ -72,7 +72,7 @@ export default function VeiculoForm({
 }) {
   const { userData } = useAuth();
   
-  // ESTADO CENTRAL DO FORMULÁRIO (Matrícula, Tarifa, Região, Categorias e condutores por Turno)
+  // ESTADO CENTRAL DO FORMULÁRIO (Matrícula, Tarifa, Região, Regime de Aluguer e Motoristas)
   const [formData, setFormData] = useState({
     marca: initialData.marca || '', 
     modelo: initialData.modelo || '', 
@@ -80,10 +80,12 @@ export default function VeiculoForm({
     ano: initialData.ano || '',
     proprietarioId: initialData.proprietarioId || '', 
     proprietarioNome: initialData.proprietarioNome || '', 
-    // Turno Diurno (1)
+    // [NOVO] Regime de Aluguer ('integral' ou 'turnos')
+    tipoAluguer: initialData.tipoAluguer || 'integral',
+    // Turno Diurno / Único (1)
     motoristaId: initialData.motoristaId || '',
     motoristaNome: initialData.motoristaNome || '', 
-    // [NOVO] Turno Noturno (2)
+    // Turno Noturno (2)
     motoristaId2: initialData.motoristaId2 || '',
     motoristaNome2: initialData.motoristaNome2 || '', 
     docDUA: initialData.docDUA || '', 
@@ -154,6 +156,18 @@ export default function VeiculoForm({
         return [...prev, cat];
       }
     });
+  };
+
+  /**
+   * [NOVO] Altera o tipo de aluguer e limpa o motorista do Turno B 
+   * se reverter para "Período Integral" (24h)
+   */
+  const handleTipoAluguerChange = (tipo) => {
+    setFormData(prev => ({
+      ...prev,
+      tipoAluguer: tipo,
+      ...(tipo === 'integral' ? { motoristaId2: '', motoristaNome2: '' } : {})
+    }));
   };
 
   const handleAddMovimento = async () => {
@@ -264,7 +278,7 @@ export default function VeiculoForm({
   return (
     <form onSubmit={handleSubmit} className="space-y-1 max-h-[75vh] overflow-y-auto pr-3.5 custom-scrollbar">
       
-      {/* GRELHA DE BOTÕES TÁTEIS DO VEÍCULO (Symmetric Layout unificado com o Motorista) */}
+      {/* GRELHA DE BOTÕES TÁTEIS DO VEÍCULO */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 my-3">
         
         {/* Botão 1: Identificação & Especificações */}
@@ -297,7 +311,7 @@ export default function VeiculoForm({
             </div>
             <div className="truncate">
               <p className="text-xs font-black text-slate-800">Atribuições de Operação</p>
-              <p className="text-[9.5px] text-slate-400 truncate">Proprietário e Motorista Habitual associados.</p>
+              <p className="text-[9.5px] text-slate-400 truncate">Regime, Proprietário e Condutores associados.</p>
             </div>
           </div>
           <ArrowRight size={12} className="text-slate-300 group-hover:text-tvde-primary transition-colors shrink-0" />
@@ -449,7 +463,7 @@ export default function VeiculoForm({
         </div>
       )}
 
-      {/* SUB-MODAL 2: Atribuições de Operação */}
+      {/* SUB-MODAL 2: Atribuições de Operação (Regime, Proprietário e Condutores por Turno) */}
       {modalAtribuicoesAberto && (
         <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/60 backdrop-blur-xs animate-in fade-in duration-200">
           <div className="absolute inset-0" onClick={() => setModalAtribuicoesAberto(false)} />
@@ -460,6 +474,20 @@ export default function VeiculoForm({
             </h3>
             <div className="space-y-4 overflow-y-auto pr-2 custom-scrollbar">
               
+              {/* [NOVO] Regime / Tipo de Aluguer */}
+              <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/60 space-y-2">
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">Regime de Aluguer / Operação</label>
+                <select 
+                  disabled={isReadOnly}
+                  className={inputClass}
+                  value={formData.tipoAluguer || 'integral'}
+                  onChange={(e) => handleTipoAluguerChange(e.target.value)}
+                >
+                  <option value="integral">👤 Período Integral (24h — Condutor Único)</option>
+                  <option value="turnos">👥 Partilhado (Por Turnos — Até 2 Condutores)</option>
+                </select>
+              </div>
+
               {/* Secção do Proprietário */}
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/60 space-y-2">
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">Proprietário / Operador</label>
@@ -485,14 +513,16 @@ export default function VeiculoForm({
                 )}
               </div>
 
-              {/* [ATUALIZADO] Secção dos Condutores em Turnos Duplos */}
+              {/* [DINÂMICO] Secção dos Condutores baseada no Regime */}
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/60 space-y-3">
-                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">Condutores por Turno (Partilhado)</label>
+                <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
+                  {formData.tipoAluguer === 'integral' ? 'Condutor Associado' : 'Condutores por Turno (Partilhado)'}
+                </label>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  {/* Turno Diurno (A) */}
+                {formData.tipoAluguer === 'integral' ? (
+                  /* Regime Integral: Apenas 1 condutor habitual */
                   <div className="space-y-2">
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Motorista Diurno — Turno A</label>
+                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Motorista Habitual (24h)</label>
                     {!isReadOnly && !initialData.id && (
                       <div className="flex rounded-lg border border-slate-200 overflow-hidden bg-slate-50 p-1 gap-1 w-fit">
                         <button type="button" onClick={() => setModoMotorista('existente')} className={`px-3 py-1 text-xs font-bold rounded transition-colors ${modoMotorista === 'existente' ? 'bg-white text-tvde-primary shadow-sm' : 'text-slate-400'}`}>Existente</button>
@@ -514,16 +544,44 @@ export default function VeiculoForm({
                       </div>
                     )}
                   </div>
+                ) : (
+                  /* Regime Partilhado: Diurno (A) e Noturno (B) */
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {/* Turno Diurno (A) */}
+                    <div className="space-y-2">
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Motorista Diurno — Turno A</label>
+                      {!isReadOnly && !initialData.id && (
+                        <div className="flex rounded-lg border border-slate-200 overflow-hidden bg-slate-50 p-1 gap-1 w-fit">
+                          <button type="button" onClick={() => setModoMotorista('existente')} className={`px-3 py-1 text-xs font-bold rounded transition-colors ${modoMotorista === 'existente' ? 'bg-white text-tvde-primary shadow-sm' : 'text-slate-400'}`}>Existente</button>
+                          <button type="button" onClick={() => setModoMotorista('novo')} className={`px-3 py-1 text-xs font-bold rounded transition-colors ${modoMotorista === 'novo' ? 'bg-white text-tvde-primary shadow-sm' : 'text-slate-400'}`}>+ Novo</button>
+                        </div>
+                      )}
+                      {modoMotorista === 'existente' ? (
+                        <select disabled={isReadOnly} className={inputClass} value={formData.motoristaId} onChange={(e) => { const m = motoristas.find(m => m.id === e.target.value); setFormData({...formData, motoristaId: e.target.value, motoristaNome: m?.nome || ''}); }}>
+                          <option value="">Disponível</option>
+                          {motoristas.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
+                        </select>
+                      ) : (
+                        <div className="space-y-2 bg-blue-50 border border-blue-100 rounded-xl p-3">
+                          <input placeholder="Nome completo *" required className="w-full p-2 border border-slate-200 rounded-lg text-sm bg-white" value={novoMotorista.nome} onChange={(e) => setNovoMotorista({ ...novoMotorista, nome: e.target.value })} />
+                          <div className="grid grid-cols-2 gap-2">
+                            <input placeholder="NIF" className="w-full p-2 border border-slate-200 rounded-lg text-sm bg-white font-mono" value={novoMotorista.nif} onChange={(e) => setNovoMotorista({ ...novoMotorista, nif: e.target.value })} />
+                            <input placeholder="Telemóvel" className="w-full p-2 border border-slate-200 rounded-lg text-sm bg-white" value={novoMotorista.telemovel} onChange={(e) => setNovoMotorista({ ...novoMotorista, telemovel: e.target.value })} />
+                          </div>
+                        </div>
+                      )}
+                    </div>
 
-                  {/* Turno Noturno (B) */}
-                  <div className="space-y-2">
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Motorista Noturno — Turno B</label>
-                    <select disabled={isReadOnly} className={inputClass} value={formData.motoristaId2 || ''} onChange={(e) => { const m = motoristas.find(m => m.id === e.target.value); setFormData({...formData, motoristaId2: e.target.value, motoristaNome2: m?.nome || ''}); }}>
-                      <option value="">Disponível</option>
-                      {motoristas.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
-                    </select>
+                    {/* Turno Noturno (B) */}
+                    <div className="space-y-2">
+                      <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Motorista Noturno — Turno B</label>
+                      <select disabled={isReadOnly} className={inputClass} value={formData.motoristaId2 || ''} onChange={(e) => { const m = motoristas.find(m => m.id === e.target.value); setFormData({...formData, motoristaId2: e.target.value, motoristaNome2: m?.nome || ''}); }}>
+                        <option value="">Disponível</option>
+                        {motoristas.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
+                      </select>
+                    </div>
                   </div>
-                </div>
+                )}
 
               </div>
 

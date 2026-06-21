@@ -10,7 +10,7 @@
  * - Remoção definitiva da coluna de cartões de combustível (migrados para motorista).
  * - Renderização de placas físicas em conformidade com o formato real de matrículas portuguesas.
  * - Coluna de Anúncio otimizada para ícones (Play/Pause) poupando espaço horizontal.
- * - [NOVO] Suporte visual detalhado para duplo motorista por turnos (Turno A / B).
+ * - [ATUALIZADO] Suporte visual inteligente adaptado ao regime (Integral vs Turno A/B).
  */
 
 import React, { useState } from 'react';
@@ -48,11 +48,18 @@ export default function VeiculosList({
     return 'text-green-600 bg-green-50 border-green-200'; // OK
   };
 
-  // [MELHORADO] Verifica se o veículo tem documentos válidos e pelo menos um motorista escalado
+  // [MELHORADO] Valida conformidade baseando-se no regime selecionado (Integral vs Turnos)
   const isVehicleIncomplete = (v) => {
     const camposEssenciais = ['marca', 'modelo', 'docSeguro', 'docIPO'];
+    const regime = v.tipoAluguer || 'integral';
+    
+    const temMotoristaDiurno = !!v.motoristaId;
     const temAlgumMotorista = v.motoristaId || v.motoristaId2;
-    return camposEssenciais.some(campo => !v[campo] || v[campo] === '') || !temAlgumMotorista;
+    
+    // Se for integral, exige o motorista diurno. Se for por turnos, exige pelo menos um dos dois turnos escalados.
+    const regimeValido = regime === 'turnos' ? temAlgumMotorista : temMotoristaDiurno;
+    
+    return camposEssenciais.some(campo => !v[campo] || v[campo] === '') || !regimeValido;
   };
 
   // Ordenação Alfabética Nativa (A-Z) + Filtros por Coluna
@@ -76,7 +83,7 @@ export default function VeiculosList({
       const cleanMatricula = (v.matricula || '').toLowerCase().replace(/[^a-zA-Z0-9]/g, '');
       const matchesMatricula = cleanMatricula.includes(qMatricula);
 
-      // 3. [MELHORADO] Filtro: Procura pelo Motorista do Turno A, Turno B ou Proprietário
+      // 3. Filtro: Procura pelo Motorista do Turno A, Turno B ou Proprietário
       const qMotorista = filterMotorista.toLowerCase();
       const matchesMotorista = 
         (v.motoristaNome || '').toLowerCase().includes(qMotorista) ||
@@ -176,6 +183,9 @@ export default function VeiculosList({
           {sortedAndFilteredVeiculos.map((v) => {
             const incomplete = isVehicleIncomplete(v);
             const anuncioAtivo = v.anuncioAtivo ?? false;
+            
+            // Determina se a viatura está em período integral (padrão se indefinido)
+            const isIntegral = (v.tipoAluguer || 'integral') === 'integral';
 
             return (
               <tr key={v.id} className="hover:bg-slate-50/50 transition-colors">
@@ -209,26 +219,40 @@ export default function VeiculosList({
                   </div>
                 </td>
 
-                {/* [ATUALIZADO] COLUNA DE MOTORISTAS DIVIDIDA EM TURNO A E B */}
+                {/* [ATUALIZADO] COLUNA DE MOTORISTAS ADAPTATIVA (INTEGRAL VS TURNOS) */}
                 <td className="p-4 text-sm text-slate-600">
                   <div className="flex flex-col gap-1.5 text-left">
-                    {/* Turno Diurno (A) */}
-                    <div className="flex items-center gap-2 text-slate-700 font-medium">
-                      <span className="bg-blue-50 text-blue-600 text-[8.5px] font-black px-1.5 py-0.5 rounded shrink-0 select-none" title="Turno Diurno">A</span>
-                      <span className="truncate max-w-[150px]" title={v.motoristaNome || 'Disponível'}>
-                        {v.motoristaNome || <span className="text-slate-300 italic font-normal">Livre</span>}
-                      </span>
-                    </div>
                     
-                    {/* Turno Noturno (B) */}
-                    <div className="flex items-center gap-2 text-slate-700 font-medium border-t border-slate-100 pt-1">
-                      <span className="bg-indigo-50 text-indigo-600 text-[8.5px] font-black px-1.5 py-0.5 rounded shrink-0 select-none" title="Turno Noturno">B</span>
-                      <span className="truncate max-w-[150px]" title={v.motoristaNome2 || 'Disponível'}>
-                        {v.motoristaNome2 || <span className="text-slate-300 italic font-normal">Livre</span>}
-                      </span>
-                    </div>
+                    {isIntegral ? (
+                      /* Layout 1: Regime Período Integral (Exibe apenas 1 linha limpa) */
+                      <div className="flex items-center gap-2 text-slate-700 font-medium">
+                        <span className="bg-teal-50 text-teal-600 text-[8px] font-black px-1.5 py-0.5 rounded shrink-0 select-none" title="Período Integral (24h)">INT</span>
+                        <span className="truncate max-w-[150px]" title={v.motoristaNome || 'Disponível'}>
+                          {v.motoristaNome || <span className="text-slate-300 italic font-normal">Disponível</span>}
+                        </span>
+                      </div>
+                    ) : (
+                      /* Layout 2: Regime Partilhado por Turnos (Exibe Diurno e Noturno) */
+                      <div className="space-y-1.5">
+                        {/* Turno Diurno (A) */}
+                        <div className="flex items-center gap-2 text-slate-700 font-medium">
+                          <span className="bg-blue-50 text-blue-600 text-[8px] font-black px-1.5 py-0.5 rounded shrink-0 select-none" title="Turno Diurno (A)">A</span>
+                          <span className="truncate max-w-[150px]" title={v.motoristaNome || 'Disponível'}>
+                            {v.motoristaNome || <span className="text-slate-300 italic font-normal">Livre</span>}
+                          </span>
+                        </div>
+                        
+                        {/* Turno Noturno (B) */}
+                        <div className="flex items-center gap-2 text-slate-700 font-medium border-t border-slate-100 pt-1.5">
+                          <span className="bg-indigo-50 text-indigo-600 text-[8px] font-black px-1.5 py-0.5 rounded shrink-0 select-none" title="Turno Noturno (B)">B</span>
+                          <span className="truncate max-w-[150px]" title={v.motoristaNome2 || 'Disponível'}>
+                            {v.motoristaNome2 || <span className="text-slate-300 italic font-normal">Livre</span>}
+                          </span>
+                        </div>
+                      </div>
+                    )}
 
-                    {/* Proprietário */}
+                    {/* Proprietário / Parceiro de Frota */}
                     <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-1 pt-1 border-t border-slate-100">
                       <Building2 size={10} className="shrink-0" /> 
                       <span className="truncate max-w-[150px]" title={v.proprietarioNome || 'Sem Proprietário'}>
