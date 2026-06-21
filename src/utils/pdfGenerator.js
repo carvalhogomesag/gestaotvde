@@ -4,7 +4,7 @@
  *
  * Gerador de PDF profissional em tamanho A4 (folha única) utilizando jsPDF.
  * Suporta a geração de extratos para Motoristas, Veículos e Proprietários com dados fictícios.
- * CORRIGIDO: Fallbacks contra NaN (valores indefinidos) e mapeamento robusto de conta corrente [2, 3].
+ * CORRIGIDO: Fallbacks contra NaN (valores indefinidos), mapeamento de conta corrente e proteção em plataformas [2, 3].
  */
 
 import jsPDF from 'jspdf';
@@ -267,7 +267,8 @@ export const generateStatementPDF = (dados, empresa, entidadeInfo) => {
       doc.setFontSize(7.5);
       doc.setTextColor(preto);
 
-      const dadosPlat = dados.plataformas[plat] || { bruto: 0, liquido: 0, impostos: 0 };
+      // [ATUALIZADO] Segurança em cascata para evitar quebra do PDF se as plataformas forem nulas
+      const dadosPlat = (dados?.plataformas && dados.plataformas[plat]) || { bruto: 0, liquido: 0, impostos: 0 };
 
       doc.text('Bruto', xPos + 3, currentY + 10.5);
       doc.text(formatCurrency(dadosPlat.bruto), xPos + colWidth - 3, currentY + 10.5, { align: 'right' });
@@ -311,7 +312,7 @@ export const generateDriverPDF = (dados, empresa) => {
     iban: dados.iban || '---'
   };
 
-  // ◄ CORRIGIDO: Coalescência nula (?.) e fallbacks (|| 0) robustos para evitar NaN e omissão de créditos [2, 3]
+  // CORRIGIDO: Coalescência nula (?.) e fallbacks (|| 0) robustos para evitar NaN e omissão de créditos [2, 3]
   const modelacaoDados = {
     periodo: dados.periodo || { inicio: new Date().toISOString(), fim: new Date().toISOString() },
     tipoEntidade: 'motorista',

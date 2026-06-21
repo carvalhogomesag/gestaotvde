@@ -10,7 +10,7 @@
  *   - fechos_semanais            (processamentos semanais consolidados individuais ou em lote) [2]
  *
  * Todas as funções recebem `db` como primeiro argumento.
- * CORRIGIDO: Erro de referência na parcela de caução aplicável na geração de extratos avulsos.
+ * CORRIGIDO: Erros de referência na parcela de caução e reinserção do objeto de plataformas no extrato.
  */
 
 import {
@@ -731,6 +731,7 @@ export const obterDadosExtratoEntidade = async (db, entidadeId, tipoEntidade, da
       creditosGerais:           creditosGerais,
       dadosCaucao,
       historicoMovimentosCaucao,
+      plataformas, // ◄ [CORRIGIDO]: Retorno de dados de plataformas reintegrado no objeto final de resposta
       // ◄ CORRIGIDO: Retorno correto da variável declarada (parcelaCaucaoAplicavel) em vez da variável indefinida (parcelaCaucao)
       parcelaCaucaoAplicavel:   parcelaCaucaoAplicavel ? { valor: Number(parcelaCaucaoAplicavel.valor || 0) } : null
     };
