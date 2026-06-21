@@ -8,7 +8,8 @@
  * - Sincronização bidirecional dupla robusta (Turno A e Turno B).
  * - Remoção definitiva da sementeira automática de frota em lote.
  * - Injeção de Título e Botão "Novo Veículo" via React Portal diretamente no Header.
- * - [NOVO] Mini-Dashboard analítico super compacto com KPIs da frota em tempo real.
+ * - Mini-Dashboard analítico super compacto com KPIs da frota em tempo real.
+ * - [ATUALIZADO] Passagem do array de viaturas para habilitar o dropdown inteligente de marcas.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -33,7 +34,7 @@ import {
 } from 'firebase/firestore';
 
 /**
- * [NOVO] Função Auxiliar didática para calcular viaturas com dados em falta no Dashboard
+ * Função Auxiliar didática para calcular viaturas com dados em falta no Dashboard
  */
 const isVehicleIncomplete = (v) => {
   const camposEssenciais = ['marca', 'modelo', 'docSeguro', 'docIPO'];
@@ -422,7 +423,7 @@ export default function Veiculos() {
     setTempDados(null);
   };
 
-  // [NOVO] Cálculos dinâmicos e atómicos para os mini-cards analíticos do veículo
+  // Cálculos dinâmicos e atómicos para os mini-cards analíticos do veículo
   const totalCount = veiculos.length;
   const incompleteCount = veiculos.filter(isVehicleIncomplete).length;
   const completeCount = totalCount - incompleteCount;
@@ -452,7 +453,7 @@ export default function Veiculos() {
         Gestão da frota, condutores e tarefas.
       </p>
 
-      {/* [NOVO] DASHBOARD DE KPIs ANALÍTICO E SUPER COMPACTO PARA VEÍCULOS */}
+      {/* DASHBOARD DE KPIs ANALÍTICO E SUPER COMPACTO PARA VEÍCULOS */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 select-none">
         {/* Card 1: Registados */}
         <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex items-center gap-3">
@@ -546,6 +547,7 @@ export default function Veiculos() {
           motoristas={motoristas}
           proprietarios={proprietarios}
           cartoes={cartoes}
+          veiculos={veiculos} // <--- [NOVO] Adicionado para o drop-down de marcas inteligentes
           isReadOnly={isViewOnly}
           onCriarProprietario={handleCriarProprietarioInline}
           onCriarMotorista={handleCriarMotoristaInline}

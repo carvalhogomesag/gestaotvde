@@ -9,10 +9,11 @@
  * - Migrado integralmente para a arquitetura de grelha de botões táteis com sub-modais de UX.
  * - Histórico de alterações formatado com data e hora detalhadas no padrão PT-PT.
  * - Preservação total das ações de criação inline de Motoristas/Proprietários e Sincronização.
- * - [NOVO] Suporte a Regimes de Aluguer: Integral (1 Condutor) ou Partilhado por Turnos (2 Condutores).
+ * - Suporte a Regimes de Aluguer: Integral (1 Condutor) ou Partilhado por Turnos (2 Condutores).
+ * - [NOVO] Substituição do campo livre "Marca" por Dropdown inteligente com marcas sugeridas sob contagem no Firestore.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   CreditCard, Car, Users, FileText, Eye, Trash2, 
   CheckCircle2, AlertCircle, Calendar, ShieldCheck, ClipboardCheck, History,
@@ -27,6 +28,23 @@ import { collection, addDoc, query, where, onSnapshot, deleteDoc, doc } from 'fi
 import { useAuth } from '../../context/AuthContext';
 import { logAcaoGlobal } from '../../utils/logger';
 import ModalFinanceiro from '../financeiro/ModalFinanceiro';
+
+// 1. Listas Estáticas fora do ciclo de render do componente
+const TODAS_AS_MARCAS = [
+  "ABARTH", "AIXAM", "ALFA ROMEO", "ALPINA", "ALPINE", "ASTON MARTIN", "AUDI", "AUSTIN", 
+  "AUTOBIANCHI", "BENTLEY", "BMW", "CADILLAC", "CHEVROLET", "CHRYSLER", "CITROЁN", "CUPRA", 
+  "DACIA", "DAEWOO", "DAIHATSU", "DODGE", "DR", "DS", "FERRARI", "FIAT", "FORD", "FORD USA", 
+  "HONDA", "HUMMER", "HYUNDAI", "INFINITI", "ISUZU", "IVECO", "JAGUAR", "JEEP", "KIA", "LADA", 
+  "LAMBORGHINI", "LANCIA", "LAND ROVER", "LEXUS", "LOTUS", "MAN", "MASERATI", "MAZDA", 
+  "MERCEDES-BENZ", "MG", "MINI", "MITSUBISHI", "NISSAN", "OPEL", "PEUGEOT", "PIAGGIO", 
+  "POLESTAR", "PONTIAC", "PORSCHE", "RAM", "RENAULT", "RENAULT TRUCKS", "ROLLS-ROYCE", "ROVER", 
+  "SAAB", "SANTANA", "SEAT", "SKODA", "SMART", "SSANGYONG", "SUBARU", "SUZUKI", "TALBOT", 
+  "TATA (TELCO)", "TESLA", "TOYOTA", "TRABANT", "TRIUMPH", "VAUXHALL", "VOLVO", "VW"
+];
+
+const POPULARES_ESTATICOS = [
+  "BMW", "VW", "MERCEDES-BENZ", "RENAULT", "AUDI", "OPEL", "PEUGEOT", "SEAT", "FORD", "CITROЁN"
+];
 
 /**
  * Função Auxiliar didática para formatar data e hora em PT-PT
@@ -65,6 +83,7 @@ export default function VeiculoForm({
   motoristas = [], 
   proprietarios = [], 
   cartoes = [], 
+  veiculos = [], // [NOVO] Array de viaturas registadas vindo do orquestrador
   onCancel, 
   isReadOnly = false, 
   onCriarProprietario, 
@@ -80,7 +99,7 @@ export default function VeiculoForm({
     ano: initialData.ano || '',
     proprietarioId: initialData.proprietarioId || '', 
     proprietarioNome: initialData.proprietarioNome || '', 
-    // [NOVO] Regime de Aluguer ('integral' ou 'turnos')
+    // Regime de Aluguer ('integral' ou 'turnos')
     tipoAluguer: initialData.tipoAluguer || 'integral',
     // Turno Diurno / Único (1)
     motoristaId: initialData.motoristaId || '',
@@ -147,6 +166,48 @@ export default function VeiculoForm({
     }
   }, [initialData.id]);
 
+  // ============================================
+  // [NOVO] ALGORITMO DEDUPICADO E INTELIGENTE DE MARCAS
+  // ============================================
+  const sugeridas = useMemo(() => {
+    if (!veiculos || veiculos.length === 0) return [];
+    
+    const contagem = {};
+    veiculos.forEach(v => {
+      if (v.marca) {
+        const marcaNormalizada = v.marca.trim().toUpperCase();
+        contagem[marcaNormalizada] = (contagem[marcaNormalizada] || 0) + 1;
+      }
+    });
+
+    // Ordenar de forma decrescente pela contagem e extrair as top 3 marcas
+    const ordenadas = Object.entries(contagem)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 3)
+      .map(par => par[0]);
+
+    // Retorna as marcas mapeadas com a grafia correta da lista master
+    return ordenadas.map(marca => 
+      TODAS_AS_MARCAS.find(m => m.toUpperCase() === marca) || marca
+    );
+  }, [veiculos]);
+
+  // Filtra marcas populares padrão tirando as que já constam nos sugeridos
+  const popularesFiltradas = useMemo(() => {
+    return POPULARES_ESTATICOS.filter(
+      marca => !sugeridas.some(s => s.toUpperCase() === marca.toUpperCase())
+    );
+  }, [sugeridas]);
+
+  // Filtra a lista completa tirando marcas sugeridas e marcas populares
+  const restantesFiltradas = useMemo(() => {
+    return TODAS_AS_MARCAS.filter(
+      marca => !sugeridas.some(s => s.toUpperCase() === marca.toUpperCase()) &&
+               !popularesFiltradas.some(p => p.toUpperCase() === marca.toUpperCase())
+    );
+  }, [sugeridas, popularesFiltradas]);
+  // ============================================
+
   const handleCategoriaToggle = (cat) => {
     setCategoriasSelecionadas(prev => {
       if (prev.includes(cat)) {
@@ -159,7 +220,7 @@ export default function VeiculoForm({
   };
 
   /**
-   * [NOVO] Altera o tipo de aluguer e limpa o motorista do Turno B 
+   * Altera o tipo de aluguer e limpa o motorista do Turno B 
    * se reverter para "Período Integral" (24h)
    */
   const handleTipoAluguerChange = (tipo) => {
@@ -427,7 +488,43 @@ export default function VeiculoForm({
             <div className="space-y-4 overflow-y-auto pr-2 custom-scrollbar">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                 <div><label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Matrícula *</label><input required readOnly={isReadOnly} placeholder="AA-00-AA" className={`${inputClass} uppercase font-bold text-center tracking-widest`} value={formData.matricula} onChange={handleMatriculaChange} /></div>
-                <div><label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Marca</label><input readOnly={isReadOnly} className={inputClass} value={formData.marca} onChange={(e) => setFormData({...formData, marca: e.target.value})} /></div>
+                
+                {/* [DDropown Inteligente para Marcas] */}
+                <div>
+                  <label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Marca</label>
+                  {isReadOnly ? (
+                    <input readOnly className={inputClass} value={formData.marca} />
+                  ) : (
+                    <select
+                      className={inputClass}
+                      value={formData.marca}
+                      onChange={(e) => setFormData({...formData, marca: e.target.value})}
+                    >
+                      <option value="">Selecione...</option>
+                      
+                      {sugeridas.length > 0 && (
+                        <optgroup label="✨ Sugeridos (Mais Registados)">
+                          {sugeridas.map(m => (
+                            <option key={`sug-${m}`} value={m}>{m}</option>
+                          ))}
+                        </optgroup>
+                      )}
+                      
+                      <optgroup label="🔥 Marcas Populares">
+                        {popularesFiltradas.map(m => (
+                          <option key={`pop-${m}`} value={m}>{m}</option>
+                        ))}
+                      </optgroup>
+                      
+                      <optgroup label="📋 Todas as Marcas (A-Z)">
+                        {restantesFiltradas.map(m => (
+                          <option key={`all-${m}`} value={m}>{m}</option>
+                        ))}
+                      </optgroup>
+                    </select>
+                  )}
+                </div>
+
                 <div><label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Modelo</label><input readOnly={isReadOnly} className={inputClass} value={formData.modelo} onChange={(e) => setFormData({...formData, modelo: e.target.value})} /></div>
                 <div><label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Ano</label><input type="number" readOnly={isReadOnly} className={inputClass} value={formData.ano} onChange={(e) => setFormData({...formData, ano: e.target.value})} /></div>
               </div>
@@ -474,7 +571,7 @@ export default function VeiculoForm({
             </h3>
             <div className="space-y-4 overflow-y-auto pr-2 custom-scrollbar">
               
-              {/* [NOVO] Regime / Tipo de Aluguer */}
+              {/* Regime / Tipo de Aluguer */}
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/60 space-y-2">
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">Regime de Aluguer / Operação</label>
                 <select 
