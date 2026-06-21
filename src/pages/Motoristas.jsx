@@ -1,6 +1,19 @@
+/**
+ * Motoristas.jsx
+ * Localização: src/pages/Motoristas.jsx
+ *
+ * Página principal e orquestrador do módulo de motoristas.
+ * Otimizado com:
+ * - [NOVO] Mini-Dashboard analítico super compacto com KPIs em tempo real (Registados, Ativos, Inativos, Pendentes).
+ * - [NOVO] Remoção definitiva da barra de pesquisa duplicada no meio do ecrã para ganho de espaço vertical.
+ * - Sincronização bidirecional em tempo real de viaturas e cartões (Batch).
+ * - Tratamento de logs de histórico obrigatórios.
+ */
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { useLocation } from 'react-router-dom';
-import { Plus, Search, Loader2 } from 'lucide-react';
+// Adicionados os ícones Users, UserCheck e AlertCircle para os KPIs compactos
+import { Plus, Loader2, Users, UserCheck, AlertCircle } from 'lucide-react';
 import Button from '../components/ui/Button';
 import Modal from '../components/ui/Modal';
 import JustificacaoModal from '../components/ui/JustificacaoModal';
@@ -36,6 +49,17 @@ const formatTitleCase = (str) => {
     .join(' ');
 };
 
+/**
+ * [NOVO] Função Auxiliar didática para calcular motoristas pendentes de documentação
+ */
+const isProfileIncomplete = (m) => {
+  const camposObrigatorios = [
+    'email', 'telemovel', 'nif', 'iban', 'numID', 'numTVDE',
+    'docIDFront', 'docIDBack', 'docCartaFront', 'docCartaBack', 'docCertificadoTVDE', 'docRegistoCriminal'
+  ];
+  return camposObrigatorios.some(campo => !m[campo] || m[campo] === '');
+};
+
 export default function Motoristas() {
   const { userData } = useAuth();
   const location = useLocation();
@@ -53,9 +77,6 @@ export default function Motoristas() {
   const [isViewOnly, setIsViewOnly] = useState(false);
   const [tempDados, setTempDados] = useState(null);
   const [lastSavedItem, setLastSavedItem] = useState(null);
-  
-  // ESTADO DA PESQUISA
-  const [searchTerm, setSearchTerm] = useState('');
 
   // useCallback para evitar que handleEditClick seja recriada
   const handleEditClick = useCallback((motorista, viewOnly = false) => {
@@ -170,10 +191,10 @@ export default function Motoristas() {
       if (novoVeiculoId) {
         // Atribui o veículo novo ao motorista
         const novoRef = doc(db, "veiculos", novoVeiculoId);
+        batch.update(novoRef, { motoristaId: "", motoristaNome: "" }); // Limpa o anterior do veículo se houver
         batch.update(novoRef, { motoristaId, motoristaNome });
       }
     } else if (novoVeiculoId && nomeMudou) {
-      // Se não mudou de veículo, mas mudou o nome do condutor, atualiza no documento do veículo
       const veiculoRef = doc(db, "veiculos", novoVeiculoId);
       batch.update(veiculoRef, { motoristaNome });
     }
@@ -183,17 +204,6 @@ export default function Motoristas() {
 
   // Recalcula reativamente a cada update do onSnapshot
   const motoristaEmEdicao = motoristas.find(m => m.id === editingId) || null;
-
-  // LÓGICA DE FILTRAGEM
-  const motoristasFiltrados = motoristas.filter(m => {
-    const campoBusca = searchTerm.toLowerCase();
-    return (
-      (m.nome || '').toLowerCase().includes(campoBusca) ||
-      (m.codigoInterno || '').toLowerCase().includes(campoBusca) ||
-      (m.nif || '').toLowerCase().includes(campoBusca) ||
-      (m.telemovel || '').toLowerCase().includes(campoBusca)
-    );
-  });
 
   const handleCriarProprietario = async (dadosMinimos) => {
     try {
@@ -253,10 +263,6 @@ export default function Motoristas() {
     }
   };
 
-  /**
-   * [ATUALIZADO] TRAVA DE SEGURANÇA OPERACIONAL:
-   * Valida obrigatoriamente a existência de motivo antes de prosseguir com a gravação.
-   */
   const confirmarSalvamentoComLog = async (motivo) => {
     if (!motivo || !motivo.trim()) {
       alert("Operação bloqueada: É estritamente obrigatório indicar uma justificação para guardar as alterações.");
@@ -272,7 +278,7 @@ export default function Motoristas() {
         ...dadosLimpos,
         historico: arrayUnion({
           usuario: userData?.nome || 'Utilizador',
-          data: new Date().toISOString(), // Grava data e hora completa para o histórico
+          data: new Date().toISOString(), 
           descricao: motivo
         })
       });
@@ -339,31 +345,72 @@ export default function Motoristas() {
     setTempDados(null);
   };
 
+  // [NOVO] Cálculos dinâmicos e atómicos para os mini-cards analíticos
+  const totalCount = motoristas.length;
+  const pendingDocsCount = motoristas.filter(isProfileIncomplete).length;
+  const activeCount = motoristas.filter(m => m.status === 'Ativo' && !isProfileIncomplete(m)).length;
+  const inactiveCount = totalCount - activeCount;
+
   return (
-    <div className="space-y-6">
-      <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    // Reduzido o espaço vertical geral (space-y-4)
+    <div className="space-y-4">
+      <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 select-none">
         <div>
           <h1 className="text-xl sm:text-2xl font-bold text-slate-800">Motoristas</h1>
-          <p className="text-slate-500 text-xs sm:text-sm">Gestão de condutores e fluxo de trabalho.</p>
+          <p className="text-slate-500 text-xs sm:text-sm font-medium">Gestão de condutores e fluxo de trabalho.</p>
         </div>
         <Button 
           onClick={() => { setEditingId(null); setIsModalOpen(true); }}
-          className="w-full sm:w-auto justify-center text-xs sm:text-sm"
+          className="w-full sm:w-auto justify-center text-xs sm:text-sm shadow-sm"
         >
           <Plus size={18} /> Novo Motorista
         </Button>
       </header>
 
-      <div className="flex gap-4 bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-slate-100">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
-          <input
-            type="text"
-            placeholder="Procurar motorista..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-tvde-primary/20 text-xs sm:text-sm"
-          />
+      {/* [NOVO] DASHBOARD DE KPIs ANALÍTICO E SUPER COMPACTO */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 select-none">
+        {/* Card 1: Registados */}
+        <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex items-center gap-3">
+          <div className="p-2 bg-slate-50 text-slate-400 rounded-lg shrink-0">
+            <Users size={16} />
+          </div>
+          <div>
+            <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Registados</p>
+            <p className="text-base font-black text-slate-800 leading-tight">{totalCount}</p>
+          </div>
+        </div>
+
+        {/* Card 2: Ativos */}
+        <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex items-center gap-3">
+          <div className="p-2 bg-emerald-50 text-emerald-500 rounded-lg shrink-0">
+            <UserCheck size={16} />
+          </div>
+          <div>
+            <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Ativos</p>
+            <p className="text-base font-black text-emerald-600 leading-tight">{activeCount}</p>
+          </div>
+        </div>
+
+        {/* Card 3: Inativos */}
+        <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex items-center gap-3">
+          <div className="p-2 bg-slate-50 text-slate-400 rounded-lg shrink-0">
+            <UserCheck size={16} className="opacity-40" />
+          </div>
+          <div>
+            <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Inativos</p>
+            <p className="text-base font-black text-slate-500 leading-tight">{inactiveCount}</p>
+          </div>
+        </div>
+
+        {/* Card 4: Pendentes de Documentos */}
+        <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex items-center gap-3">
+          <div className="p-2 bg-orange-50 text-orange-500 rounded-lg shrink-0">
+            <AlertCircle size={16} />
+          </div>
+          <div>
+            <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Pendente Docs</p>
+            <p className="text-base font-black text-orange-600 leading-tight">{pendingDocsCount}</p>
+          </div>
         </div>
       </div>
 
@@ -374,8 +421,12 @@ export default function Motoristas() {
         </div>
       ) : (
         <div className="w-full overflow-x-auto rounded-2xl border border-slate-100 shadow-sm bg-white">
+          {/* 
+            [ATUALIZADO] Passamos o array original "motoristas" diretamente para a listagem.
+            O motor de filtros granulado interno da tabela encarrega-se do resto com extrema eficiência!
+          */}
           <MotoristasList 
-            motoristas={motoristasFiltrados} 
+            motoristas={motoristas} 
             onEdit={handleEditClick} 
             onDelete={handleDelete} 
           />
