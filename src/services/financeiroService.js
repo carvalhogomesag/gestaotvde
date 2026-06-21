@@ -10,6 +10,7 @@
  *   - fechos_semanais            (processamentos semanais consolidados individuais ou em lote) [2]
  *
  * Todas as funções recebem `db` como primeiro argumento.
+ * CORRIGIDO: Erro de referência na parcela de caução aplicável na geração de extratos avulsos.
  */
 
 import {
@@ -17,7 +18,7 @@ import {
   getDoc, getDocs,
   addDoc, updateDoc,
   query, where, runTransaction,
-  writeBatch // ◄ Adicionado writeBatch à lista de importações
+  writeBatch
 } from 'firebase/firestore';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -730,7 +731,8 @@ export const obterDadosExtratoEntidade = async (db, entidadeId, tipoEntidade, da
       creditosGerais:           creditosGerais,
       dadosCaucao,
       historicoMovimentosCaucao,
-      parcelaCaucaoAplicavel:   parcelaCaucao ? { valor: parcelaCaucao } : null
+      // ◄ CORRIGIDO: Retorno correto da variável declarada (parcelaCaucaoAplicavel) em vez da variável indefinida (parcelaCaucao)
+      parcelaCaucaoAplicavel:   parcelaCaucaoAplicavel ? { valor: Number(parcelaCaucaoAplicavel.valor || 0) } : null
     };
   } catch (error) {
     console.error('[financeiroService] obterDadosExtratoEntidade:', error);
