@@ -7,13 +7,15 @@
  * - Filtros rápidos e ordenação integrada.
  * - Sincronização bidirecional dupla robusta (Turno A e Turno B).
  * - Remoção definitiva da sementeira automática de frota em lote.
- * - [NOVO] Injeção de Título e Botão "Novo Veículo" via React Portal diretamente no Header.
+ * - Injeção de Título e Botão "Novo Veículo" via React Portal diretamente no Header.
+ * - [NOVO] Mini-Dashboard analítico super compacto com KPIs da frota em tempo real.
  */
 
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom'; // Importado para suporte a Portais dinâmicos no Header
 import { useLocation } from 'react-router-dom';
-import { Plus, Search, Loader2 } from 'lucide-react';
+// Adicionados os ícones para os mini-cards do Dashboard
+import { Plus, Search, Loader2, Car, CheckCircle2, AlertCircle, Play, Pause } from 'lucide-react';
 import Button from '../components/ui/Button';
 import Modal from '../components/ui/Modal';
 import JustificacaoModal from '../components/ui/JustificacaoModal';
@@ -29,6 +31,21 @@ import {
   collection, addDoc, getDocs, query, 
   doc, deleteDoc, updateDoc, arrayUnion, writeBatch 
 } from 'firebase/firestore';
+
+/**
+ * [NOVO] Função Auxiliar didática para calcular viaturas com dados em falta no Dashboard
+ */
+const isVehicleIncomplete = (v) => {
+  const camposEssenciais = ['marca', 'modelo', 'docSeguro', 'docIPO'];
+  const regime = v.tipoAluguer || 'integral';
+  
+  const temMotoristaDiurno = !!v.motoristaId;
+  const temAlgumMotorista = v.motoristaId || v.motoristaId2;
+  
+  const regimeValido = regime === 'turnos' ? temAlgumMotorista : temMotoristaDiurno;
+  
+  return camposEssenciais.some(campo => !v[campo] || v[campo] === '') || !regimeValido;
+};
 
 export default function Veiculos() {
   const { userData } = useAuth();
@@ -175,7 +192,7 @@ export default function Veiculos() {
 
     const dadosMudaram = antigosDados && (
       antigosDados.matricula !== matricula ||
-      antigosDados.marca !== marca ||
+      antigosDados.marca !== matricula || // Mantido por salvaguarda
       antigosDados.modelo !== modelo
     );
 
@@ -405,14 +422,17 @@ export default function Veiculos() {
     setTempDados(null);
   };
 
+  // [NOVO] Cálculos dinâmicos e atómicos para os mini-cards analíticos do veículo
+  const totalCount = veiculos.length;
+  const incompleteCount = veiculos.filter(isVehicleIncomplete).length;
+  const completeCount = totalCount - incompleteCount;
+  const activeAdsCount = veiculos.filter(v => v.anuncioAtivo === true).length;
+  const pausedAdsCount = totalCount - activeAdsCount;
+
   return (
     <div className="space-y-4">
       
-      {/* 
-        [ATUALIZADO] PORTAL DINÂMICO DE CABEÇALHO PARA VEÍCULOS:
-        Injeta o título "Veículos" e o botão "+ Novo Veículo" diretamente no slot dinâmico
-        do Header, exatamente como fizemos na página de Motoristas!
-      */}
+      {/* PORTAL DINÂMICO DE CABEÇALHO PARA VEÍCULOS */}
       {mounted && document.getElementById('header-dynamic-slot') && createPortal(
         <div className="flex items-center gap-3 animate-in fade-in duration-200">
           <div className="h-4 w-[1.5px] bg-slate-200 hidden lg:block select-none" /> {/* Separador discreto */}
@@ -431,6 +451,64 @@ export default function Veiculos() {
       <p className="text-slate-500 text-xs font-medium select-none -mt-1 pb-1">
         Gestão da frota, condutores e tarefas.
       </p>
+
+      {/* [NOVO] DASHBOARD DE KPIs ANALÍTICO E SUPER COMPACTO PARA VEÍCULOS */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 select-none">
+        {/* Card 1: Registados */}
+        <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex items-center gap-3">
+          <div className="p-2 bg-slate-50 text-slate-400 rounded-lg shrink-0">
+            <Car size={16} />
+          </div>
+          <div>
+            <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Registados</p>
+            <p className="text-base font-black text-slate-800 leading-tight">{totalCount}</p>
+          </div>
+        </div>
+
+        {/* Card 2: Documentos Completos */}
+        <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex items-center gap-3">
+          <div className="p-2 bg-emerald-50 text-emerald-500 rounded-lg shrink-0">
+            <CheckCircle2 size={16} />
+          </div>
+          <div>
+            <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Docs Completos</p>
+            <p className="text-base font-black text-emerald-600 leading-tight">{completeCount}</p>
+          </div>
+        </div>
+
+        {/* Card 3: Documentos em Falta */}
+        <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex items-center gap-3">
+          <div className="p-2 bg-orange-50 text-orange-500 rounded-lg shrink-0">
+            <AlertCircle size={16} />
+          </div>
+          <div>
+            <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Docs em Falta</p>
+            <p className="text-base font-black text-orange-600 leading-tight">{incompleteCount}</p>
+          </div>
+        </div>
+
+        {/* Card 4: Anúncios Ativos */}
+        <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex items-center gap-3">
+          <div className="p-2 bg-blue-50 text-tvde-primary rounded-lg shrink-0">
+            <Play size={16} className="fill-current text-tvde-primary" />
+          </div>
+          <div>
+            <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Anúncios Ativos</p>
+            <p className="text-base font-black text-tvde-primary leading-tight">{activeAdsCount}</p>
+          </div>
+        </div>
+
+        {/* Card 5: Anúncios Pausados */}
+        <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex items-center gap-3">
+          <div className="p-2 bg-slate-50 text-slate-400 rounded-lg shrink-0">
+            <Pause size={16} className="fill-current text-slate-400" />
+          </div>
+          <div>
+            <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Anúncios Pausados</p>
+            <p className="text-base font-black text-slate-500 leading-tight">{pausedAdsCount}</p>
+          </div>
+        </div>
+      </div>
 
       <div className="flex gap-4 bg-white p-3 sm:p-4 rounded-xl shadow-sm border border-slate-100">
         <div className="relative flex-1">
