@@ -7,6 +7,7 @@
  * - Detecção automática de links especiais / redirecionamentos (ex: /gerador-distico) [2].
  * - Organização visual premium em duas colunas (Motoristas vs Proprietários) [2].
  * - Suporte mobile completo com listagem tátil hierárquica.
+ * - [CORRIGIDO] Botão "Área de Clientes" estilizado com HEX absoluto para evitar o bug de ecrã/botão branco.
  */
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -283,9 +284,10 @@ export default function NavbarLanding() {
 
         {/* Botão Área de Clientes + Hamburger */}
         <div className="flex items-center gap-3">
+          {/* [MODIFICADO] Estilização com HEX absoluto para evitar o bug de botão invisível/branco */}
           <Link 
             to="/login" 
-            className="px-3.5 py-2 bg-slate-900 text-white rounded-xl text-xs font-bold hover:bg-blue-600 transition-all shadow-sm"
+            className="px-4 py-2 bg-[#0f172a] text-[#ffffff] border border-[#0f172a] rounded-xl text-xs font-bold hover:bg-blue-600 hover:border-blue-600 hover:text-white transition-all shadow-sm shrink-0 cursor-pointer"
           >
             Área de Clientes
           </Link>
@@ -293,7 +295,7 @@ export default function NavbarLanding() {
           {/* Hamburger Mobile */}
           <button 
             onClick={() => setMenuMobileAberto(!menuMobileAberto)}
-            className="md:hidden p-2 text-slate-600 hover:text-blue-600 hover:bg-slate-50 rounded-xl transition-colors"
+            className="md:hidden p-2 text-slate-600 hover:text-blue-600 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer"
           >
             {menuMobileAberto ? <X size={22} /> : <Menu size={22} />}
           </button>
