@@ -1,11 +1,26 @@
-import React, { useState, useEffect } from 'react';
+/**
+ * Dashboard.jsx
+ * Localização: src/pages/Dashboard.jsx
+ *
+ * Página de controlo e monitorização do ERP.
+ * Otimizado com:
+ * - Filtros rápidos e ordenação integrada.
+ * - Sincronização bidirecional dupla robusta (Turno A e Turno B).
+ * - Mini-Dashboard analítico super compacto com KPIs da frota em tempo real.
+ * - [ATUALIZADO] Substituição das dicas pelo card regulamentar dinâmico de vencimento de viaturas TVDE.
+ */
+
+import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom'; // Importado para suporte a Portais dinâmicos no Header
+import { useLocation, useNavigate } from 'react-router-dom';
+// Adicionados os ícones para as frotas e alertas regulamentares
 import { 
   UserCheck, Car, Building2, TrendingUp, Calendar, 
-  AlertTriangle, CheckCircle2, Info, ChevronLeft, ChevronRight, ArrowRight, UserPlus 
+  AlertTriangle, CheckCircle2, Info, ChevronLeft, ChevronRight, ArrowRight, UserPlus,
+  AlertCircle, Sparkles
 } from 'lucide-react';
 import { db } from '../firebase';
-import { collection, getDocs } from 'firebase/firestore';
-import { useNavigate } from 'react-router-dom';
+import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
 import StatCard from '../features/dashboard/StatCard';
 
 /**
@@ -36,6 +51,20 @@ const _hoje = new Date();
 const SEMANA_ATUAL = getISOWeekNumber(_hoje);
 const ANO_ATUAL = _hoje.getFullYear();
 
+/**
+ * Algoritmo de cálculo legal de tempo restante para circulação TVDE
+ */
+const obterDiasRestantesTVDE = (dataPrimeiraMatricula, limiteAnos = 7) => {
+  if (!dataPrimeiraMatricula) return null;
+  const dataMatricula = new Date(dataPrimeiraMatricula);
+  const dataLimite = new Date(dataMatricula);
+  dataLimite.setFullYear(dataMatricula.getFullYear() + Number(limiteAnos));
+  
+  const hoje = new Date();
+  const diffTime = dataLimite - hoje;
+  return Math.ceil(diffTime / (1000 * 60 * 60 * 24)); // Retorna dias (positivos ou negativos)
+};
+
 export default function Dashboard() {
   const navigate = useNavigate();
 
@@ -48,28 +77,34 @@ export default function Dashboard() {
     motoristas: 0,
     veiculos: 0,
     proprietarios: 0,
-    // Métricas do card de Leads
     leadsTotais: 0,
     leadsNovas: 0,
     leadsContacto: 0
   });
   const [alertas, setAlertas] = useState([]);
+  const [alertasTVDE, setAlertasTVDE] = useState([]); // [NOVO] Alertas regulamentares de idade das viaturas
+  const [limiteAnosTVDE, setLimiteAnosTVDE] = useState(7); // [NOVO] Limite configurado via administração
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [motSnap, veiSnap, propSnap, leadsSnap] = await Promise.all([
+        const [motSnap, veiSnap, propSnap, leadsSnap, configSnap] = await Promise.all([
           getDocs(collection(db, "motoristas")),
           getDocs(collection(db, "veiculos")),
           getDocs(collection(db, "proprietarios")),
-          getDocs(collection(db, "leads_captadas")) // Consulta integrada de Leads
+          getDocs(collection(db, "leads_captadas")),
+          getDoc(doc(db, "configuracoes", "veiculos")) // [NOVO] Carrega o limite de circulação regulamentar
         ]);
 
         // Contabilização de estados do funil de Leads
         const todasLeads = leadsSnap.docs.map(doc => doc.data());
         const novas = todasLeads.filter(l => l.estado === 'novo').length;
         const contacto = todasLeads.filter(l => l.estado === 'contacto_iniciado').length;
+
+        // Limite de anos configurável
+        const limiteAnos = configSnap.exists() ? (configSnap.data().limiteAnosTVDE || 7) : 7;
+        setLimiteAnosTVDE(limiteAnos);
 
         setStats({
           motoristas: motSnap.size,
@@ -83,7 +118,7 @@ export default function Dashboard() {
         let listaAlertas = [];
         const hojeCheck = new Date();
 
-        // 1. Alertas de Motoristas
+        // 1. Alertas de Validade de Motoristas
         motSnap.docs.forEach(doc => {
           const m = doc.data();
           const checks = [
@@ -103,7 +138,7 @@ export default function Dashboard() {
           });
         });
 
-        // 2. Alertas de Veículos
+        // 2. Alertas de Validade de Veículos (Seguro e IPO)
         veiSnap.docs.forEach(doc => {
           const v = doc.data();
           const checks = [
@@ -124,6 +159,18 @@ export default function Dashboard() {
         });
 
         setAlertas(listaAlertas.sort((a, b) => a.dias - b.dias));
+
+        // 3. [NOVO] Filtro regulamentar TVDE: Calcula validade máxima de circulação de frotas
+        const todosVeiculos = veiSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const listagemTVDE = todosVeiculos
+          .map(v => {
+            const dias = obterDiasRestantesTVDE(v.dataPrimeiraMatricula, limiteAnos);
+            return { ...v, diasRestantes: dias };
+          })
+          .filter(v => v.diasRestantes !== null && v.diasRestantes <= 30)
+          .sort((a, b) => a.diasRestantes - b.diasRestantes);
+
+        setAlertasTVDE(listagemTVDE);
 
       } catch (error) {
         console.error("Erro ao carregar dashboard:", error);
@@ -165,18 +212,18 @@ export default function Dashboard() {
     navigate(`${rota}?id=${alerta.itemId}`);
   };
 
-  const isHoje = javaScriptCheck => semanaVisivel === SEMANA_ATUAL && anoVisivel === ANO_ATUAL;
+  const isHoje = () => semanaVisivel === SEMANA_ATUAL && anoVisivel === ANO_ATUAL;
 
   return (
     <div className="space-y-6 sm:space-y-8">
-      {/* ◄ ALTERADO: Header empilhável para evitar sobreposição em ecrãs pequenos */}
+      {/* Header empilhável para evitar sobreposição em ecrãs pequenos */}
       <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-xl sm:text-2xl font-bold text-slate-800">Painel de Controlo</h2>
           <p className="text-slate-500 text-xs sm:text-sm">Resumo em tempo real da sua operação TVDE.</p>
         </div>
 
-        {/* NAVEGADOR SEMANAL (Agora flui corretamente abaixo do título no telemóvel) */}
+        {/* NAVEGADOR SEMANAL */}
         <div className="flex flex-col items-start sm:items-end gap-1 w-full sm:w-auto">
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 flex items-center gap-0 overflow-hidden w-full sm:w-auto justify-between">
             <button 
@@ -221,7 +268,7 @@ export default function Dashboard() {
         </div>
       </header>
 
-      {/* Grid de Estatísticas Gerais (Gap dinâmico para poupar espaço em mobile) */}
+      {/* Grid de Estatísticas Gerais */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
         <div className="space-y-1">
           <StatCard 
@@ -288,7 +335,6 @@ export default function Dashboard() {
                       : 'bg-orange-50 border-orange-100 hover:bg-orange-100 hover:border-orange-200'
                     }`}
                   >
-                    {/* ◄ ALTERADO: Truncagem flexível inteligente para qualquer tamanho de tela */}
                     <div className="flex items-center gap-3 min-w-0 flex-1 mr-2 text-left">
                       <div className={`w-2 h-2 rounded-full shrink-0 ${alerta.dias < 0 ? 'bg-red-500' : 'bg-orange-500'}`} />
                       <span className="text-xs sm:text-sm font-bold text-slate-700 truncate flex-1">
@@ -356,26 +402,83 @@ export default function Dashboard() {
           </button>
         </div>
 
-        {/* COLUNA 3: DICAS DE GESTÃO */}
+        {/* [ATUALIZADO] COLUNA 3: ALERTAS DE FIM DE CIRCULAÇÃO TVDE (30 DIAS OU MENOS) */}
         <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between">
-          <div>
-            <h4 className="font-bold text-slate-800 mb-4 flex items-center gap-2 text-sm sm:text-base">
-              <Info size={20} className="text-tvde-primary" />
-              Dicas de Gestão
-            </h4>
-            <div className="space-y-4">
-              <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-                <p className="text-sm font-bold text-slate-700 leading-tight">Mantenha os PINs seguros</p>
-                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                  Pode consultar os PINs dos cartões de combustível rapidamente na secção de Cartões em Registos.
-                </p>
+          <div className="flex-1 flex flex-col min-h-0">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h4 className="font-bold text-slate-800 flex items-center gap-2 text-sm sm:text-base select-none">
+                  <AlertCircle className={alertasTVDE.length > 0 ? "text-amber-500" : "text-slate-300"} size={20} />
+                  Fim de Ciclo TVDE
+                </h4>
+                {alertasTVDE.length > 0 && (
+                  <p className="text-[10px] text-slate-400 mt-0.5 ml-7 italic select-none">Limite legal de circulação</p>
+                )}
               </div>
-              <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-                <p className="text-sm font-bold text-slate-700 leading-tight">Documentação Digital</p>
-                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                  Ao carregar o DUA e o Seguro no sistema, evita ter de procurar pastas físicas em caso de fiscalização.
-                </p>
-              </div>
+              {alertasTVDE.length > 0 && (
+                <span className="text-[9px] font-black bg-amber-100 text-amber-600 px-2 py-0.5 rounded-md uppercase shrink-0 select-none">
+                  Prazo {limiteAnosTVDE}a
+                </span>
+              )}
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-2.5 max-h-[280px] pr-1.5 custom-scrollbar text-left">
+              {alertasTVDE.length > 0 ? (
+                alertasTVDE.map((v) => {
+                  const expirado = v.diasRestantes <= 0;
+                  return (
+                    <button
+                      key={v.id}
+                      type="button"
+                      onClick={() => navigate(`/veiculos?id=${v.id}`)}
+                      className={`w-full p-3 rounded-xl border flex items-center justify-between gap-3 transition-all group cursor-pointer text-left ${
+                        expirado 
+                          ? 'bg-red-50/50 border-red-100 hover:bg-red-50 hover:border-red-200' 
+                          : 'bg-orange-50/50 border-orange-100 hover:bg-orange-50 hover:border-orange-200'
+                      }`}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="bg-slate-800 text-white text-[9px] font-black px-1.5 py-0.5 rounded font-mono select-none shrink-0">
+                            {v.matricula}
+                          </span>
+                          <span className="text-xs font-bold text-slate-700 truncate">
+                            {v.marca} {v.modelo}
+                          </span>
+                        </div>
+                        {v.dataPrimeiraMatricula && (
+                          <p className="text-[9px] text-slate-400 mt-1 select-none">
+                            Matrícula: {new Date(v.dataPrimeiraMatricula).toLocaleDateString('pt-PT')}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="shrink-0 flex items-center gap-1.5">
+                        {expirado ? (
+                          <span className="text-[9px] font-black uppercase text-red-600 bg-red-100/60 px-1.5 py-0.5 rounded">
+                            EXPIRADO
+                          </span>
+                        ) : (
+                          <span className="text-[9px] font-black uppercase text-orange-600 bg-orange-100/60 px-1.5 py-0.5 rounded">
+                            {v.diasRestantes}d
+                          </span>
+                        )}
+                        <ArrowRight size={13} className={`transition-transform group-hover:translate-x-1 shrink-0 ${
+                          expirado ? 'text-red-300' : 'text-orange-300'
+                        }`} />
+                      </div>
+                    </button>
+                  );
+                })
+              ) : (
+                <div className="flex flex-col items-center justify-center py-12 text-center h-full">
+                  <div className="w-12 h-12 bg-green-50 text-green-500 rounded-full flex items-center justify-center mb-3">
+                    <CheckCircle2 size={24} />
+                  </div>
+                  <p className="text-slate-500 font-medium">Tudo em dia!</p>
+                  <p className="text-slate-400 text-xs mt-1">Nenhum veículo próximo do limite regulamentar.</p>
+                </div>
+              )}
             </div>
           </div>
         </div>
