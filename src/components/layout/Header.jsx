@@ -8,7 +8,8 @@
  * - Botão de menu hambúrguer para mobile
  * - Paddings fluidos e adaptabilidade a ecrãs reduzidos
  * - Integração em tempo real com notificações de tickets pendentes
- * - [NOVO] Slot dinâmico recetor (header-dynamic-slot) para injeção de títulos/botões locais das páginas.
+ * - Slot dinâmico recetor (header-dynamic-slot) para injeção de títulos/botões locais das páginas.
+ * - [CORRIGIDO]: Importado o componente "Link" em falta do react-router-dom.
  */
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -17,7 +18,8 @@ import { Bell, User, Clock, ArrowRight, Inbox, AlertCircle, Menu } from 'lucide-
 import { useAuth } from '../../context/AuthContext';
 import { db } from '../../firebase';
 import { collection, query, where, onSnapshot, orderBy, limit } from 'firebase/firestore';
-import { useNavigate } from 'react-router-dom';
+// CORREÇÃO: "Link" adicionado às importações do react-router-dom
+import { useNavigate, Link } from 'react-router-dom';
 
 export default function Header({ setSidebarAberta }) {
   const { userData, user } = useAuth();
@@ -119,7 +121,7 @@ export default function Header({ setSidebarAberta }) {
                 { type: 'divider' },
                 { label: 'Motoristas', path: '/motoristas' },
                 { label: 'Proprietários', path: '/proprietarios' },
-                { label: 'Cursos', to: '/cursos' }
+                { label: 'Cursos', path: '/cursos' }
               ].map((item, index) => {
                 if (item.type === 'divider') return <div key={index} className="border-t border-slate-100 my-1" />;
                 return (
@@ -136,7 +138,7 @@ export default function Header({ setSidebarAberta }) {
           </div>
         </nav>
 
-        {/* [NOVO] SLOT DINÂMICO RECETOR PARA PÁGINAS DO ERP */}
+        {/* SLOT DINÂMICO RECETOR PARA PÁGINAS DO ERP */}
         <div id="header-dynamic-slot" className="hidden md:flex items-center gap-3 ml-2 flex-1"></div>
       </div>
       
