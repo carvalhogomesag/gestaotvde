@@ -14,7 +14,7 @@ import { logAcaoGlobal } from '../utils/logger';
 import { alternarEstadoAnuncioViatura } from '../services/veiculoService'; // Novo serviço importado
 import { 
   collection, addDoc, getDocs, query, 
-  doc, deleteDoc, updateDoc, arrayUnion, writeBatch // writeBatch importado para sync reversa
+  doc, deleteDoc, updateDoc, arrayUnion, writeBatch // writeBatch importado para sync reversa dupla
 } from 'firebase/firestore';
 
 export default function Veiculos() {
@@ -185,15 +185,20 @@ export default function Veiculos() {
   }, [location.search]);
 
   /**
-   * SINCRONIZAÇÃO REVERSA BIDIRECIONAL
-   * Atualiza a coleção de "motoristas" quando um veículo recebe ou troca de motorista.
+   * [ATUALIZADO] SINCRONIZAÇÃO REVERSA BIDIRECIONAL DUPLA (TURNO DIA E NOITE)
+   * Atualiza a coleção de "motoristas" para Turno A (Diurno) e Turno B (Noturno).
    */
   const syncMotoristaParaVeiculo = async (veiculoId, novosDados, antigosDados = null) => {
     const batch = writeBatch(db);
 
+    // Turno Diurno (1)
     const antigoMotoristaId = antigosDados?.motoristaId || '';
     const novoMotoristaId = novosDados.motoristaId || '';
     
+    // Turno Noturno (2)
+    const antigoMotoristaId2 = antigosDados?.motoristaId2 || '';
+    const novoMotoristaId2 = novosDados.motoristaId2 || '';
+
     const matricula = novosDados.matricula || '';
     const marca = novosDados.marca || '';
     const modelo = novosDados.modelo || '';
@@ -204,9 +209,8 @@ export default function Veiculos() {
       antigosDados.modelo !== modelo
     );
 
-    // Se houve alteração de motorista atribuído à viatura
+    // 1. Sincronização do Motorista do Turno A (Diurno)
     if (antigoMotoristaId !== novoMotoristaId) {
-      // 1. Limpar as informações do veículo no motorista que perdeu o carro
       if (antigoMotoristaId) {
         const antigoRef = doc(db, "motoristas", antigoMotoristaId);
         batch.update(antigoRef, {
@@ -216,7 +220,6 @@ export default function Veiculos() {
           veiculoModelo: ""
         });
       }
-      // 2. Registar o novo veículo no perfil do motorista que ganhou o carro
       if (novoMotoristaId) {
         const novoRef = doc(db, "motoristas", novoMotoristaId);
         batch.update(novoRef, {
@@ -227,9 +230,37 @@ export default function Veiculos() {
         });
       }
     } else if (novoMotoristaId && dadosMudaram) {
-      // Se manteve o motorista, mas editou os dados da viatura (ex: corrigiu erro ortográfico na marca)
       const motoristaRef = doc(db, "motoristas", novoMotoristaId);
       batch.update(motoristaRef, {
+        veiculoMatricula: matricula,
+        veiculoMarca: marca,
+        veiculoModelo: modelo
+      });
+    }
+
+    // 2. Sincronização do Motorista do Turno B (Noturno)
+    if (antigoMotoristaId2 !== novoMotoristaId2) {
+      if (antigoMotoristaId2) {
+        const antigoRef2 = doc(db, "motoristas", antigoMotoristaId2);
+        batch.update(antigoRef2, {
+          veiculoId: "",
+          veiculoMatricula: "",
+          veiculoMarca: "",
+          veiculoModelo: ""
+        });
+      }
+      if (novoMotoristaId2) {
+        const novoRef2 = doc(db, "motoristas", novoMotoristaId2);
+        batch.update(novoRef2, {
+          veiculoId: veiculoId,
+          veiculoMatricula: matricula,
+          veiculoMarca: marca,
+          veiculoModelo: modelo
+        });
+      }
+    } else if (novoMotoristaId2 && dadosMudaram) {
+      const motoristaRef2 = doc(db, "motoristas", novoMotoristaId2);
+      batch.update(motoristaRef2, {
         veiculoMatricula: matricula,
         veiculoMarca: marca,
         veiculoModelo: modelo
@@ -257,7 +288,7 @@ export default function Veiculos() {
           historico: []
         });
 
-        // Sincronizar o motorista ao criar um veículo com motorista já atribuído
+        // Sincronizar o motorista ao criar um veículo
         await syncMotoristaParaVeiculo(docRef.id, dadosLimpos);
 
         await logAcaoGlobal(userData?.nome, "Criação", "Veículos", dadosLimpos.matricula, docRef.id);
@@ -319,7 +350,7 @@ export default function Veiculos() {
         historico: arrayUnion(novoLog)
       });
 
-      // Sincronizar motorista ao salvar as alterações do veículo
+      // Sincronizar motoristas ao salvar as alterações do veículo (Turno A e B)
       await syncMotoristaParaVeiculo(editingVeiculo.id, dadosLimpos, editingVeiculo);
 
       await logAcaoGlobal(userData?.nome, "Edição", "Veículos", dadosLimpos.matricula, editingVeiculo.id);

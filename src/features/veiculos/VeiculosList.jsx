@@ -9,11 +9,11 @@
  * - Ordenação alfabética automática por veículo.
  * - Remoção definitiva da coluna de cartões de combustível (migrados para motorista).
  * - Renderização de placas físicas em conformidade com o formato real de matrículas portuguesas.
- * - [NOVO] Coluna de Anúncio otimizada para ícones (Play/Pause) poupando espaço horizontal.
+ * - Coluna de Anúncio otimizada para ícones (Play/Pause) poupando espaço horizontal.
+ * - [NOVO] Suporte visual detalhado para duplo motorista por turnos (Turno A / B).
  */
 
 import React, { useState } from 'react';
-// Foram adicionados os ícones Play e Pause para substituir o texto do estado do anúncio
 import { Edit, Trash2, Car, User, Building2, FileText, ShieldCheck, ClipboardCheck, Eye, AlertCircle, Play, Pause } from 'lucide-react';
 import { formatMatricula } from '../../utils/formatters';
 
@@ -21,7 +21,7 @@ export default function VeiculosList({
   veiculos, 
   onEdit, 
   onDelete,
-  onToggleAnuncio // Propriedade para ativar ou desativar o fluxo de workflow
+  onToggleAnuncio 
 }) {
   
   // ESTADOS DE FILTRAGEM INDIVIDUAL POR COLUNA
@@ -48,10 +48,11 @@ export default function VeiculosList({
     return 'text-green-600 bg-green-50 border-green-200'; // OK
   };
 
-  // Função para verificar se o registo do veículo está incompleto
+  // [MELHORADO] Verifica se o veículo tem documentos válidos e pelo menos um motorista escalado
   const isVehicleIncomplete = (v) => {
-    const camposEssenciais = ['marca', 'modelo', 'motoristaId', 'docSeguro', 'docIPO'];
-    return camposEssenciais.some(campo => !v[campo] || v[campo] === '');
+    const camposEssenciais = ['marca', 'modelo', 'docSeguro', 'docIPO'];
+    const temAlgumMotorista = v.motoristaId || v.motoristaId2;
+    return camposEssenciais.some(campo => !v[campo] || v[campo] === '') || !temAlgumMotorista;
   };
 
   // Ordenação Alfabética Nativa (A-Z) + Filtros por Coluna
@@ -70,15 +71,16 @@ export default function VeiculosList({
         (v.ano || '').toString().includes(qVeiculo) ||
         (v.codigoInterno || '').toLowerCase().includes(qVeiculo);
 
-      // 2. Filtro: Matrícula (Com limpeza de hífenes para aceitar pesquisas simples como 'BR31')
+      // 2. Filtro: Matrícula
       const qMatricula = filterMatricula.toLowerCase().replace(/[^a-zA-Z0-9]/g, '');
       const cleanMatricula = (v.matricula || '').toLowerCase().replace(/[^a-zA-Z0-9]/g, '');
       const matchesMatricula = cleanMatricula.includes(qMatricula);
 
-      // 3. Filtro: Motorista / Proprietário
+      // 3. [MELHORADO] Filtro: Procura pelo Motorista do Turno A, Turno B ou Proprietário
       const qMotorista = filterMotorista.toLowerCase();
       const matchesMotorista = 
         (v.motoristaNome || '').toLowerCase().includes(qMotorista) ||
+        (v.motoristaNome2 || '').toLowerCase().includes(qMotorista) ||
         (v.proprietarioNome || '').toLowerCase().includes(qMotorista);
 
       // 4. Filtro: Documentação
@@ -103,9 +105,7 @@ export default function VeiculosList({
     });
 
   return (
-    // Contentor agora é auto-rolável mantendo os cantos arredondados do cartão
     <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-x-auto w-full custom-scrollbar">
-      {/* min-w-[850px] adicionado para proteger colunas em telemóveis */}
       <table className="w-full text-left border-collapse min-w-[850px]">
         <thead>
           {/* Cabeçalho Principal de Títulos */}
@@ -120,7 +120,6 @@ export default function VeiculosList({
           
           {/* Filtros Rápidos de Coluna */}
           <tr className="bg-slate-50/50 border-b border-slate-100">
-            {/* Filtro: Veículo */}
             <td className="px-4 py-2">
               <input 
                 type="text" 
@@ -130,7 +129,6 @@ export default function VeiculosList({
                 className="w-full p-1.5 border border-slate-200 rounded-lg text-[11px] outline-none focus:ring-1 focus:ring-tvde-primary text-slate-700 bg-white font-medium"
               />
             </td>
-            {/* Filtro: Matrícula */}
             <td className="px-4 py-2">
               <input 
                 type="text" 
@@ -140,7 +138,6 @@ export default function VeiculosList({
                 className="w-full p-1.5 border border-slate-200 rounded-lg text-[11px] outline-none focus:ring-1 focus:ring-tvde-primary text-slate-700 bg-white font-medium text-center uppercase"
               />
             </td>
-            {/* Filtro: Motorista / Prop. */}
             <td className="px-4 py-2">
               <input 
                 type="text" 
@@ -150,7 +147,6 @@ export default function VeiculosList({
                 className="w-full p-1.5 border border-slate-200 rounded-lg text-[11px] outline-none focus:ring-1 focus:ring-tvde-primary text-slate-700 bg-white font-medium"
               />
             </td>
-            {/* Filtro: Documentação */}
             <td className="px-4 py-2">
               <select 
                 value={filterDocs} 
@@ -162,7 +158,6 @@ export default function VeiculosList({
                 <option value="completo">Completo</option>
               </select>
             </td>
-            {/* Filtro: Anúncio */}
             <td className="px-4 py-2">
               <select 
                 value={filterAnuncio} 
@@ -201,30 +196,44 @@ export default function VeiculosList({
                   </div>
                 </td>
                 
-                {/* Célula renderizada como uma matrícula física real portuguesa */}
+                {/* Matrícula Física Portuguesa */}
                 <td className="p-4 text-center select-none">
                   <div className="inline-flex items-center border-[2.2px] border-slate-900 rounded-[4px] bg-white overflow-hidden shadow-sm h-7 text-xs font-black font-mono">
-                    {/* Eurobanda Azul Portuguesa à esquerda */}
                     <div className="bg-[#003399] text-white flex flex-col items-center justify-center px-1 h-full text-[6px] shrink-0 border-r border-slate-200">
                       <span className="text-yellow-400 text-[5px] mb-0.5 font-bold leading-none">★</span>
                       <span className="font-extrabold tracking-tight leading-none scale-90">P</span>
                     </div>
-                    {/* Texto com numeração da Matrícula */}
                     <span className="px-3.5 py-0.5 text-slate-900 tracking-[0.05em] uppercase text-xs font-extrabold font-mono">
                       {formatMatricula(v.matricula)}
                     </span>
                   </div>
                 </td>
 
+                {/* [ATUALIZADO] COLUNA DE MOTORISTAS DIVIDIDA EM TURNO A E B */}
                 <td className="p-4 text-sm text-slate-600">
-                  <div className="flex flex-col gap-1">
-                    <div className="flex items-center gap-2 font-medium">
-                      <User size={12} className="text-slate-400" /> 
-                      {v.motoristaNome || <span className="text-slate-300 italic">Disponível</span>}
+                  <div className="flex flex-col gap-1.5 text-left">
+                    {/* Turno Diurno (A) */}
+                    <div className="flex items-center gap-2 text-slate-700 font-medium">
+                      <span className="bg-blue-50 text-blue-600 text-[8.5px] font-black px-1.5 py-0.5 rounded shrink-0 select-none" title="Turno Diurno">A</span>
+                      <span className="truncate max-w-[150px]" title={v.motoristaNome || 'Disponível'}>
+                        {v.motoristaNome || <span className="text-slate-300 italic font-normal">Livre</span>}
+                      </span>
                     </div>
-                    <div className="flex items-center gap-2 text-[10px] text-slate-400">
-                      <Building2 size={10} /> 
-                      {v.proprietarioNome || 'Sem Proprietário'}
+                    
+                    {/* Turno Noturno (B) */}
+                    <div className="flex items-center gap-2 text-slate-700 font-medium border-t border-slate-100 pt-1">
+                      <span className="bg-indigo-50 text-indigo-600 text-[8.5px] font-black px-1.5 py-0.5 rounded shrink-0 select-none" title="Turno Noturno">B</span>
+                      <span className="truncate max-w-[150px]" title={v.motoristaNome2 || 'Disponível'}>
+                        {v.motoristaNome2 || <span className="text-slate-300 italic font-normal">Livre</span>}
+                      </span>
+                    </div>
+
+                    {/* Proprietário */}
+                    <div className="flex items-center gap-2 text-[10px] text-slate-400 mt-1 pt-1 border-t border-slate-100">
+                      <Building2 size={10} className="shrink-0" /> 
+                      <span className="truncate max-w-[150px]" title={v.proprietarioNome || 'Sem Proprietário'}>
+                        {v.proprietarioNome || 'Sem Proprietário'}
+                      </span>
                     </div>
                   </div>
                 </td>
@@ -257,7 +266,6 @@ export default function VeiculosList({
                   </div>
                 </td>
 
-                {/* COLUNA DO INTERRUPTOR DE ANÚNCIO DO CATÁLOGO PÚBLICO - OTIMIZADA COM ÍCONES */}
                 <td className="p-4 text-center">
                   <button
                     type="button"
