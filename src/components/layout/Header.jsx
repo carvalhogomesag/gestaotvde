@@ -4,10 +4,11 @@
  *
  * Cabeçalho administrativo do ERP.
  * Atualizado com:
- * - Menu Dropdown de Serviços (Gratuitos, Planos de Assessoria, Serviços Avulsos, Motoristas, Proprietários, Cursos)
- * - Botão de menu hambúrguer para mobile (lg:hidden)
+ * - Menu Dropdown de Serviços
+ * - Botão de menu hambúrguer para mobile
  * - Paddings fluidos e adaptabilidade a ecrãs reduzidos
  * - Integração em tempo real com notificações de tickets pendentes
+ * - [NOVO] Slot dinâmico recetor (header-dynamic-slot) para injeção de títulos/botões locais das páginas.
  */
 
 import React, { useState, useEffect, useRef } from 'react';
@@ -26,7 +27,6 @@ export default function Header({ setSidebarAberta }) {
   const [hasUnseenAlert, setHasUnseenAlert] = useState(false);
   const dropdownRef = useRef(null);
 
-  // Função para obter as iniciais do nome
   const getInitials = (name) => {
     if (!name) return "??";
     return name.split(' ').map(n => n[0]).join('').toUpperCase().substring(0, 2);
@@ -52,7 +52,6 @@ export default function Header({ setSidebarAberta }) {
         ...doc.data()
       }));
 
-      // Lógica de Alerta Visual (Badge Vermelho)
       if (tasks.length > 0) {
         const lastSeenId = localStorage.getItem(`lastSeenTicket_${userData.nome}`);
         const newestTicketId = tasks[0].id;
@@ -70,9 +69,6 @@ export default function Header({ setSidebarAberta }) {
     return () => unsubscribe();
   }, [userData?.nome]);
 
-  /**
-   * Ação ao clicar no sino: Limpa o alerta vermelho mas mantém o contador
-   */
   const handleBellClick = () => {
     setShowDropdown(!showDropdown);
     if (notifications.length > 0) {
@@ -81,9 +77,6 @@ export default function Header({ setSidebarAberta }) {
     }
   };
 
-  /**
-   * Fecha o dropdown ao clicar fora e limpa o listener corretamente
-   */
   useEffect(() => {
     const handleClickOutside = (e) => {
       if (dropdownRef.current && !dropdownRef.current.contains(e.target)) {
@@ -98,9 +91,8 @@ export default function Header({ setSidebarAberta }) {
   return (
     <header className="h-20 flex items-center justify-between px-4 sm:px-8 bg-tvde-bg/80 backdrop-blur-md sticky top-0 z-30">
       
-      {/* Contentor flexível para agrupar o botão hambúrguer mobile, a barra de pesquisa e o novo menu */}
+      {/* Contentor flexível de pesquisa, navegação e slot dinâmico */}
       <div className="flex items-center gap-3 flex-1 min-w-0 mr-4">
-        {/* Botão Hambúrguer — Visível apenas em ecrãs Mobile/Tablet */}
         <button
           type="button"
           onClick={() => setSidebarAberta(true)}
@@ -112,14 +104,13 @@ export default function Header({ setSidebarAberta }) {
         
         <GlobalSearch />
 
-        {/* MENU DROPDOWN DE SERVIÇOS - Exibido em ecrãs largos (lg) */}
+        {/* MENU DROPDOWN DE SERVIÇOS */}
         <nav className="hidden lg:flex items-center">
           <div className="relative group px-3">
             <button className="text-xs font-black text-slate-600 hover:text-tvde-primary uppercase tracking-wider flex items-center gap-1 transition-colors cursor-pointer py-2">
               Serviços <span className="text-[9px]">▼</span>
             </button>
             
-            {/* Elemento Dropdown com z-index alto para sobreposição */}
             <div className="absolute top-full left-0 mt-1 w-56 bg-white rounded-2xl shadow-xl border border-slate-100 py-2 opacity-0 invisible group-hover:opacity-100 group-hover:visible transition-all duration-200 z-[100]">
               {[
                 { label: 'Gratuitos', path: '/servicos-gratuitos' },
@@ -128,31 +119,30 @@ export default function Header({ setSidebarAberta }) {
                 { type: 'divider' },
                 { label: 'Motoristas', path: '/motoristas' },
                 { label: 'Proprietários', path: '/proprietarios' },
-                { label: 'Cursos', path: '/cursos' }
-              ].map((item, idx) => (
-                item.type === 'divider' ? (
-                  <div key={idx} className="h-px bg-slate-100 my-2 mx-4" />
-                ) : (
-                  <button
-                    key={idx}
-                    onClick={() => navigate(item.path)}
-                    className="w-full text-left px-6 py-2.5 text-xs font-bold text-slate-600 hover:text-tvde-primary hover:bg-blue-50/50 transition-colors cursor-pointer"
+                { label: 'Cursos', to: '/cursos' }
+              ].map((item, index) => {
+                if (item.type === 'divider') return <div key={index} className="border-t border-slate-100 my-1" />;
+                return (
+                  <Link 
+                    key={index} 
+                    to={item.path} 
+                    className="block px-6 py-2.5 text-xs font-bold text-slate-600 hover:text-tvde-primary hover:bg-blue-50/50 transition-colors"
                   >
                     {item.label}
-                  </button>
-                )
-              ))}
+                  </Link>
+                );
+              })}
             </div>
           </div>
         </nav>
+
+        {/* [NOVO] SLOT DINÂMICO RECETOR PARA PÁGINAS DO ERP */}
+        <div id="header-dynamic-slot" className="hidden md:flex items-center gap-3 ml-2 flex-1"></div>
       </div>
       
       <div className="flex items-center gap-4 shrink-0">
-        
-        {/* SLOT DA SALA DE COMANDO IA */}
         <div id="navbar-slot-ia" className="flex items-center mr-2"></div>
 
-        {/* CENTRO DE NOTIFICAÇÕES */}
         <div className="relative" ref={dropdownRef}>
           <button 
             onClick={handleBellClick}
@@ -202,48 +192,30 @@ export default function Header({ setSidebarAberta }) {
                       </div>
                       <div className="flex-1 overflow-hidden">
                         <p className="text-xs font-bold text-slate-800 truncate">
-                          {task.vinculoNome || "Tarefa"}
+                          {task.vinculoNome || 'Tarefa Geral'}
                         </p>
-                        <p className="text-[10px] text-slate-500 line-clamp-2 mt-0.5 leading-relaxed">
-                          {task.nota || "Ação necessária neste registo."}
+                        <p className="text-[10px] text-slate-400 font-medium truncate">
+                          {task.descricao}
                         </p>
-                        <div className="flex items-center gap-1 mt-2 text-[9px] text-slate-400 font-bold uppercase tracking-tighter">
-                          <Clock size={10} />
-                          <span>{new Date(task.dataCriacao).toLocaleDateString('pt-PT')}</span>
-                        </div>
                       </div>
-                      <ArrowRight size={14} className="text-slate-200 group-hover:text-tvde-primary self-center" />
+                      <ArrowRight size={14} className="text-slate-350 shrink-0" />
                     </button>
                   ))
                 ) : (
-                  <div className="p-10 text-center">
-                    <div className="w-12 h-12 bg-slate-50 text-slate-300 rounded-full flex items-center justify-center mx-auto mb-3">
-                      <AlertCircle size={24} />
-                    </div>
-                    <p className="text-sm text-slate-400 font-medium">Tudo em dia!</p>
-                  </div>
+                  <p className="p-10 text-center text-slate-400 italic text-xs">Sem tarefas pendentes.</p>
                 )}
               </div>
-
-              <button 
-                onClick={() => { navigate('/tarefas'); setShowDropdown(false); }}
-                className="w-full p-3 text-center text-xs font-black text-tvde-primary hover:bg-slate-50 transition-colors uppercase tracking-widest border-t border-slate-100"
-              >
-                Ir para Minhas Tarefas
-              </button>
             </div>
           )}
         </div>
-        
-        <div className="h-8 w-[1px] bg-slate-200 mx-2"></div>
-        
-        <div className="flex items-center gap-3">
-          <div className="text-right hidden sm:block">
-            <p className="text-xs font-bold text-slate-800">{userData?.nome || user?.email}</p>
-            <p className="text-[10px] text-tvde-primary font-black uppercase tracking-tighter">{userData?.role || 'Utilizador'}</p>
+
+        <div className="px-2.5 py-1.5 bg-slate-800/30 rounded-lg flex items-center gap-2.5 border border-slate-700/30">
+          <div className="w-7 h-7 bg-tvde-primary rounded-md flex items-center justify-center text-[10px] font-black text-white shadow-sm uppercase">
+            {userData?.nome ? userData.nome[0] : 'U'}
           </div>
-          <div className="w-10 h-10 bg-tvde-primary rounded-xl flex items-center justify-center text-white font-bold shadow-lg shadow-blue-500/30">
-            {userData?.nome ? getInitials(userData.nome) : <User size={20} />}
+          <div className="overflow-hidden hidden sm:block">
+            <p className="text-xs font-bold truncate text-slate-100">{userData?.nome || 'Utilizador'}</p>
+            <p className="text-[10px] text-tvde-primary font-black uppercase tracking-tighter">{userData?.role || 'Acesso'}</p>
           </div>
         </div>
       </div>
