@@ -10,7 +10,8 @@
  * - Histórico de alterações formatado com data e hora detalhadas no padrão PT-PT.
  * - Preservação total das ações de criação inline de Motoristas/Proprietários e Sincronização.
  * - Suporte a Regimes de Aluguer: Integral (1 Condutor) ou Partilhado por Turnos (2 Condutores).
- * - [NOVO] Dropdown de Marcas inteligente exibindo até as 10 marcas mais registadas na frota no topo.
+ * - Dropdown de Marcas inteligente exibindo até as 10 marcas mais registadas na frota no topo.
+ * - [NOVO] Adição de Data da Primeira Matrícula e cálculo dinâmico de tempo de circulação TVDE restante.
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -29,7 +30,7 @@ import { useAuth } from '../../context/AuthContext';
 import { logAcaoGlobal } from '../../utils/logger';
 import ModalFinanceiro from '../financeiro/ModalFinanceiro';
 
-// 1. Listas Estáticas fora do ciclo de render do componente
+// Listas Estáticas fora do ciclo de render do componente
 const TODAS_AS_MARCAS = [
   "ABARTH", "AIXAM", "ALFA ROMEO", "ALPINA", "ALPINE", "ASTON MARTIN", "AUDI", "AUSTIN", 
   "AUTOBIANCHI", "BENTLEY", "BMW", "CADILLAC", "CHEVROLET", "CHRYSLER", "CITROЁN", "CUPRA", 
@@ -62,6 +63,52 @@ const formatDataHora = (isoString) => {
 };
 
 /**
+ * [NOVO] Algoritmo de cálculo legal de tempo restante para circulação TVDE
+ */
+const calcularTempoRestanteTVDE = (dataPrimeiraMatricula, limiteAnos = 7) => {
+  if (!dataPrimeiraMatricula) return null;
+  
+  const dataMatricula = new Date(dataPrimeiraMatricula);
+  const dataLimite = new Date(dataMatricula);
+  dataLimite.setFullYear(dataMatricula.getFullYear() + Number(limiteAnos));
+  
+  const hoje = new Date();
+  
+  // Calcular diferenças de calendário precisas
+  let anos = dataLimite.getFullYear() - hoje.getFullYear();
+  let meses = dataLimite.getMonth() - hoje.getMonth();
+  let dias = dataLimite.getDate() - hoje.getDate();
+  
+  if (dias < 0) {
+    meses--;
+    const ultimoDiaMesAnterior = new Date(hoje.getFullYear(), hoje.getMonth(), 0).getDate();
+    dias += ultimoDiaMesAnterior;
+  }
+  
+  if (meses < 0) {
+    anos--;
+    meses += 12;
+  }
+  
+  const totalDias = Math.ceil((dataLimite - hoje) / (1000 * 60 * 60 * 24));
+  
+  if (totalDias <= 0) {
+    return { expirado: true, texto: "Excedeu o limite regulamentar de circulação TVDE" };
+  }
+  
+  let partes = [];
+  if (anos > 0) partes.push(`${anos} ${anos === 1 ? 'ano' : 'anos'}`);
+  if (meses > 0) partes.push(`${meses} ${meses === 1 ? 'mês' : 'meses'}`);
+  if (dias > 0 && partes.length < 2) partes.push(`${dias} ${dias === 1 ? 'dia' : 'dias'}`);
+  
+  return { 
+    expirado: false, 
+    texto: `Faltam: ${partes.join(' e ')}`, 
+    totalDias 
+  };
+};
+
+/**
  * Componente Auxiliar: Secção Colapsável Compacta para o Histórico
  */
 const CollapsibleSection = ({ title, icon: Icon, iconColor, defaultOpen = false, children }) => {
@@ -84,6 +131,7 @@ export default function VeiculoForm({
   proprietarios = [], 
   cartoes = [], 
   veiculos = [], // Array de viaturas registadas vindo do orquestrador
+  limiteAnosTVDE = 7, // [NOVO] Limite regulamentar configurável (padrão legal: 7 anos)
   onCancel, 
   isReadOnly = false, 
   onCriarProprietario, 
@@ -97,6 +145,7 @@ export default function VeiculoForm({
     modelo: initialData.modelo || '', 
     matricula: initialData.matricula || '', 
     ano: initialData.ano || '',
+    dataPrimeiraMatricula: initialData.dataPrimeiraMatricula || '', // [NOVO]
     proprietarioId: initialData.proprietarioId || '', 
     proprietarioNome: initialData.proprietarioNome || '', 
     // Regime de Aluguer ('integral' ou 'turnos')
@@ -166,9 +215,7 @@ export default function VeiculoForm({
     }
   }, [initialData.id]);
 
-  // ============================================
-  // [ATUALIZADO] ALGORITMO DEDUPICADO PARA ATÉ 10 SUGESTÕES
-  // ============================================
+  // ALGORITMO DEDUPICADO PARA ATÉ 10 SUGESTÕES
   const sugeridas = useMemo(() => {
     if (!veiculos || veiculos.length === 0) return [];
     
@@ -180,13 +227,11 @@ export default function VeiculoForm({
       }
     });
 
-    // Ordenar de forma decrescente pela contagem e extrair as top 10 marcas
     const ordenadas = Object.entries(contagem)
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 10) // <--- Alterado de 3 para 10
+      .slice(0, 10)
       .map(par => par[0]);
 
-    // Retorna as marcas mapeadas com a grafia correta da lista master
     return ordenadas.map(marca => 
       TODAS_AS_MARCAS.find(m => m.toUpperCase() === marca) || marca
     );
@@ -206,7 +251,11 @@ export default function VeiculoForm({
                !popularesFiltradas.some(p => p.toUpperCase() === marca.toUpperCase())
     );
   }, [sugeridas, popularesFiltradas]);
-  // ============================================
+
+  // [NOVO] Cálculo em tempo real do tempo regulamentar restante
+  const tempoRestanteTVDE = useMemo(() => {
+    return calcularTempoRestanteTVDE(formData.dataPrimeiraMatricula, limiteAnosTVDE);
+  }, [formData.dataPrimeiraMatricula, limiteAnosTVDE]);
 
   const handleCategoriaToggle = (cat) => {
     setCategoriasSelecionadas(prev => {
@@ -489,7 +538,7 @@ export default function VeiculoForm({
               <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                 <div><label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Matrícula *</label><input required readOnly={isReadOnly} placeholder="AA-00-AA" className={`${inputClass} uppercase font-bold text-center tracking-widest`} value={formData.matricula} onChange={handleMatriculaChange} /></div>
                 
-                {/* [DDropown Inteligente para Marcas - Expandido para 10] */}
+                {/* [Dropdown Inteligente para Marcas - Expandido para 10] */}
                 <div>
                   <label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Marca</label>
                   {isReadOnly ? (
@@ -528,6 +577,28 @@ export default function VeiculoForm({
                 <div><label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Modelo</label><input readOnly={isReadOnly} className={inputClass} value={formData.modelo} onChange={(e) => setFormData({...formData, modelo: e.target.value})} /></div>
                 <div><label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Ano</label><input type="number" readOnly={isReadOnly} className={inputClass} value={formData.ano} onChange={(e) => setFormData({...formData, ano: e.target.value})} /></div>
               </div>
+
+              {/* [NOVO] Seletor de Data da Primeira Matrícula & Cálculo do Tempo Restante */}
+              <div className="grid grid-cols-1 gap-3 pt-2">
+                <div>
+                  <DatePicker 
+                    label="Data da Primeira Matrícula *" 
+                    value={formData.dataPrimeiraMatricula} 
+                    onChange={(val) => setFormData({...formData, dataPrimeiraMatricula: val})} 
+                    isReadOnly={isReadOnly} 
+                  />
+                  {formData.dataPrimeiraMatricula && tempoRestanteTVDE && (
+                    <div className={`mt-2.5 p-3 rounded-xl text-xs font-bold border flex items-center gap-2 select-none animate-in fade-in duration-200 ${tempoRestanteTVDE.expirado ? 'bg-red-50 border-red-100 text-red-600' : 'bg-emerald-50 border-emerald-100 text-emerald-700'}`}>
+                      {tempoRestanteTVDE.expirado ? <AlertCircle size={14} className="shrink-0" /> : <Sparkles size={14} className="shrink-0" />}
+                      <div className="flex-1">
+                        <p className="font-black">{tempoRestanteTVDE.texto}</p>
+                        <p className="text-[10px] opacity-80 font-medium">Limite legal configurado em {limiteAnosTVDE} anos para circulação de viaturas nas plataformas TVDE.</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <div className="pt-2">
                 <label className="block text-[9px] font-black text-slate-400 uppercase mb-1 ml-1">Tipo de Combustível</label>
                 <select disabled={isReadOnly} className={inputClass} value={formData.combustivel} onChange={(e) => setFormData({...formData, combustivel: e.target.value})}>
@@ -619,7 +690,7 @@ export default function VeiculoForm({
                 {formData.tipoAluguer === 'integral' ? (
                   /* Regime Integral: Apenas 1 condutor habitual */
                   <div className="space-y-2">
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Motorista Habitual (24h)</label>
+                    <label className="block text-xs font-bold text-slate-505 uppercase tracking-wider">Motorista Habitual (24h)</label>
                     {!isReadOnly && !initialData.id && (
                       <div className="flex rounded-lg border border-slate-200 overflow-hidden bg-slate-50 p-1 gap-1 w-fit">
                         <button type="button" onClick={() => setModoMotorista('existente')} className={`px-3 py-1 text-xs font-bold rounded transition-colors ${modoMotorista === 'existente' ? 'bg-white text-tvde-primary shadow-sm' : 'text-slate-400'}`}>Existente</button>

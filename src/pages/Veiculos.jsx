@@ -9,7 +9,7 @@
  * - Remoção definitiva da sementeira automática de frota em lote.
  * - Injeção de Título e Botão "Novo Veículo" via React Portal diretamente no Header.
  * - Mini-Dashboard analítico super compacto com KPIs da frota em tempo real.
- * - [ATUALIZADO] Passagem do array de viaturas para habilitar o dropdown inteligente de marcas.
+ * - [ATUALIZADO] Leitura em tempo real do limite de idade parametrizado no Firebase.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -30,7 +30,7 @@ import { logAcaoGlobal } from '../utils/logger';
 import { alternarEstadoAnuncioViatura } from '../services/veiculoService';
 import { 
   collection, addDoc, getDocs, query, 
-  doc, deleteDoc, updateDoc, arrayUnion, writeBatch 
+  doc, deleteDoc, updateDoc, arrayUnion, writeBatch, onSnapshot 
 } from 'firebase/firestore';
 
 /**
@@ -69,11 +69,24 @@ export default function Veiculos() {
   const [isViewOnly, setIsViewOnly] = useState(false);
   const [tempDados, setTempDados] = useState(null);
   const [lastSavedItem, setLastSavedItem] = useState(null);
+  const [limiteAnosTVDE, setLimiteAnosTVDE] = useState(7); // [NOVO] Estado para limite legal parametrizado (padrão: 7)
 
   // Ativa a montagem segura do portal no mount inicial do componente
   useEffect(() => {
     setMounted(true);
     return () => setMounted(false);
+  }, []);
+
+  /**
+   * [NOVO] Sincronização em tempo real do limite legal parametrizado no Firestore
+   */
+  useEffect(() => {
+    const unsubscribe = onSnapshot(doc(db, "configuracoes", "veiculos"), (docSnap) => {
+      if (docSnap.exists()) {
+        setLimiteAnosTVDE(docSnap.data().limiteAnosTVDE || 7);
+      }
+    });
+    return () => unsubscribe();
   }, []);
 
   /**
@@ -547,7 +560,8 @@ export default function Veiculos() {
           motoristas={motoristas}
           proprietarios={proprietarios}
           cartoes={cartoes}
-          veiculos={veiculos} // <--- [NOVO] Adicionado para o drop-down de marcas inteligentes
+          veiculos={veiculos}
+          limiteAnosTVDE={limiteAnosTVDE} // [NOVO] Limite regulamentar do Firebase
           isReadOnly={isViewOnly}
           onCriarProprietario={handleCriarProprietarioInline}
           onCriarMotorista={handleCriarMotoristaInline}
