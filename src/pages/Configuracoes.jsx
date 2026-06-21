@@ -5,7 +5,7 @@
  * Página de controlo e parametrização geral do ERP.
  * Otimizado com:
  * - Gestão de acessos à equipa administrativa.
- * - [CORRIGIDO] Limpeza de resíduos de variáveis e resolução do crash de renderização.
+ * - [CORRIGIDO] Adição da função fecharModal para corrigir o erro de runtime.
  * - Separador de configuração de frotas ("Veículos") para parametrizar limite de anos TVDE.
  */
 
@@ -26,7 +26,7 @@ export default function Configuracoes() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
 
-  // [NOVO] Estados para o separador de frotas e parametrização
+  // Estados para o separador de frotas e parametrização
   const [activeTab, setActiveTab] = useState('acessos'); // 'acessos' ou 'veiculos'
   const [limiteAnosTVDE, setLimiteAnosTVDE] = useState(7);
   const [loadingConfig, setLoadingConfig] = useState(false);
@@ -67,12 +67,17 @@ export default function Configuracoes() {
     }
   }, [userData]);
 
+  // Função centralizada para fechar a modal e limpar estados residuais
+  const fecharModal = () => {
+    setIsModalOpen(false);
+    setEditingUser(null);
+  };
+
   const handleSaveUser = async (dados) => {
     try {
       const userId = editingUser?.id || dados.email.replace(/\./g, '_');
       await setDoc(doc(db, "usuarios", userId), dados, { merge: true });
-      setIsModalOpen(false);
-      setEditingUser(null);
+      fecharModal();
       fetchUsuarios();
     } catch (error) {
       alert("Erro ao salvar permissões.");
@@ -267,45 +272,45 @@ export default function Configuracoes() {
                     <p className="mt-1 leading-relaxed opacity-90">
                       Atualmente a lei portuguesa impõe o limite estrito de <strong>7 anos</strong>. 
                       Se a nova proposta de alteração legislativa for ratificada para <strong>10 anos</strong>, mude o valor acima e guarde para atualizar de forma imediata todas as fichas de viatura do sistema.
-                    </p>
-                  </div>
+                  </p>
                 </div>
               </div>
+            </div>
 
-              <div className="pt-4 border-t border-slate-100 flex justify-end">
-                <Button 
-                  onClick={handleSaveConfigVeiculos} 
-                  disabled={savingConfig || !limiteAnosTVDE}
-                  className="px-6 h-10 text-xs shadow-md"
-                >
-                  {savingConfig ? (
-                    <span className="flex items-center gap-2">
-                      <Loader2 className="animate-spin" size={14} /> A Guardar...
-                    </span>
-                  ) : (
-                    <span className="flex items-center gap-1.5">
-                      <Save size={14} /> Guardar Parâmetros
-                    </span>
-                  )}
-                </Button>
-              </div>
+            <div className="pt-4 border-t border-slate-100 flex justify-end">
+              <Button 
+                onClick={handleSaveConfigVeiculos} 
+                disabled={savingConfig || !limiteAnosTVDE}
+                className="px-6 h-10 text-xs shadow-md"
+              >
+                {savingConfig ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="animate-spin" size={14} /> A Guardar...
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1.5">
+                    <Save size={14} /> Guardar Parâmetros
+                  </span>
+                )}
+              </Button>
             </div>
           </div>
-        )
-      )}
+        </div>
+      )
+    )}
 
-      {/* MODAL UTILIZADORES */}
-      <Modal 
-        isOpen={isModalOpen} 
-        onClose={fecharModal} 
-        title={editingUser ? "Editar Permissões" : "Conceder Novo Acesso"}
-      >
-        <UsuarioForm 
-          onSubmit={handleSaveUser} 
-          onCancel={fecharModal} 
-          initialData={editingUser || {}} 
-        />
-      </Modal>
-    </div>
-  );
+    {/* MODAL UTILIZADORES */}
+    <Modal 
+      isOpen={isModalOpen} 
+      onClose={fecharModal} 
+      title={editingUser ? "Editar Permissões" : "Conceder Novo Acesso"}
+    >
+      <UsuarioForm 
+        onSubmit={handleSaveUser} 
+        onCancel={fecharModal} 
+        initialData={editingUser || {}} 
+      />
+    </Modal>
+  </div>
+);
 }
