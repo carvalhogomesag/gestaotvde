@@ -10,7 +10,7 @@
  * - Histórico de alterações formatado com data e hora detalhadas no padrão PT-PT.
  * - Preservação total das ações de criação inline de Motoristas/Proprietários e Sincronização.
  * - Suporte a Regimes de Aluguer: Integral (1 Condutor) ou Partilhado por Turnos (2 Condutores).
- * - [NOVO] Substituição do campo livre "Marca" por Dropdown inteligente com marcas sugeridas sob contagem no Firestore.
+ * - [NOVO] Dropdown de Marcas inteligente exibindo até as 10 marcas mais registadas na frota no topo.
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
@@ -83,7 +83,7 @@ export default function VeiculoForm({
   motoristas = [], 
   proprietarios = [], 
   cartoes = [], 
-  veiculos = [], // [NOVO] Array de viaturas registadas vindo do orquestrador
+  veiculos = [], // Array de viaturas registadas vindo do orquestrador
   onCancel, 
   isReadOnly = false, 
   onCriarProprietario, 
@@ -167,7 +167,7 @@ export default function VeiculoForm({
   }, [initialData.id]);
 
   // ============================================
-  // [NOVO] ALGORITMO DEDUPICADO E INTELIGENTE DE MARCAS
+  // [ATUALIZADO] ALGORITMO DEDUPICADO PARA ATÉ 10 SUGESTÕES
   // ============================================
   const sugeridas = useMemo(() => {
     if (!veiculos || veiculos.length === 0) return [];
@@ -180,10 +180,10 @@ export default function VeiculoForm({
       }
     });
 
-    // Ordenar de forma decrescente pela contagem e extrair as top 3 marcas
+    // Ordenar de forma decrescente pela contagem e extrair as top 10 marcas
     const ordenadas = Object.entries(contagem)
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 3)
+      .slice(0, 10) // <--- Alterado de 3 para 10
       .map(par => par[0]);
 
     // Retorna as marcas mapeadas com a grafia correta da lista master
@@ -489,7 +489,7 @@ export default function VeiculoForm({
               <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                 <div><label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Matrícula *</label><input required readOnly={isReadOnly} placeholder="AA-00-AA" className={`${inputClass} uppercase font-bold text-center tracking-widest`} value={formData.matricula} onChange={handleMatriculaChange} /></div>
                 
-                {/* [DDropown Inteligente para Marcas] */}
+                {/* [DDropown Inteligente para Marcas - Expandido para 10] */}
                 <div>
                   <label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Marca</label>
                   {isReadOnly ? (
