@@ -4,6 +4,7 @@
  *
  * Processador de fecho financeiro semanal (Upload de CSVs e Geração de SEPA/PDF).
  * Atualizado com suporte responsivo e integração das despesas fixas (Abastecimento e Portagens) [2].
+ * [NOVO]: Painel de Auditoria e Validação Via Verde agrupado por matrícula (Toll + Parque e Mensalidade separada).
  */
 
 import React, { useState, useEffect } from 'react';
@@ -23,7 +24,7 @@ import {
   parseUberCSV, parseBoltCSV, parseViaVerdeCSV, 
   parseCartoesConsumoCSV, generateSEPAXML 
 } from '../utils/parsers';
-import { generateDriverPDF } from '../utils/pdfGenerator';
+import { generateDriverPDF, generateViaVerdeValidationPDF } from '../utils/pdfGenerator'; // [NOVO] Import do gerador de validação
 import Button from '../components/ui/Button';
 
 export default function FechoSemanal() {
@@ -38,6 +39,7 @@ export default function FechoSemanal() {
   
   // Dados Processados
   const [dadosProcessados, setDadosProcessados] = useState([]);
+  const [viaVerdeProcessed, setViaVerdeProcessed] = useState({}); // [NOVO] Estado para renderizar a auditoria da Via Verde
   
   // Ficheiros
   const [files, setFiles] = useState({ 
@@ -105,6 +107,9 @@ export default function FechoSemanal() {
       const combustivelData = files.combustivel ? parseCartoesConsumoCSV(files.combustivel) : {};
       const eletricoData = files.eletrico ? parseCartoesConsumoCSV(files.eletrico) : {};
 
+      // Guarda os dados processados da Via Verde para o painel de auditoria
+      setViaVerdeProcessed(viaVerdeData);
+
       // Busca movimentos financeiros pendentes no Firestore [2]
       const qMov = query(collection(db, "movimentos_financeiros"), where("pagoNoFechoId", "==", ""));
       const movSnap = await getDocs(qMov);
@@ -115,10 +120,12 @@ export default function FechoSemanal() {
         const b = boltData[m.nome] || { bruto: 0, liquido: 0 };
         const veiculo = veiculosDB.find(v => v.motoristaId === m.id);
         
-        // 1. Processamento de Portagens / Via Verde [2]
-        const vvCustoCSV = veiculo ? (viaVerdeData[veiculo.matricula.replace(/-/g, '')] || 0) : 0;
+        // [MODIFICADO]: Processamento adaptado para ler do novo parser estruturado (Portagens = totalCirculacao) [2]
+        const matriculaLimpa = veiculo ? veiculo.matricula.replace(/-/g, '').toUpperCase() : '';
+        const vvEstruturado = viaVerdeData[matriculaLimpa] || null;
+        const vvCustoFisico = vvEstruturado ? (vvEstruturado.totalCirculacao || 0) : 0;
 
-        // 2. Processamento de Combustível / Energia via Cartões (CSV) [2]
+        // Processamento de Combustível / Energia via Cartões (CSV) [2]
         let totalCombustivelCSV = 0;
         let totalEletricoCSV = 0;
         cartoesDB.filter(c => c.veiculoId === veiculo?.id).forEach(c => {
@@ -135,7 +142,7 @@ export default function FechoSemanal() {
         const movAbastecimentoDB = movsEntidade.find(mov => mov.categoria === 'abastecimento');
 
         // LÓGICA DE PRECEDÊNCIA: Lançamentos dedicados na DB sobrepõem os CSVs [2]
-        const portagemFinal = movPortagemDB ? movPortagemDB.valor : vvCustoCSV;
+        const portagemFinal = movPortagemDB ? movPortagemDB.valor : vvCustoFisico;
         const abastecimentoFinal = movAbastecimentoDB ? movAbastecimentoDB.valor : (totalCombustivelCSV + totalEletricoCSV);
 
         const totalCreditosManuais = movsEntidade
@@ -227,8 +234,16 @@ export default function FechoSemanal() {
     a.click();
   };
 
+  // [NOVO] Handler de descarregamento do PDF consolidado da auditoria da Via Verde
+  const handleDownloadViaVerdePDF = () => {
+    const docPdf = generateViaVerdeValidationPDF(viaVerdeProcessed, empresaConfig);
+    docPdf.save(`Validacao_ViaVerde_${new Date().toISOString().split('T')[0]}.pdf`);
+  };
+
+  const chavesViaVerde = Object.keys(viaVerdeProcessed);
+
   return (
-    <div className="space-y-6 sm:space-y-8 pb-20">
+    <div className="space-y-6 sm:space-y-8 pb-20 text-left">
       <header>
         <h1 className="text-xl sm:text-2xl font-bold text-slate-800 flex items-center gap-3">
           <Calculator className="text-tvde-primary" /> Fecho de Semana
@@ -254,7 +269,9 @@ export default function FechoSemanal() {
       )}
 
       {step === 2 && (
-        <div className="space-y-6 animate-in fade-in zoom-in-95">
+        <div className="space-y-8 animate-in fade-in zoom-in-95">
+          
+          {/* TABELA PRINCIPAL DE FECHO (MOTORISTAS) */}
           <div className="bg-white rounded-[2rem] sm:rounded-[2.5rem] border border-slate-200 shadow-sm overflow-x-auto w-full custom-scrollbar">
             <table className="w-full text-left border-collapse min-w-[750px]">
               <thead className="bg-slate-50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
@@ -299,6 +316,83 @@ export default function FechoSemanal() {
             </table>
           </div>
 
+          {/* [NOVO] PAINEL DE AUDITORIA DE VIA VERDE (CONFORME CUSTO POST-IT) */}
+          {chavesViaVerde.length > 0 && (
+            <div className="bg-white p-6 sm:p-8 rounded-[2rem] sm:rounded-[2.5rem] border border-slate-200 shadow-sm text-left space-y-6">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-100 pb-4">
+                <div>
+                  <h3 className="text-base font-black text-slate-800 flex items-center gap-2">
+                    <FileSpreadsheet className="text-purple-600" size={18} /> Auditoria Detalhada Via Verde
+                  </h3>
+                  <p className="text-xs text-slate-400">Verificação estruturada de passagens, portagens e mensalidades por matrícula.</p>
+                </div>
+                <Button 
+                  onClick={handleDownloadViaVerdePDF}
+                  className="bg-purple-600 hover:bg-purple-700 text-white text-[10px] font-black uppercase h-9 px-3 gap-1.5 shadow-sm"
+                >
+                  <Download size={14} /> Descarregar Auditoria (PDF)
+                </Button>
+              </div>
+
+              <div className="overflow-x-auto w-full custom-scrollbar">
+                <table className="w-full text-left border-collapse text-xs min-w-[650px]">
+                  <thead className="bg-slate-50 border-b border-slate-100 font-black text-slate-400 uppercase tracking-widest text-[9px]">
+                    <tr>
+                      <th className="p-4">Matrícula</th>
+                      <th className="p-4">Descrição de Lançamento</th>
+                      <th className="p-4 text-right">Valor Unitário</th>
+                      <th className="p-4 text-right">Subtotal Circulação</th>
+                      <th className="p-4 text-right">Mensalidade Identificador</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {chavesViaVerde.map((mat) => {
+                      const dados = viaVerdeProcessed[mat];
+                      return (
+                        <React.Fragment key={mat}>
+                          {/* Sub-Linha 1: Portagem */}
+                          <tr className="hover:bg-slate-50/50 font-medium">
+                            <td className="p-4 font-black text-slate-800" rowSpan={3}>
+                              <span className="bg-slate-800 text-white text-[10px] font-mono font-black px-2 py-1 rounded shadow-sm">
+                                {dados.matriculaFormatada || mat}
+                              </span>
+                            </td>
+                            <td className="p-4 pl-6 text-slate-500">Portagens / Concessionárias</td>
+                            <td className="p-4 text-right text-slate-600 font-bold">{formatCurrency(dados.portagens)}</td>
+                            <td className="p-4 text-right font-black text-slate-800 text-sm" rowSpan={2}>
+                              {formatCurrency(dados.totalCirculacao)}
+                            </td>
+                            <td className="p-4 text-right font-black text-slate-600" rowSpan={3}>
+                              {dados.mensalidade > 0 ? (
+                                <span className="text-purple-600 bg-purple-50 px-2.5 py-1 rounded-xl font-bold">
+                                  {formatCurrency(dados.mensalidade)}
+                                </span>
+                              ) : (
+                                <span className="text-slate-300 italic">---</span>
+                              )}
+                            </td>
+                          </tr>
+                          {/* Sub-Linha 2: Parque */}
+                          <tr className="hover:bg-slate-50/50 font-medium">
+                            <td className="p-4 pl-6 text-slate-500">Parques / Estacionamentos</td>
+                            <td className="p-4 text-right text-slate-600 font-bold">{formatCurrency(dados.parques)}</td>
+                          </tr>
+                          {/* Sub-Linha 3: Mensalidade */}
+                          <tr className="hover:bg-slate-50/50 font-medium bg-slate-50/20">
+                            <td className="p-4 pl-6 text-slate-400 italic">Mensalidade Dispositivo / Aluguer</td>
+                            <td className="p-4 text-right text-slate-400 italic">{formatCurrency(dados.mensalidade)}</td>
+                            <td className="p-4 text-right text-slate-300">---</td>
+                          </tr>
+                        </React.Fragment>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* TOTALIZADOR GLOBAL */}
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-tvde-dark p-6 sm:p-8 rounded-[2rem] sm:rounded-[2.5rem] text-white shadow-2xl gap-6">
             <div>
               <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Global a Pagar</p>
@@ -341,7 +435,7 @@ export default function FechoSemanal() {
   );
 }
 
-// ◄ CORRIGIDO: UploadBox reestruturado com suporte de clique, resolvido o erro "cat" e mapa de cores correto
+// UploadBox reestruturado com suporte de clique e mapa de cores correto
 const UploadBox = ({ title, icon: Icon, color, onChange, ready }) => {
   const colorMap = {
     blue:   'bg-blue-50 text-blue-500 hover:border-blue-400',

@@ -2,8 +2,11 @@
  * pdfGenerator.js
  * Localização: src/utils/pdfGenerator.js
  *
- * Gerador de PDF profissional em tamanho A4 (folha única) utilizando jsPDF.
- * Suporta a geração de extratos para Motoristas, Veículos e Proprietários com dados fictícios.
+ * Gerador de PDF profissional em tamanho A4 utilizando jsPDF e jsPDF-AutoTable.
+ * Suporta:
+ *   - Extratos operacionais semanais de Motoristas, Veículos e Proprietários.
+ *   - [NOVO] Relatório consolidado de auditoria e validação de despesas Via Verde.
+ * 
  * CORRIGIDO: Fallbacks contra NaN (valores indefinidos), mapeamento de conta corrente e proteção em plataformas [2, 3].
  */
 
@@ -267,7 +270,7 @@ export const generateStatementPDF = (dados, empresa, entidadeInfo) => {
       doc.setFontSize(7.5);
       doc.setTextColor(preto);
 
-      // [ATUALIZADO] Segurança em cascata para evitar quebra do PDF se as plataformas forem nulas
+      // Segurança em cascata para evitar quebra do PDF se as plataformas forem nulas
       const dadosPlat = (dados?.plataformas && dados.plataformas[plat]) || { bruto: 0, liquido: 0, impostos: 0 };
 
       doc.text('Bruto', xPos + 3, currentY + 10.5);
@@ -298,6 +301,162 @@ export const generateStatementPDF = (dados, empresa, entidadeInfo) => {
   } catch (err) {
     console.error("[pdfGenerator] Erro fatal durante a construção do PDF:", err);
     throw err;
+  }
+};
+
+/**
+ * [NOVO] Gera o Relatório Oficial de Validação de Custos da Via Verde
+ * de acordo com o padrão estruturado de sublinhas do seu post-it.
+ * 
+ * @param {Object} viaVerdeProcessed - Objeto estruturado vindo do parser da Via Verde
+ * @param {Object} empresa - Configurações da Empresa Operadora
+ * @returns {jsPDF}
+ */
+export const generateViaVerdeValidationPDF = (viaVerdeProcessed, empresa) => {
+  try {
+    console.log("[pdfGenerator] A iniciar desenho da validação estruturada da Via Verde...");
+
+    const doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4'
+    });
+
+    const margin = 15;
+    const azulEscuro = '#1e293b';
+    const cinzaTexto = '#475569';
+    const preto = '#0f172a';
+
+    // --- CABEÇALHO ESQUERDO ---
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(13);
+    doc.setTextColor(azulEscuro);
+    doc.text('Reconciliação e Auditoria Via Verde', margin, 18);
+
+    doc.setFont('Helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(cinzaTexto);
+    doc.text(`Data de Emissão: ${new Date().toLocaleDateString('pt-PT')}`, margin, 23);
+    doc.text('Relatório semanal estruturado de validação de despesas por matrícula.', margin, 27);
+
+    // --- CABEÇALHO DIREITO ---
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(21);
+    doc.setTextColor(preto);
+    doc.text('Gestão', 132, 19);
+    doc.setTextColor('#3b82f6');
+    doc.text('TVDE', 159, 19);
+
+    doc.setFont('Helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(cinzaTexto);
+    doc.text(empresa?.nome || 'OPERADOR TVDE PORTUGAL LDA', 132, 24);
+    doc.text(`NIF: ${empresa?.nif || '500123456'}`, 132, 28);
+    doc.text(`IBAN: ${empresa?.iban || '---'}`, 132, 32);
+
+    doc.setDrawColor('#e2e8f0');
+    doc.setLineWidth(0.4);
+    doc.line(margin, 36, 195, 36);
+
+    // Configuração das colunas para o jsPDF AutoTable
+    const columns = [
+      { header: 'Matrícula', dataKey: 'matricula' },
+      { header: 'Lançamento / Tipo', dataKey: 'descricao' },
+      { header: 'Valor Unitário', dataKey: 'unitario' },
+      { header: 'Subtotal Circulação', dataKey: 'subtotal' },
+      { header: 'Mensalidade', dataKey: 'mensalidade' }
+    ];
+
+    const rows = [];
+    const chavesMatriculas = Object.keys(viaVerdeProcessed);
+
+    chavesMatriculas.forEach((mat) => {
+      const d = viaVerdeProcessed[mat];
+      
+      // Mapeamento idêntico ao layout do post-it em sublinhas integradas
+      rows.push({
+        matricula: d.matriculaFormatada || mat,
+        descricao: 'Portagens / Autoestradas',
+        unitario: formatCurrency(d.portagens),
+        subtotal: formatCurrency(d.totalCirculacao),
+        mensalidade: d.mensalidade > 0 ? formatCurrency(d.mensalidade) : '---'
+      });
+      rows.push({
+        matricula: '', // Deixa vazio para emular o rowSpan visual
+        descricao: 'Parques / Estacionamento',
+        unitario: formatCurrency(d.parques),
+        subtotal: '',
+        mensalidade: ''
+      });
+      rows.push({
+        matricula: '',
+        descricao: 'Identificador / Aluguer Semanal',
+        unitario: formatCurrency(d.mensalidade),
+        subtotal: '---',
+        mensalidade: ''
+      });
+    });
+
+    // Cálculos de Totais Gerais Consolidados
+    const totalPortagens = Object.values(viaVerdeProcessed).reduce((acc, curr) => acc + curr.portagens, 0);
+    const totalParques = Object.values(viaVerdeProcessed).reduce((acc, curr) => acc + curr.parques, 0);
+    const totalCirculacao = Object.values(viaVerdeProcessed).reduce((acc, curr) => acc + curr.totalCirculacao, 0);
+    const totalMensalidade = Object.values(viaVerdeProcessed).reduce((acc, curr) => acc + curr.mensalidade, 0);
+
+    rows.push({
+      matricula: 'TOTAIS CONSOLIDADOS',
+      descricao: `Portagens: ${formatCurrency(totalPortagens)} | Parques: ${formatCurrency(totalParques)}`,
+      unitario: '---',
+      subtotal: formatCurrency(totalCirculacao),
+      mensalidade: formatCurrency(totalMensalidade)
+    });
+
+    doc.autoTable({
+      columns,
+      body: rows,
+      startY: 42,
+      margin: { left: margin, right: margin },
+      theme: 'striped',
+      styles: {
+        fontSize: 8,
+        font: 'Helvetica',
+        cellPadding: 3,
+        valign: 'middle'
+      },
+      headStyles: {
+        fillColor: '#1e293b',
+        textColor: '#ffffff',
+        fontStyle: 'bold',
+        halign: 'center'
+      },
+      columnStyles: {
+        matricula: { fontStyle: 'bold', halign: 'left' },
+        descricao: { halign: 'left' },
+        unitario: { halign: 'right' },
+        subtotal: { fontStyle: 'bold', halign: 'right' },
+        mensalidade: { fontStyle: 'bold', halign: 'right' }
+      },
+      didParseCell: function (data) {
+        // Estilização customizada da linha final de Totais Consolidados
+        if (data.row.index === rows.length - 1) {
+          data.cell.styles.fontStyle = 'bold';
+          data.cell.styles.fillColor = '#cbd5e1'; // Cor de destaque do rodapé da tabela
+          data.cell.styles.textColor = '#0f172a';
+        }
+      }
+    });
+
+    // Rodapé Normativo
+    doc.setFont('Helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(150);
+    doc.text('Este documento serve exclusivamente como relatório de validação e conciliação interna de despesas de circulação.', margin, 285);
+
+    return doc;
+
+  } catch (error) {
+    console.error("[pdfGenerator] Erro ao gerar PDF de reconciliação Via Verde:", error);
+    throw error;
   }
 };
 

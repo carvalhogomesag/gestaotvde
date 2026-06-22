@@ -1,5 +1,9 @@
 /**
- * Utilitários de Extração de Dados e Geração SEPA
+ * parsers.js
+ * Localização: src/utils/parsers.js
+ *
+ * Utilitários de Extração de Dados e Geração SEPA.
+ * [ATUALIZADO]: parseViaVerdeCSV reestruturado para categorizar portagens, parques e mensalidades por matrícula.
  */
 
 // Função Pura de Higienização para conformidade bancária ISO 20022
@@ -38,28 +42,95 @@ export const parseBoltCSV = (csvText) => {
   for (let i = 1; i < lines.length; i++) {
     const row = lines[i].split(',').map(c => c.replace(/"/g, '').trim());
     if (row.length < headers.length) continue;
-    const motorista = row[headers.indexOf('Driver name')] || row[0];
-    if (!motorista) continue;
-    if (!results[motorista]) results[motorista] = { bruto: 0, liquido: 0 };
-    results[motorista].bruto += parseFloat(row[headers.indexOf('Gross amount')] || 0);
-    results[motorista].liquido += parseFloat(row[headers.indexOf('Net amount')] || 0);
+    const motorista = row[headers.indexOf('Gross amount')] || row[0]; // Correção para leitura robusta de cabeçalho
+    const motoristaNome = row[headers.indexOf('Driver name')] || row[0];
+    if (!motoristaNome) continue;
+    if (!results[motoristaNome]) results[motoristaNome] = { bruto: 0, liquido: 0 };
+    results[motoristaNome].bruto += parseFloat(row[headers.indexOf('Gross amount')] || 0);
+    results[motoristaNome].liquido += parseFloat(row[headers.indexOf('Net amount')] || 0);
   }
   return results;
 };
 
+/**
+ * [REESCRITO]: Analisa e categoriza despesas da Via Verde por matrícula (Portagem, Parque e Mensalidade)
+ * em conformidade com o layout desenhado no post-it do utilizador.
+ * 
+ * @param {string} csvText - Conteúdo bruto do ficheiro de extrato Via Verde
+ * @returns {Object} Estrutura consolidada agrupada por matrícula
+ */
 export const parseViaVerdeCSV = (csvText) => {
+  if (!csvText) return {};
   const lines = csvText.split('\n');
   const results = {};
+
   lines.forEach((line, index) => {
-    if (index === 0) return;
+    if (index === 0) return; // Salta a linha de cabeçalhos
     const row = line.split(';');
     if (row.length < 5) return;
-    const matricula = row[2]?.replace(/-/g, '').trim();
+
+    // Normaliza a matrícula (maiúsculas e remove hifens de compatibilidade)
+    const matriculaOriginal = row[2]?.trim();
+    if (!matriculaOriginal) return;
+    const matriculaChave = matriculaOriginal.replace(/-/g, '').toUpperCase();
+
     const valor = parseFloat(row[4]?.replace(',', '.'));
-    if (matricula && !isNaN(valor)) {
-      results[matricula] = (results[matricula] || 0) + valor;
+    if (isNaN(valor)) return;
+
+    // Inicialização da estrutura da matrícula se ainda não existir
+    if (!results[matriculaChave]) {
+      results[matriculaChave] = {
+        matriculaFormatada: matriculaOriginal, // Guarda a grafia original (ex: AA-00-AA)
+        portagens: 0,
+        parques: 0,
+        mensalidade: 0,
+        totalCirculacao: 0, // Portagens + Parques
+        totalGeral: 0       // Portagens + Parques + Mensalidade
+      };
+    }
+
+    // Varredura de classificação inteligente em toda a linha para robustez
+    const linhaTexto = row.join(' ').toLowerCase();
+    let categoria = 'portagem';
+
+    if (
+      linhaTexto.includes('mensalidade') || 
+      linhaTexto.includes('identificador') || 
+      linhaTexto.includes('aluguer') || 
+      linhaTexto.includes('tarifa de servico') || 
+      linhaTexto.includes('adesao')
+    ) {
+      categoria = 'mensalidade';
+    } else if (
+      linhaTexto.includes('parque') || 
+      linhaTexto.includes('estacionamento') || 
+      linhaTexto.includes('mcdrive') || 
+      linhaTexto.includes('parking') || 
+      linhaTexto.includes('silo') || 
+      linhaTexto.includes('aeroporto')
+    ) {
+      categoria = 'parque';
+    }
+
+    // Acumula os valores por categoria
+    if (categoria === 'mensalidade') {
+      results[matriculaChave].mensalidade += valor;
+    } else if (categoria === 'parque') {
+      results[matriculaChave].parques += valor;
+    } else {
+      results[matriculaChave].portagens += valor;
     }
   });
+
+  // Arredonda todos os subtotais para 2 casas decimais no final
+  Object.keys(results).forEach(mat => {
+    results[mat].portagens = Number(results[mat].portagens.toFixed(2));
+    results[mat].parques = Number(results[mat].parques.toFixed(2));
+    results[mat].mensalidade = Number(results[mat].mensalidade.toFixed(2));
+    results[mat].totalCirculacao = Number((results[mat].portagens + results[mat].parques).toFixed(2));
+    results[mat].totalGeral = Number((results[mat].totalCirculacao + results[mat].mensalidade).toFixed(2));
+  });
+
   return results;
 };
 
