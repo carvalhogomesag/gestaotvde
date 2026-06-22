@@ -5,13 +5,13 @@
  * Gerador de PDF profissional em tamanho A4 utilizando jsPDF e jsPDF-AutoTable.
  * Suporta:
  *   - Extratos operacionais semanais de Motoristas, Veículos e Proprietários.
- *   - [NOVO] Relatório consolidado de auditoria e validação de despesas Via Verde.
+ *   - Relatório consolidado de auditoria e validação de despesas Via Verde.
  * 
- * CORRIGIDO: Fallbacks contra NaN (valores indefinidos), mapeamento de conta corrente e proteção em plataformas [2, 3].
+ * CORRIGIDO: Tipo de erro "autoTable is not a function" resolvido com importação modular estrita de ESM.
  */
 
-import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { formatDatePT, formatCurrency } from './formatters';
 
 /**
@@ -411,7 +411,8 @@ export const generateViaVerdeValidationPDF = (viaVerdeProcessed, empresa) => {
       mensalidade: formatCurrency(totalMensalidade)
     });
 
-    doc.autoTable({
+    // [MODIFICADO]: Sintaxe adaptativa com importação estrita ES module 'autoTable(doc, { ... })'
+    autoTable(doc, {
       columns,
       body: rows,
       startY: 42,

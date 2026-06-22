@@ -4,7 +4,7 @@
  *
  * Processador de fecho financeiro semanal (Upload de CSVs e Geração de SEPA/PDF).
  * Atualizado com suporte responsivo e integração das despesas fixas (Abastecimento e Portagens) [2].
- * [NOVO]: Auditoria instantânea de Via Verde (PDF) logo no Passo 1, antes de rodar o fecho completo!
+ * [NOVO]: Leitor de ficheiros híbrido (FileReader) para processar de forma transparente ficheiros CSV e XLSX/Excel!
  */
 
 import React, { useState, useEffect } from 'react';
@@ -41,7 +41,7 @@ export default function FechoSemanal() {
   const [dadosProcessados, setDadosProcessados] = useState([]);
   const [viaVerdeProcessed, setViaVerdeProcessed] = useState({}); // Estado para auditoria em lote
   
-  // Ficheiros
+  // Ficheiros (pode armazenar strings ou ArrayBuffers de Excel)
   const [files, setFiles] = useState({ 
     uber: null, bolt: null, viaverde: null, combustivel: null, eletrico: null 
   });
@@ -89,17 +89,31 @@ export default function FechoSemanal() {
     );
   }
 
+  /**
+   * [MODIFICADO]: Leitor híbrido com suporte a leitura de binários (Excel) ou texto simples (CSV)
+   */
   const handleFileChange = (e, type) => {
     const file = e.target.files[0];
     if (file) {
       const reader = new FileReader();
-      reader.onload = (event) => setFiles(prev => ({ ...prev, [type]: event.target.result }));
-      reader.readAsText(file);
+      const isExcel = file.name.endsWith('.xlsx') || file.name.endsWith('.xls');
+
+      reader.onload = (event) => {
+        setFiles(prev => ({ ...prev, [type]: event.target.result }));
+      };
+
+      if (isExcel) {
+        // Lógica de leitura de folha binária para o SheetJS converter em memória
+        reader.readAsArrayBuffer(file);
+      } else {
+        // Lógica padrão de leitura de texto simples
+        reader.readAsText(file);
+      }
     }
   };
 
   /**
-   * [NOVO] Executa o processamento e a exportação direta do PDF de auditoria Via Verde
+   * Executa o processamento e a exportação direta do PDF de auditoria Via Verde
    * no Passo 1, sem tocar no Firestore ou avançar o fluxo semanal.
    */
   const exportarApenasViaVerde = () => {
@@ -273,7 +287,7 @@ export default function FechoSemanal() {
             <UploadBox title="UBER" icon={UploadCloud} color="blue" onChange={(e) => handleFileChange(e, 'uber')} ready={!!files.uber} />
             <UploadBox title="BOLT" icon={UploadCloud} color="green" onChange={(e) => handleFileChange(e, 'bolt')} ready={!!files.bolt} />
             
-            {/* [ATUALIZADO]: Upload da Via Verde agora renderiza o botão "Validar PDF" avulso em tempo real */}
+            {/* Upload da Via Verde agora renderiza o botão "Validar PDF" avulso em tempo real */}
             <UploadBox title="VIA VERDE" icon={FileSpreadsheet} color="purple" onChange={(e) => handleFileChange(e, 'viaverde')} ready={!!files.viaverde}>
               {files.viaverde && (
                 <Button 

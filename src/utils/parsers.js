@@ -3,8 +3,35 @@
  * Localização: src/utils/parsers.js
  *
  * Utilitários de Extração de Dados e Geração SEPA.
- * [ATUALIZADO]: parseViaVerdeCSV reestruturado para categorizar portagens, parques e mensalidades por matrícula.
+ * [ATUALIZADO]: Integração nativa com a biblioteca 'xlsx' para suportar leitura
+ * híbrida de ficheiros de texto simples (.csv) e folhas de cálculo binárias (.xlsx/.xls).
  */
+
+import * as XLSX from 'xlsx';
+
+/**
+ * Função Auxiliar: Deteta o tipo de ficheiro em memória e normaliza-o para 
+ * texto CSV estruturado caso seja uma folha de cálculo binária (Excel).
+ * 
+ * @param {string|ArrayBuffer} input - Dados brutos do ficheiro carregado
+ * @returns {string} Texto formatado em CSV
+ */
+const normalizarInputTexto = (input) => {
+  if (!input) return '';
+  if (typeof input === 'string') return input;
+
+  try {
+    // Se for ArrayBuffer (lido do Excel), converte via SheetJS para CSV
+    const data = new Uint8Array(input);
+    const workbook = XLSX.read(data, { type: 'array' });
+    const firstSheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[firstSheetName];
+    return XLSX.utils.sheet_to_csv(worksheet);
+  } catch (err) {
+    console.error("[parsers] Erro ao converter folha de cálculo XLSX/Excel com SheetJS:", err);
+    return '';
+  }
+};
 
 // Função Pura de Higienização para conformidade bancária ISO 20022
 const limparStringSEPA = (str) => {
@@ -17,7 +44,10 @@ const limparStringSEPA = (str) => {
     .replace(/[^a-zA-Z0-9 ]/g, ""); // Garante apenas alfanuméricos e espaços
 };
 
-export const parseUberCSV = (csvText) => {
+export const parseUberCSV = (csvInput) => {
+  const csvText = normalizarInputTexto(csvInput);
+  if (!csvText) return {};
+
   const lines = csvText.split('\n');
   const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim());
   const results = {};
@@ -35,14 +65,17 @@ export const parseUberCSV = (csvText) => {
   return results;
 };
 
-export const parseBoltCSV = (csvText) => {
+export const parseBoltCSV = (csvInput) => {
+  const csvText = normalizarInputTexto(csvInput);
+  if (!csvText) return {};
+
   const lines = csvText.split('\n');
   const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim());
   const results = {};
   for (let i = 1; i < lines.length; i++) {
     const row = lines[i].split(',').map(c => c.replace(/"/g, '').trim());
     if (row.length < headers.length) continue;
-    const motorista = row[headers.indexOf('Gross amount')] || row[0]; // Correção para leitura robusta de cabeçalho
+    const motorista = row[headers.indexOf('Gross amount')] || row[0];
     const motoristaNome = row[headers.indexOf('Driver name')] || row[0];
     if (!motoristaNome) continue;
     if (!results[motoristaNome]) results[motoristaNome] = { bruto: 0, liquido: 0 };
@@ -53,14 +86,16 @@ export const parseBoltCSV = (csvText) => {
 };
 
 /**
- * [REESCRITO]: Analisa e categoriza despesas da Via Verde por matrícula (Portagem, Parque e Mensalidade)
+ * Analisa e categoriza despesas da Via Verde por matrícula (Portagem, Parque e Mensalidade)
  * em conformidade com o layout desenhado no post-it do utilizador.
  * 
- * @param {string} csvText - Conteúdo bruto do ficheiro de extrato Via Verde
+ * @param {string|ArrayBuffer} csvInput - Conteúdo bruto ou binário do ficheiro de extrato Via Verde
  * @returns {Object} Estrutura consolidada agrupada por matrícula
  */
-export const parseViaVerdeCSV = (csvText) => {
+export const parseViaVerdeCSV = (csvInput) => {
+  const csvText = normalizarInputTexto(csvInput);
   if (!csvText) return {};
+
   const lines = csvText.split('\n');
   const results = {};
 
@@ -134,7 +169,10 @@ export const parseViaVerdeCSV = (csvText) => {
   return results;
 };
 
-export const parseCartoesConsumoCSV = (csvText) => {
+export const parseCartoesConsumoCSV = (csvInput) => {
+  const csvText = normalizarInputTexto(csvInput);
+  if (!csvText) return {};
+
   const lines = csvText.split('\n');
   const headers = lines[0].toLowerCase().split(/[;,]/);
   const results = {};
