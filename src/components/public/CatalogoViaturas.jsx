@@ -233,7 +233,7 @@ export default function CatalogoViaturas() {
                           </div>
                         </div>
 
-                        {/* Ficha Técnica */}
+                        {/* Ficha Técnico */}
                         <div className="grid grid-cols-3 gap-2 py-3 border-y border-slate-100 text-slate-600 text-xs font-semibold">
                           <div className="flex flex-col items-center justify-center p-1.5 bg-slate-50 rounded-xl">
                             <Settings size={14} className="text-slate-400 mb-1" />
@@ -326,6 +326,7 @@ export default function CatalogoViaturas() {
           </div>
         )}
 
+        {/* Deslize indicador para Mobile */}
         <div className="text-center mt-4 md:hidden flex items-center justify-center gap-2 text-xs text-slate-400">
           <span>Deslize para ver mais viaturas</span>
           <ChevronRight size={14} className="animate-pulse" />

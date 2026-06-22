@@ -1,6 +1,10 @@
 /**
  * veiculoService.js
  * Localização: src/services/veiculoService.js
+ *
+ * Funções Firestore para as coleções de frotas e controlo de anúncios:
+ *   - obterViaturasParaCatalogo (Consulta pública com mapeamento de UX e fallbacks)
+ *   - alternarEstadoAnuncioViatura (Ativação transacional com registo de log confidencial)
  */
 
 import { 
@@ -19,45 +23,49 @@ import { logAcaoGlobal } from '../utils/logger';
  */
 export const obterViaturasParaCatalogo = async (db) => {
   try {
-    console.log("[veiculoService] A procurar todas as viaturas para o catálogo público...");
-    const veiculosRef = collection(db, 'veiculos');
-    const snap = await getDocs(veiculosRef);
+    console.log("[veiculoService] A iniciar consulta de viaturas para o catálogo público...");
+    const q = query(collection(db, 'veiculos'), where('anuncioAtivo', '==', true));
+    const snap = await getDocs(q);
     
-    const listaViaturas = snap.docs.map(doc => {
-      const dados = doc.data();
+    return snap.docs.map(doc => {
+      const data = doc.data();
       return {
         id: doc.id,
-        marca: dados.marca || '---',
-        modelo: dados.modelo || '---',
-        matricula: dados.matricula || '---',
-        ano: dados.ano || '---',
-        combustivel: dados.combustivel || '---',
-        km: Number(dados.km || 0),
-        anuncioAtivo: dados.anuncioAtivo ?? false,
-        precoSemanal: Number(dados.precoSemanal || 0),
-        cidade: dados.cidade || 'Lisboa',
-        fotoUrl: dados.fotoUrl || "", 
-        
-        // ◄ ADICIONADO: Novos mapeamentos com fallback para garantir a UX do catálogo
-        transmissao: dados.transmissao || 'Automática',
-        autonomia: Number(dados.autonomia || 350),
-        lugares: Number(dados.lugares || 5),
-        categoria: dados.categoria || 'Standard',
-        estado: dados.estado || (dados.anuncioAtivo ? 'Disponível' : 'Alugado')
+        marca: data.marca || '',
+        modelo: data.modelo || '',
+        matricula: data.matricula || '',
+        ano: data.ano || '---',
+        dataPrimeiraMatricula: data.dataPrimeiraMatricula || '',
+        cidade: data.cidade || 'Lisboa',
+        combustivel: data.combustivel || 'Gasóleo',
+        categoria: data.categoria || 'Standard',
+        fotoUrl: data.fotoUrl || '',
+        precoSemanal: Number(data.precoSemanal || 0),
+        anuncioAtivo: data.anuncioAtivo ?? false,
+        estado: data.estado || 'Disponível',
+        // Propriedades técnicas para a ficha técnica do catálogo público
+        transmissao: data.transmissao || 'Automática',
+        autonomia: data.autonomia || 350,
+        lugares: data.lugares || 5,
+        ...data
       };
     });
-
-    console.log(`[veiculoService] Encontradas ${listaViaturas.length} viaturas para o catálogo.`);
-    return listaViaturas;
   } catch (error) {
-    console.error("[veiculoService] Erro ao obter viaturas para catálogo:", error);
-    throw error;
+    console.error("[veiculoService] Erro ao obter viaturas:", error);
+    return []; // Retorna array vazio em caso de erro, sem quebrar o componente público
   }
 };
 
 /**
- * Altera o estado de ativação do anúncio público de uma viatura.
- * Atualiza o campo 'anuncioAtivo' no Firestore e regista um log na auditoria global do ERP.
+ * Ativa ou pausa o anúncio de aluguer de uma viatura no catálogo.
+ * Regista o log correspondente no histórico confidencial do ERP.
+ * 
+ * @param {Firestore} db 
+ * @param {string} veiculoId 
+ * @param {boolean} novoEstado 
+ * @param {string} matricula 
+ * @param {string} alteradoPor 
+ * @returns {Promise<Object>}
  */
 export const alternarEstadoAnuncioViatura = async (db, veiculoId, novoEstado, matricula, alteradoPor) => {
   try {
