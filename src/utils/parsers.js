@@ -3,34 +3,48 @@
  * Localização: src/utils/parsers.js
  *
  * Utilitários de Extração de Dados e Geração SEPA.
- * [ATUALIZADO]: Integração nativa com a biblioteca 'xlsx' para suportar leitura
- * híbrida de ficheiros de texto simples (.csv) e folhas de cálculo binárias (.xlsx/.xls).
+ * [ATUALIZADO]: Suporte híbrido a CSV (texto) e XLSX (Excel) usando SheetJS de forma dinâmica e imune a índices fixos!
  */
 
 import * as XLSX from 'xlsx';
 
 /**
- * Função Auxiliar: Deteta o tipo de ficheiro em memória e normaliza-o para 
- * texto CSV estruturado caso seja uma folha de cálculo binária (Excel).
+ * Converte o input (string ou ArrayBuffer de CSV/Excel) para um array bidimensional de células.
  * 
- * @param {string|ArrayBuffer} input - Dados brutos do ficheiro carregado
- * @returns {string} Texto formatado em CSV
+ * @param {string|ArrayBuffer} input - Dados do ficheiro carregado
+ * @returns {Array<Array<any>>} Grelha de linhas e colunas
  */
-const normalizarInputTexto = (input) => {
-  if (!input) return '';
-  if (typeof input === 'string') return input;
-
+const converterParaLinhasJSON = (input) => {
+  if (!input) return [];
   try {
-    // Se for ArrayBuffer (lido do Excel), converte via SheetJS para CSV
-    const data = new Uint8Array(input);
-    const workbook = XLSX.read(data, { type: 'array' });
+    let workbook;
+    if (input instanceof ArrayBuffer || (typeof input === 'object' && input.byteLength !== undefined)) {
+      const data = new Uint8Array(input);
+      workbook = XLSX.read(data, { type: 'array' });
+    } else if (typeof input === 'string') {
+      workbook = XLSX.read(input, { type: 'string' });
+    } else {
+      return [];
+    }
+    
     const firstSheetName = workbook.SheetNames[0];
     const worksheet = workbook.Sheets[firstSheetName];
-    return XLSX.utils.sheet_to_csv(worksheet);
+    // Retorna array de arrays (grelha pura sem omissão de células vazias)
+    return XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: true });
   } catch (err) {
-    console.error("[parsers] Erro ao converter folha de cálculo XLSX/Excel com SheetJS:", err);
-    return '';
+    console.error("[parsers] Erro ao converter folha com SheetJS:", err);
+    return [];
   }
+};
+
+/**
+ * Extrai e normaliza números em formato de texto (com vírgulas ou espaços) de forma segura.
+ */
+const extrairNumeroSeguro = (val) => {
+  if (val === undefined || val === null || val === '') return 0;
+  if (typeof val === 'number') return val;
+  const num = parseFloat(String(val).replace(/\s/g, '').replace(',', '.'));
+  return isNaN(num) ? 0 : num;
 };
 
 // Função Pura de Higienização para conformidade bancária ISO 20022
@@ -44,43 +58,62 @@ const limparStringSEPA = (str) => {
     .replace(/[^a-zA-Z0-9 ]/g, ""); // Garante apenas alfanuméricos e espaços
 };
 
-export const parseUberCSV = (csvInput) => {
-  const csvText = normalizarInputTexto(csvInput);
-  if (!csvText) return {};
+export const parseUberCSV = (input) => {
+  const rows = converterParaLinhasJSON(input);
+  if (rows.length === 0) return {};
 
-  const lines = csvText.split('\n');
-  const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim());
+  const headers = rows[0].map(h => String(h || '').trim());
   const results = {};
-  for (let i = 1; i < lines.length; i++) {
-    const row = lines[i].split(',').map(c => c.replace(/"/g, '').trim());
-    if (row.length < headers.length) continue;
-    const motorista = row[headers.indexOf('Nome do motorista')] || row[1];
+
+  const colMotorista = headers.indexOf('Nome do motorista');
+  const colTarifa = headers.indexOf('Tarifa:Tarifa');
+  const colLiquido = headers.indexOf('Pago a si');
+  const colGorjetas = headers.indexOf('Os seus rendimentos:Gratificação');
+  const colPortagens = headers.indexOf('Saldo da viagem:Reembolsos:Portagem');
+
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    if (!row || row.length === 0) continue;
+
+    const motorista = row[colMotorista] || row[1];
     if (!motorista) continue;
-    if (!results[motorista]) results[motorista] = { bruto: 0, liquido: 0, gorjetas: 0, portagens: 0 };
-    results[motorista].bruto += parseFloat(row[headers.indexOf('Tarifa:Tarifa')] || 0);
-    results[motorista].liquido += parseFloat(row[headers.indexOf('Pago a si')] || 0);
-    results[motorista].gorjetas += parseFloat(row[headers.indexOf('Os seus rendimentos:Gratificação')] || 0);
-    results[motorista].portagens += parseFloat(row[headers.indexOf('Saldo da viagem:Reembolsos:Portagem')] || 0);
+
+    if (!results[motorista]) {
+      results[motorista] = { bruto: 0, liquido: 0, gorjetas: 0, portagens: 0 };
+    }
+
+    results[motorista].bruto += extrairNumeroSeguro(row[colTarifa]);
+    results[motorista].liquido += extrairNumeroSeguro(row[colLiquido]);
+    results[motorista].gorjetas += extrairNumeroSeguro(row[colGorjetas]);
+    results[motorista].portagens += extrairNumeroSeguro(row[colPortagens]);
   }
   return results;
 };
 
-export const parseBoltCSV = (csvInput) => {
-  const csvText = normalizarInputTexto(csvInput);
-  if (!csvText) return {};
+export const parseBoltCSV = (input) => {
+  const rows = converterParaLinhasJSON(input);
+  if (rows.length === 0) return {};
 
-  const lines = csvText.split('\n');
-  const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim());
+  const headers = rows[0].map(h => String(h || '').trim());
   const results = {};
-  for (let i = 1; i < lines.length; i++) {
-    const row = lines[i].split(',').map(c => c.replace(/"/g, '').trim());
-    if (row.length < headers.length) continue;
-    const motorista = row[headers.indexOf('Gross amount')] || row[0];
-    const motoristaNome = row[headers.indexOf('Driver name')] || row[0];
+
+  const colBruto = headers.indexOf('Gross amount');
+  const colLiquido = headers.indexOf('Net amount');
+  const colMotorista = headers.indexOf('Driver name');
+
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    if (!row || row.length === 0) continue;
+
+    const motoristaNome = row[colMotorista] || row[0];
     if (!motoristaNome) continue;
-    if (!results[motoristaNome]) results[motoristaNome] = { bruto: 0, liquido: 0 };
-    results[motoristaNome].bruto += parseFloat(row[headers.indexOf('Gross amount')] || 0);
-    results[motoristaNome].liquido += parseFloat(row[headers.indexOf('Net amount')] || 0);
+
+    if (!results[motoristaNome]) {
+      results[motoristaNome] = { bruto: 0, liquido: 0 };
+    }
+
+    results[motoristaNome].bruto += extrairNumeroSeguro(row[colBruto]);
+    results[motoristaNome].liquido += extrairNumeroSeguro(row[colLiquido]);
   }
   return results;
 };
@@ -88,34 +121,38 @@ export const parseBoltCSV = (csvInput) => {
 /**
  * Analisa e categoriza despesas da Via Verde por matrícula (Portagem, Parque e Mensalidade)
  * em conformidade com o layout desenhado no post-it do utilizador.
+ * [ATUALIZADO]: Mapeamento flexível por cabeçalhos (Nomes de Colunas) resolvendo erros de colunas deslocadas.
  * 
- * @param {string|ArrayBuffer} csvInput - Conteúdo bruto ou binário do ficheiro de extrato Via Verde
+ * @param {string|ArrayBuffer} input - Conteúdo bruto (CSV) ou binário (Excel) do extrato Via Verde
  * @returns {Object} Estrutura consolidada agrupada por matrícula
  */
-export const parseViaVerdeCSV = (csvInput) => {
-  const csvText = normalizarInputTexto(csvInput);
-  if (!csvText) return {};
+export const parseViaVerdeCSV = (input) => {
+  const rows = converterParaLinhasJSON(input);
+  if (rows.length === 0) return {};
 
-  const lines = csvText.split('\n');
+  const headers = rows[0].map(h => String(h || '').trim().toLowerCase());
+  
+  // Deteção dinâmica dos índices baseada nos cabeçalhos reais (conforme imagem do Excel)
+  const colMatricula = headers.findIndex(h => h.includes('matrícula') || h.includes('matricula'));
+  const colValor = headers.findIndex(h => h.includes('valor transação') || h.includes('valor transacao') || h.includes('valor') || h.includes('líquido') || h.includes('liquido'));
+  const colTipo = headers.findIndex(h => h.includes('tipo de ev') || h.includes('tipo') || h.includes('descrição') || h.includes('operador') || h.includes('barreira'));
+
   const results = {};
 
-  lines.forEach((line, index) => {
-    if (index === 0) return; // Salta a linha de cabeçalhos
-    const row = line.split(';');
-    if (row.length < 5) return;
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    if (!row || row.length === 0) continue;
 
-    // Normaliza a matrícula (maiúsculas e remove hifens de compatibilidade)
-    const matriculaOriginal = row[2]?.trim();
-    if (!matriculaOriginal) return;
+    const matriculaOriginal = String(row[colMatricula] || '').trim();
+    if (!matriculaOriginal || matriculaOriginal === '--') continue;
+
     const matriculaChave = matriculaOriginal.replace(/-/g, '').toUpperCase();
-
-    const valor = parseFloat(row[4]?.replace(',', '.'));
-    if (isNaN(valor)) return;
+    const valor = extrairNumeroSeguro(row[colValor]);
 
     // Inicialização da estrutura da matrícula se ainda não existir
     if (!results[matriculaChave]) {
       results[matriculaChave] = {
-        matriculaFormatada: matriculaOriginal, // Guarda a grafia original (ex: AA-00-AA)
+        matriculaFormatada: matriculaOriginal, // Guarda a grafia original (ex: BI-49-FP)
         portagens: 0,
         parques: 0,
         mensalidade: 0,
@@ -125,7 +162,7 @@ export const parseViaVerdeCSV = (csvInput) => {
     }
 
     // Varredura de classificação inteligente em toda a linha para robustez
-    const linhaTexto = row.join(' ').toLowerCase();
+    const linhaTexto = row.map(cell => String(cell || '').toLowerCase()).join(' ');
     let categoria = 'portagem';
 
     if (
@@ -155,7 +192,7 @@ export const parseViaVerdeCSV = (csvInput) => {
     } else {
       results[matriculaChave].portagens += valor;
     }
-  });
+  }
 
   // Arredonda todos os subtotais para 2 casas decimais no final
   Object.keys(results).forEach(mat => {
@@ -169,20 +206,22 @@ export const parseViaVerdeCSV = (csvInput) => {
   return results;
 };
 
-export const parseCartoesConsumoCSV = (csvInput) => {
-  const csvText = normalizarInputTexto(csvInput);
-  if (!csvText) return {};
+export const parseCartoesConsumoCSV = (input) => {
+  const rows = converterParaLinhasJSON(input);
+  if (rows.length === 0) return {};
 
-  const lines = csvText.split('\n');
-  const headers = lines[0].toLowerCase().split(/[;,]/);
+  const headers = rows[0].map(h => String(h || '').toLowerCase().trim());
   const results = {};
   const colCartao = headers.findIndex(h => h.includes('cart') || h.includes('ref') || h.includes('pan'));
   const colValor = headers.findIndex(h => h.includes('val') || h.includes('total') || h.includes('montante'));
-  for (let i = 1; i < lines.length; i++) {
-    const row = lines[i].split(/[;,]/);
-    if (row.length <= Math.max(colCartao, colValor)) continue;
-    const numCartao = row[colCartao]?.trim();
-    const valor = parseFloat(row[colValor]?.replace(',', '.').trim());
+
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    if (!row || row.length <= Math.max(colCartao, colValor)) continue;
+
+    const numCartao = String(row[colCartao] || '').trim();
+    const valor = extrairNumeroSeguro(row[colValor]);
+
     if (numCartao && !isNaN(valor)) {
       results[numCartao] = (results[numCartao] || 0) + valor;
     }

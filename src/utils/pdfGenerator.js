@@ -7,7 +7,7 @@
  *   - Extratos operacionais semanais de Motoristas, Veículos e Proprietários.
  *   - Relatório consolidado de auditoria e validação de despesas Via Verde.
  * 
- * CORRIGIDO: Tipo de erro "autoTable is not a function" resolvido com importação modular estrita de ESM.
+ * CORRIGIDO: autoTable compatível com ES Modules e desenho de sublinhas baseado no post-it.
  */
 
 import { jsPDF } from 'jspdf';
@@ -305,10 +305,10 @@ export const generateStatementPDF = (dados, empresa, entidadeInfo) => {
 };
 
 /**
- * [NOVO] Gera o Relatório Oficial de Validação de Custos da Via Verde
- * de acordo com o padrão estruturado de sublinhas do seu post-it.
+ * [REESCRITO]: Desenha a grelha de verificação da Via Verde em A4
+ * respeitando de forma exata a estrutura de sublinhas (rowSpan) do seu post-it.
  * 
- * @param {Object} viaVerdeProcessed - Objeto estruturado vindo do parser da Via Verde
+ * @param {Object} viaVerdeProcessed - Dados estruturados agrupados por matrícula
  * @param {Object} empresa - Configurações da Empresa Operadora
  * @returns {jsPDF}
  */
@@ -358,7 +358,7 @@ export const generateViaVerdeValidationPDF = (viaVerdeProcessed, empresa) => {
     doc.setLineWidth(0.4);
     doc.line(margin, 36, 195, 36);
 
-    // Configuração das colunas para o jsPDF AutoTable
+    // Configuração das colunas da tabela de validação
     const columns = [
       { header: 'Matrícula', dataKey: 'matricula' },
       { header: 'Lançamento / Tipo', dataKey: 'descricao' },
@@ -373,45 +373,48 @@ export const generateViaVerdeValidationPDF = (viaVerdeProcessed, empresa) => {
     chavesMatriculas.forEach((mat) => {
       const d = viaVerdeProcessed[mat];
       
-      // Mapeamento idêntico ao layout do post-it em sublinhas integradas
-      rows.push({
-        matricula: d.matriculaFormatada || mat,
-        descricao: 'Portagens / Autoestradas',
-        unitario: formatCurrency(d.portagens),
-        subtotal: formatCurrency(d.totalCirculacao),
-        mensalidade: d.mensalidade > 0 ? formatCurrency(d.mensalidade) : '---'
-      });
-      rows.push({
-        matricula: '', // Deixa vazio para emular o rowSpan visual
-        descricao: 'Parques / Estacionamento',
-        unitario: formatCurrency(d.parques),
-        subtotal: '',
-        mensalidade: ''
-      });
-      rows.push({
-        matricula: '',
-        descricao: 'Identificador / Aluguer Semanal',
-        unitario: formatCurrency(d.mensalidade),
-        subtotal: '---',
-        mensalidade: ''
-      });
+      // Mapeamento modular de 3 sublinhas com rowSpan idêntico ao papel post-it!
+      rows.push([
+        { content: d.matriculaFormatada || mat, rowSpan: 3, styles: { valign: 'middle', fontStyle: 'bold', halign: 'center' } },
+        'Portagens / Autoestradas',
+        formatCurrency(d.portagens),
+        { content: formatCurrency(d.totalCirculacao), rowSpan: 2, styles: { valign: 'middle', fontStyle: 'bold', halign: 'right' } },
+        { content: d.mensalidade > 0 ? formatCurrency(d.mensalidade) : '---', rowSpan: 3, styles: { valign: 'middle', fontStyle: 'bold', halign: 'right', textColor: '#9333ea' } }
+      ]);
+
+      rows.push([
+        // Matrícula rowspanned
+        'Parques / Estacionamento',
+        formatCurrency(d.parques)
+        // Subtotal rowspanned
+        // Mensalidade rowspanned
+      ]);
+
+      rows.push([
+        // Matrícula rowspanned
+        'Mensalidade Dispositivo / Aluguer',
+        formatCurrency(d.mensalidade),
+        '---' // Coluna Subtotal na 3.ª linha
+        // Mensalidade rowspanned
+      ]);
     });
 
-    // Cálculos de Totais Gerais Consolidados
+    // Cálculos de Totais Gerais Consolidados para auditoria rápida
     const totalPortagens = Object.values(viaVerdeProcessed).reduce((acc, curr) => acc + curr.portagens, 0);
     const totalParques = Object.values(viaVerdeProcessed).reduce((acc, curr) => acc + curr.parques, 0);
     const totalCirculacao = Object.values(viaVerdeProcessed).reduce((acc, curr) => acc + curr.totalCirculacao, 0);
     const totalMensalidade = Object.values(viaVerdeProcessed).reduce((acc, curr) => acc + curr.mensalidade, 0);
 
-    rows.push({
-      matricula: 'TOTAIS CONSOLIDADOS',
-      descricao: `Portagens: ${formatCurrency(totalPortagens)} | Parques: ${formatCurrency(totalParques)}`,
-      unitario: '---',
-      subtotal: formatCurrency(totalCirculacao),
-      mensalidade: formatCurrency(totalMensalidade)
-    });
+    // Linha final consolidada
+    rows.push([
+      'TOTAIS CONSOLIDADOS',
+      `Portagens: ${formatCurrency(totalPortagens)} | Parques: ${formatCurrency(totalParques)}`,
+      '---',
+      formatCurrency(totalCirculacao),
+      formatCurrency(totalMensalidade)
+    ]);
 
-    // [MODIFICADO]: Sintaxe adaptativa com importação estrita ES module 'autoTable(doc, { ... })'
+    // Executa a injeção modular via ESM (importação estrita)
     autoTable(doc, {
       columns,
       body: rows,
@@ -438,11 +441,15 @@ export const generateViaVerdeValidationPDF = (viaVerdeProcessed, empresa) => {
         mensalidade: { fontStyle: 'bold', halign: 'right' }
       },
       didParseCell: function (data) {
-        // Estilização customizada da linha final de Totais Consolidados
+        // Estilização customizada da linha final de Totais Consolidados (Rodapé cinzento)
         if (data.row.index === rows.length - 1) {
           data.cell.styles.fontStyle = 'bold';
-          data.cell.styles.fillColor = '#cbd5e1'; // Cor de destaque do rodapé da tabela
+          data.cell.styles.fillColor = '#cbd5e1'; // Cor de destaque
           data.cell.styles.textColor = '#0f172a';
+          // Para as células normais da última linha, desativa rowSpan para compatibilidade
+          if (data.column.index === 0) {
+            data.cell.colSpan = 1;
+          }
         }
       }
     });
