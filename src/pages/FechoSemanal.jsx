@@ -4,7 +4,7 @@
  *
  * Processador de fecho financeiro semanal (Upload de CSVs e Geração de SEPA/PDF).
  * Atualizado com suporte responsivo e integração das despesas fixas (Abastecimento e Portagens) [2].
- * [NOVO]: Painel de Auditoria e Validação Via Verde agrupado por matrícula (Toll + Parque e Mensalidade separada).
+ * [NOVO]: Auditoria instantânea de Via Verde (PDF) logo no Passo 1, antes de rodar o fecho completo!
  */
 
 import React, { useState, useEffect } from 'react';
@@ -24,7 +24,7 @@ import {
   parseUberCSV, parseBoltCSV, parseViaVerdeCSV, 
   parseCartoesConsumoCSV, generateSEPAXML 
 } from '../utils/parsers';
-import { generateDriverPDF, generateViaVerdeValidationPDF } from '../utils/pdfGenerator'; // [NOVO] Import do gerador de validação
+import { generateDriverPDF, generateViaVerdeValidationPDF } from '../utils/pdfGenerator';
 import Button from '../components/ui/Button';
 
 export default function FechoSemanal() {
@@ -39,7 +39,7 @@ export default function FechoSemanal() {
   
   // Dados Processados
   const [dadosProcessados, setDadosProcessados] = useState([]);
-  const [viaVerdeProcessed, setViaVerdeProcessed] = useState({}); // [NOVO] Estado para renderizar a auditoria da Via Verde
+  const [viaVerdeProcessed, setViaVerdeProcessed] = useState({}); // Estado para auditoria em lote
   
   // Ficheiros
   const [files, setFiles] = useState({ 
@@ -98,6 +98,22 @@ export default function FechoSemanal() {
     }
   };
 
+  /**
+   * [NOVO] Executa o processamento e a exportação direta do PDF de auditoria Via Verde
+   * no Passo 1, sem tocar no Firestore ou avançar o fluxo semanal.
+   */
+  const exportarApenasViaVerde = () => {
+    if (!files.viaverde) return;
+    try {
+      const viaVerdeData = parseViaVerdeCSV(files.viaverde);
+      const docPdf = generateViaVerdeValidationPDF(viaVerdeData, empresaConfig);
+      docPdf.save(`Validacao_ViaVerde_Avulsa_${new Date().toISOString().split('T')[0]}.pdf`);
+    } catch (error) {
+      console.error("Erro ao gerar PDF de auditoria avulsa:", error);
+      alert("Não foi possível processar o PDF da Via Verde. Verifique se o ficheiro importado está correto.");
+    }
+  };
+
   const processarSemana = async () => {
     setLoading(true);
     try {
@@ -107,7 +123,7 @@ export default function FechoSemanal() {
       const combustivelData = files.combustivel ? parseCartoesConsumoCSV(files.combustivel) : {};
       const eletricoData = files.eletrico ? parseCartoesConsumoCSV(files.eletrico) : {};
 
-      // Guarda os dados processados da Via Verde para o painel de auditoria
+      // Guarda os dados processados da Via Verde para o painel de auditoria do Passo 2
       setViaVerdeProcessed(viaVerdeData);
 
       // Busca movimentos financeiros pendentes no Firestore [2]
@@ -120,7 +136,7 @@ export default function FechoSemanal() {
         const b = boltData[m.nome] || { bruto: 0, liquido: 0 };
         const veiculo = veiculosDB.find(v => v.motoristaId === m.id);
         
-        // [MODIFICADO]: Processamento adaptado para ler do novo parser estruturado (Portagens = totalCirculacao) [2]
+        // Processamento adaptado para ler do novo parser estruturado (Portagens = totalCirculacao) [2]
         const matriculaLimpa = veiculo ? veiculo.matricula.replace(/-/g, '').toUpperCase() : '';
         const vvEstruturado = viaVerdeData[matriculaLimpa] || null;
         const vvCustoFisico = vvEstruturado ? (vvEstruturado.totalCirculacao || 0) : 0;
@@ -234,7 +250,7 @@ export default function FechoSemanal() {
     a.click();
   };
 
-  // [NOVO] Handler de descarregamento do PDF consolidado da auditoria da Via Verde
+  // Handler de descarregamento do PDF consolidado da auditoria da Via Verde
   const handleDownloadViaVerdePDF = () => {
     const docPdf = generateViaVerdeValidationPDF(viaVerdeProcessed, empresaConfig);
     docPdf.save(`Validacao_ViaVerde_${new Date().toISOString().split('T')[0]}.pdf`);
@@ -256,7 +272,20 @@ export default function FechoSemanal() {
           <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
             <UploadBox title="UBER" icon={UploadCloud} color="blue" onChange={(e) => handleFileChange(e, 'uber')} ready={!!files.uber} />
             <UploadBox title="BOLT" icon={UploadCloud} color="green" onChange={(e) => handleFileChange(e, 'bolt')} ready={!!files.bolt} />
-            <UploadBox title="VIA VERDE" icon={FileSpreadsheet} color="purple" onChange={(e) => handleFileChange(e, 'viaverde')} ready={!!files.viaverde} />
+            
+            {/* [ATUALIZADO]: Upload da Via Verde agora renderiza o botão "Validar PDF" avulso em tempo real */}
+            <UploadBox title="VIA VERDE" icon={FileSpreadsheet} color="purple" onChange={(e) => handleFileChange(e, 'viaverde')} ready={!!files.viaverde}>
+              {files.viaverde && (
+                <Button 
+                  type="button"
+                  onClick={exportarApenasViaVerde}
+                  className="bg-purple-600 hover:bg-purple-700 text-[10px] font-black h-8 uppercase justify-center shadow-sm select-none animate-in fade-in duration-200 mt-2"
+                >
+                  <Download size={11} /> Validar PDF
+                </Button>
+              )}
+            </UploadBox>
+
             <UploadBox title="PRIO/GALP" icon={Fuel} color="orange" onChange={(e) => handleFileChange(e, 'combustivel')} ready={!!files.combustivel} />
             <UploadBox title="MIIO/ZAP" icon={Zap} color="yellow" onChange={(e) => handleFileChange(e, 'eletrico')} ready={!!files.eletrico} />
           </div>
@@ -316,7 +345,7 @@ export default function FechoSemanal() {
             </table>
           </div>
 
-          {/* [NOVO] PAINEL DE AUDITORIA DE VIA VERDE (CONFORME CUSTO POST-IT) */}
+          {/* PAINEL DE AUDITORIA DE VIA VERDE */}
           {chavesViaVerde.length > 0 && (
             <div className="bg-white p-6 sm:p-8 rounded-[2rem] sm:rounded-[2.5rem] border border-slate-200 shadow-sm text-left space-y-6">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-100 pb-4">
@@ -336,13 +365,13 @@ export default function FechoSemanal() {
 
               <div className="overflow-x-auto w-full custom-scrollbar">
                 <table className="w-full text-left border-collapse text-xs min-w-[650px]">
-                  <thead className="bg-slate-50 border-b border-slate-100 font-black text-slate-400 uppercase tracking-widest text-[9px]">
+                  <thead className="bg-slate-50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
                     <tr>
-                      <th className="p-4">Matrícula</th>
-                      <th className="p-4">Descrição de Lançamento</th>
-                      <th className="p-4 text-right">Valor Unitário</th>
-                      <th className="p-4 text-right">Subtotal Circulação</th>
-                      <th className="p-4 text-right">Mensalidade Identificador</th>
+                      <th className="p-5">Matrícula</th>
+                      <th className="p-5">Lançamento / Tipo</th>
+                      <th className="p-5 text-right">Valor Unitário</th>
+                      <th className="p-5 text-right">Subtotal Circulação</th>
+                      <th className="p-5 text-right">Mensalidade</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
@@ -435,8 +464,8 @@ export default function FechoSemanal() {
   );
 }
 
-// UploadBox reestruturado com suporte de clique e mapa de cores correto
-const UploadBox = ({ title, icon: Icon, color, onChange, ready }) => {
+// UploadBox reestruturado com suporte de elementos filhos e mapa de cores correto
+const UploadBox = ({ title, icon: Icon, color, onChange, ready, children }) => {
   const colorMap = {
     blue:   'bg-blue-50 text-blue-500 hover:border-blue-400',
     green:  'bg-green-50 text-green-500 hover:border-green-400',
@@ -448,28 +477,31 @@ const UploadBox = ({ title, icon: Icon, color, onChange, ready }) => {
   const idInput = `file-upload-${title.toLowerCase().replace(/\s/g, '-')}`;
 
   return (
-    <label 
-      htmlFor={idInput}
-      className={`bg-white p-5 rounded-[2rem] border-2 border-dashed transition-all flex flex-col items-center text-center group cursor-pointer ${
-        ready ? 'border-green-500 bg-green-50/30' : 'border-slate-200 hover:border-slate-400'
-      }`}
-    >
-      <input 
-        id={idInput}
-        type="file" 
-        accept=".csv, .xls, .xlsx" 
-        onChange={onChange} 
-        className="hidden" 
-      />
-      <div className={`w-11 h-11 rounded-xl flex items-center justify-center mb-3 ${
-        ready ? 'bg-green-500 text-white' : colorMap[color] || 'bg-slate-50 text-slate-500'
-      }`}>
-        {ready ? <CheckCircle2 size={20} /> : <Icon size={20} />}
-      </div>
-      <h4 className="text-xs font-bold text-slate-700">{title}</h4>
-      <p className="text-[10px] text-slate-400 mt-1 leading-snug">
-        {ready ? 'Ficheiro pronto' : 'Formatos: CSV, XLS, XLSX'}
-      </p>
-    </label>
+    <div className="flex flex-col gap-2 h-full">
+      <label 
+        htmlFor={idInput}
+        className={`bg-white p-5 rounded-[2rem] border-2 border-dashed transition-all flex flex-col items-center text-center group cursor-pointer flex-1 justify-center ${
+          ready ? 'border-green-500 bg-green-50/30' : 'border-slate-200 hover:border-slate-400'
+        }`}
+      >
+        <input 
+          id={idInput}
+          type="file" 
+          accept=".csv, .xls, .xlsx" 
+          onChange={onChange} 
+          className="hidden" 
+        />
+        <div className={`w-11 h-11 rounded-xl flex items-center justify-center mb-3 ${
+          ready ? 'bg-green-500 text-white' : colorMap[color] || 'bg-slate-50 text-slate-500'
+        }`}>
+          {ready ? <CheckCircle2 size={20} /> : <Icon size={20} />}
+        </div>
+        <h4 className="text-xs font-bold text-slate-700">{title}</h4>
+        <p className="text-[10px] text-slate-400 mt-1 leading-snug">
+          {ready ? 'Ficheiro pronto' : 'Formatos: CSV, XLS, XLSX'}
+        </p>
+      </label>
+      {children}
+    </div>
   );
 };
