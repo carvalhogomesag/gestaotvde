@@ -7,7 +7,8 @@
  *   - Extratos operacionais semanais de Motoristas, Veículos e Proprietários.
  *   - Relatório consolidado de auditoria e validação de despesas Via Verde.
  * 
- * CORRIGIDO: autoTable compatível com ES Modules e desenho de sublinhas baseado no post-it.
+ * CORRIGIDO: autoTable compatível com ES Modules, desenho de sublinhas baseado no post-it 
+ * e adição de coluna de Total Geral com soma consolidada no rodapé da tabela.
  */
 
 import { jsPDF } from 'jspdf';
@@ -305,10 +306,11 @@ export const generateStatementPDF = (dados, empresa, entidadeInfo) => {
 };
 
 /**
- * [REESCRITO]: Desenha a grelha de verificação da Via Verde em A4
- * respeitando de forma exata a estrutura de sublinhas (rowSpan) do seu post-it.
+ * Gera o Relatório Oficial de Validação de Custos da Via Verde
+ * de acordo com o padrão estruturado de sublinhas do seu post-it.
+ * [ATUALIZADO]: Adicionada a coluna "Total Geral" (Circulação + Mensalidade) por veículo e rodapé com total consolidado geral.
  * 
- * @param {Object} viaVerdeProcessed - Dados estruturados agrupados por matrícula
+ * @param {Object} viaVerdeProcessed - Objeto estruturado vindo do parser da Via Verde
  * @param {Object} empresa - Configurações da Empresa Operadora
  * @returns {jsPDF}
  */
@@ -358,13 +360,14 @@ export const generateViaVerdeValidationPDF = (viaVerdeProcessed, empresa) => {
     doc.setLineWidth(0.4);
     doc.line(margin, 36, 195, 36);
 
-    // Configuração das colunas da tabela de validação
+    // Configuração das colunas da tabela de validação incluindo o Total Geral
     const columns = [
       { header: 'Matrícula', dataKey: 'matricula' },
       { header: 'Lançamento / Tipo', dataKey: 'descricao' },
       { header: 'Valor Unitário', dataKey: 'unitario' },
       { header: 'Subtotal Circulação', dataKey: 'subtotal' },
-      { header: 'Mensalidade', dataKey: 'mensalidade' }
+      { header: 'Mensalidade', dataKey: 'mensalidade' },
+      { header: 'Total Geral', dataKey: 'totalGeral' } // [ADICIONADO] Coluna final de Total por Viatura
     ];
 
     const rows = [];
@@ -373,13 +376,14 @@ export const generateViaVerdeValidationPDF = (viaVerdeProcessed, empresa) => {
     chavesMatriculas.forEach((mat) => {
       const d = viaVerdeProcessed[mat];
       
-      // Mapeamento modular de 3 sublinhas com rowSpan idêntico ao papel post-it!
+      // Mapeamento modular de 3 sublinhas com rowSpan idêntico ao papel post-it e Total Geral no extremo direito!
       rows.push([
         { content: d.matriculaFormatada || mat, rowSpan: 3, styles: { valign: 'middle', fontStyle: 'bold', halign: 'center' } },
         'Portagens / Autoestradas',
         formatCurrency(d.portagens),
         { content: formatCurrency(d.totalCirculacao), rowSpan: 2, styles: { valign: 'middle', fontStyle: 'bold', halign: 'right' } },
-        { content: d.mensalidade > 0 ? formatCurrency(d.mensalidade) : '---', rowSpan: 3, styles: { valign: 'middle', fontStyle: 'bold', halign: 'right', textColor: '#9333ea' } }
+        { content: d.mensalidade > 0 ? formatCurrency(d.mensalidade) : '---', rowSpan: 3, styles: { valign: 'middle', fontStyle: 'bold', halign: 'right', textColor: '#9333ea' } },
+        { content: formatCurrency(d.totalGeral), rowSpan: 3, styles: { valign: 'middle', fontStyle: 'bold', halign: 'right', fillColor: '#f8fafc' } } // [NOVO] Rowspan horizontal
       ]);
 
       rows.push([
@@ -388,6 +392,7 @@ export const generateViaVerdeValidationPDF = (viaVerdeProcessed, empresa) => {
         formatCurrency(d.parques)
         // Subtotal rowspanned
         // Mensalidade rowspanned
+        // Total Geral rowspanned
       ]);
 
       rows.push([
@@ -396,14 +401,16 @@ export const generateViaVerdeValidationPDF = (viaVerdeProcessed, empresa) => {
         formatCurrency(d.mensalidade),
         '---' // Coluna Subtotal na 3.ª linha
         // Mensalidade rowspanned
+        // Total Geral rowspanned
       ]);
     });
 
-    // Cálculos de Totais Gerais Consolidados para auditoria rápida
+    // Cálculos de Totais Consolidados Completos (incluindo o Total Geral Global)
     const totalPortagens = Object.values(viaVerdeProcessed).reduce((acc, curr) => acc + curr.portagens, 0);
     const totalParques = Object.values(viaVerdeProcessed).reduce((acc, curr) => acc + curr.parques, 0);
     const totalCirculacao = Object.values(viaVerdeProcessed).reduce((acc, curr) => acc + curr.totalCirculacao, 0);
     const totalMensalidade = Object.values(viaVerdeProcessed).reduce((acc, curr) => acc + curr.mensalidade, 0);
+    const totalGeralGlobal = Object.values(viaVerdeProcessed).reduce((acc, curr) => acc + curr.totalGeral, 0); // [NOVO] Soma acumulada global
 
     // Linha final consolidada
     rows.push([
@@ -411,7 +418,8 @@ export const generateViaVerdeValidationPDF = (viaVerdeProcessed, empresa) => {
       `Portagens: ${formatCurrency(totalPortagens)} | Parques: ${formatCurrency(totalParques)}`,
       '---',
       formatCurrency(totalCirculacao),
-      formatCurrency(totalMensalidade)
+      formatCurrency(totalMensalidade),
+      formatCurrency(totalGeralGlobal) // [ADICIONADO] Exibe o Total Acumulado Geral (Circulação + Mensalidades)
     ]);
 
     // Executa a injeção modular via ESM (importação estrita)
@@ -438,13 +446,14 @@ export const generateViaVerdeValidationPDF = (viaVerdeProcessed, empresa) => {
         descricao: { halign: 'left' },
         unitario: { halign: 'right' },
         subtotal: { fontStyle: 'bold', halign: 'right' },
-        mensalidade: { fontStyle: 'bold', halign: 'right' }
+        mensalidade: { fontStyle: 'bold', halign: 'right' },
+        totalGeral: { fontStyle: 'bold', halign: 'right' } // Alinhamento da nova coluna
       },
       didParseCell: function (data) {
         // Estilização customizada da linha final de Totais Consolidados (Rodapé cinzento)
         if (data.row.index === rows.length - 1) {
           data.cell.styles.fontStyle = 'bold';
-          data.cell.styles.fillColor = '#cbd5e1'; // Cor de destaque
+          data.cell.styles.fillColor = '#cbd5e1'; // Cor de destaque do rodapé da tabela
           data.cell.styles.textColor = '#0f172a';
           // Para as células normais da última linha, desativa rowSpan para compatibilidade
           if (data.column.index === 0) {
@@ -502,5 +511,5 @@ export const generateDriverPDF = (dados, empresa) => {
     }
   };
 
-  return generateStatementPDF(modelacaoDados, empresa, entidadeInfo);
+  return generateStatementPDF(modelacaoDados, empresa, entidadInforef || entidadeInfo);
 };
