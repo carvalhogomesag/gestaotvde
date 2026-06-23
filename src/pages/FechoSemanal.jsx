@@ -3,10 +3,10 @@
  * Localização: src/pages/FechoSemanal.jsx
  *
  * Processador de fecho financeiro semanal (Upload de CSVs e Geração de SEPA/PDF).
- * [ATUALIZADO]: Passagem de coleções do Firestore para o gerador de PDF permitindo rastreabilidade temporal de motoristas por transponder.
+ * [ATUALIZADO]: Grelha visual do Passo 2 e PDFs de Auditoria sincronizados por Identificador + Motorista com ordenação crescente.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   UploadCloud, FileSpreadsheet, Calculator, 
   CheckCircle2, Download, ArrowRight, Loader2, Banknote, Fuel, Zap, FileText,
@@ -121,7 +121,7 @@ export default function FechoSemanal() {
     try {
       const viaVerdeData = parseViaVerdeCSV(files.viaverde);
       
-      // [ATUALIZADO] Passamos as coleções do Firestore para auditoria cronológica em lote antes de gerar o PDF
+      // Passamos as coleções do Firestore para auditoria cronológica em lote antes de gerar o PDF
       const docPdf = generateViaVerdeValidationPDF(viaVerdeData, empresaConfig, viaVerdeDB, veiculosDB);
       
       docPdf.save(`Validacao_ViaVerde_Avulsa_${new Date().toISOString().split('T')[0]}.pdf`);
@@ -305,6 +305,7 @@ export default function FechoSemanal() {
       for (const item of dadosProcessados) {
         const fechoRef = doc(collection(db, "fechos_semanais"));
         
+        // Persiste o documento consolidado da semana do motorista
         batch.set(fechoRef, {
           ...item,
           dataFecho: new Date().toISOString(),
@@ -312,6 +313,7 @@ export default function FechoSemanal() {
           pago: false
         });
 
+        // Atualiza movimentos manuais/IA pendentes pré-existentes como fechados
         item.movimentosIds.forEach(movId => {
           const movRef = doc(db, "movimentos_financeiros", movId);
           batch.update(movRef, { pagoNoFechoId: fechoRef.id });
@@ -369,12 +371,97 @@ export default function FechoSemanal() {
   };
 
   const handleDownloadViaVerdePDF = () => {
-    // [ATUALIZADO] Passamos o histórico Firestore para a geração finalizada de auditoria
+    // Passamos o histórico Firestore para a geração finalizada de auditoria
     const docPdf = generateViaVerdeValidationPDF(viaVerdeProcessed, empresaConfig, viaVerdeDB, veiculosDB);
     docPdf.save(`Validacao_ViaVerde_${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
   const chavesViaVerde = Object.keys(viaVerdeProcessed);
+
+  // [NOVO] MEMOIZAÇÃO DE AGRUPAMENTO POR IDENTIFICADOR + MOTORISTA PARA A TABELA DO ECRÃ (PASSO 2)
+  const viaVerdeAgrupadaPorMotorista = useMemo(() => {
+    const transacoes = viaVerdeProcessed.transacoesDetalhadas || [];
+    const agrupado = {};
+
+    transacoes.forEach(t => {
+      let motoristaId = null;
+      let motoristaNome = "Não Atribuído";
+
+      // 1. Procurar transponder no stock de base de dados do ERP
+      const dispositivo = viaVerdeDB.find(vv => 
+        vv.numeroAparelho === t.identificador || 
+        vv.id === t.identificador
+      );
+
+      if (dispositivo && dispositivo.historico) {
+        const txTime = new Date(t.dataHora).getTime();
+        
+        const atribuicao = dispositivo.historico.find(h => {
+          if (h.tipo !== 'atribuicao') return false;
+          const start = new Date(h.dataInicio).getTime();
+          const end = h.dataFim ? new Date(h.dataFim).getTime() : null;
+          return txTime >= start && (end === null || txTime <= end);
+        });
+
+        if (atribuicao) {
+          motoristaId = atribuicao.motoristaId;
+          motoristaNome = atribuicao.nomeMotorista;
+        }
+      }
+
+      // 2. Fallback por matrícula
+      if (!motoristaId) {
+        const veiculo = veiculosDB.find(v => v.matricula.replace(/-/g, '').toUpperCase() === t.matricula);
+        if (veiculo) {
+          motoristaId = veiculo.motoristaId;
+          motoristaNome = veiculo.motoristaNome || "Sem Condutor";
+        }
+      }
+
+      const chaveUnica = `${t.identificador}___${motoristaNome}`;
+
+      if (!agrupado[chaveUnica]) {
+        agrupado[chaveUnica] = {
+          identificador: t.identificador,
+          motoristaNome: motoristaNome,
+          matriculaOriginal: t.matriculaOriginal,
+          portagens: 0,
+          parques: 0,
+          mensalidade: 0,
+          totalGeral: 0
+        };
+      }
+
+      if (t.tipo === 'mensalidade') {
+        agrupado[chaveUnica].mensalidade += t.valor;
+      } else if (t.tipo === 'parque') {
+        agrupado[chaveUnica].parques += t.valor;
+      } else {
+        agrupado[chaveUnica].portagens += t.valor;
+      }
+    });
+
+    // Calcula arredondamentos e totais por bloco Identificador/Motorista
+    Object.keys(agrupado).forEach(k => {
+      const item = agrupado[k];
+      item.portagens = Number(item.portagens.toFixed(2));
+      item.parques = Number(item.parques.toFixed(2));
+      item.mensalidade = Number(item.mensalidade.toFixed(2));
+      item.totalCirculacao = Number((item.portagens + item.parques).toFixed(2));
+      item.totalGeral = Number((item.totalCirculacao + item.mensalidade).toFixed(2));
+    });
+
+    const chaves = Object.keys(agrupado);
+
+    // Ordenação estritamente crescente do Identificador
+    chaves.sort((a, b) => {
+      const idA = agrupado[a].identificador;
+      const idB = agrupado[b].identificador;
+      return idA.localeCompare(idB, undefined, { numeric: true, sensitivity: 'base' });
+    });
+
+    return { chaves, dados: agrupado };
+  }, [viaVerdeProcessed, viaVerdeDB, veiculosDB]);
 
   return (
     <div className="space-y-6 sm:space-y-8 pb-20 text-left">
@@ -469,15 +556,15 @@ export default function FechoSemanal() {
             </table>
           </div>
 
-          {/* PAINEL DE AUDITORIA DE VIA VERDE */}
-          {chavesViaVerde.length > 0 && (
+          {/* PAINEL DE AUDITORIA DE VIA VERDE (ATUALIZADO PARA EXIBIR IDENTIFICADOR + MOTORISTA NO ECRÃ COM ROWSPAN) */}
+          {viaVerdeAgrupadaPorMotorista.chaves.length > 0 && (
             <div className="bg-white p-6 sm:p-8 rounded-[2rem] sm:rounded-[2.5rem] border border-slate-200 shadow-sm text-left space-y-6">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-100 pb-4">
                 <div>
                   <h3 className="text-base font-black text-slate-800 flex items-center gap-2">
                     <FileSpreadsheet className="text-purple-600" size={18} /> Auditoria Detalhada Via Verde
                   </h3>
-                  <p className="text-xs text-slate-400">Verificação estruturada de passagens, portagens e mensalidades por matrícula.</p>
+                  <p className="text-xs text-slate-400">Verificação de despesas segmentada de forma crescente por Transponder e Motoristas.</p>
                 </div>
                 <Button 
                   onClick={handleDownloadViaVerdePDF}
@@ -488,9 +575,11 @@ export default function FechoSemanal() {
               </div>
 
               <div className="overflow-x-auto w-full custom-scrollbar">
-                <table className="w-full text-left border-collapse text-xs min-w-[650px]">
+                <table className="w-full text-left border-collapse text-xs min-w-[750px]">
                   <thead className="bg-slate-50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
                     <tr>
+                      <th className="p-5">Identificador</th>
+                      <th className="p-5">Motorista</th>
                       <th className="p-5">Matrícula</th>
                       <th className="p-5">Lançamento / Tipo</th>
                       <th className="p-5 text-right">Valor Unitário</th>
@@ -499,15 +588,21 @@ export default function FechoSemanal() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {chavesViaVerde.map((mat) => {
-                      const dados = viaVerdeProcessed[mat];
+                    {viaVerdeAgrupadaPorMotorista.chaves.map((chave) => {
+                      const dados = viaVerdeAgrupadaPorMotorista.dados[chave];
                       return (
-                        <React.Fragment key={mat}>
+                        <React.Fragment key={chave}>
                           {/* Sub-Linha 1: Portagem */}
                           <tr className="hover:bg-slate-50/50 font-medium">
                             <td className="p-4 font-black text-slate-800" rowSpan={3}>
+                              <span className="font-mono text-xs">{dados.identificador}</span>
+                            </td>
+                            <td className="p-4 font-bold text-blue-600" rowSpan={3}>
+                              {dados.motoristaNome}
+                            </td>
+                            <td className="p-4 font-bold text-slate-600" rowSpan={3}>
                               <span className="bg-slate-800 text-white text-[10px] font-mono font-black px-2 py-1 rounded shadow-sm">
-                                {dados.matriculaFormatada || mat}
+                                {dados.matriculaOriginal}
                               </span>
                             </td>
                             <td className="p-4 pl-6 text-slate-500">Portagens / Concessionárias</td>

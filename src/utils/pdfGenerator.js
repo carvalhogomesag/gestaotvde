@@ -5,7 +5,9 @@
  * Gerador de PDF profissional em tamanho A4 utilizando jsPDF e jsPDF-AutoTable.
  * Suporta:
  *   - Extratos operacionais semanais de Motoristas, Veículos e Proprietários (inclui Via Verde Ativa e Retroativa).
- *   - Relatório consolidado de auditoria e validação de despesas Via Verde segmentado por Transponder (Aparelho) e Motorista!
+ *   - Relatório consolidado de auditoria e validação de despesas Via Verde segmentado por Transponder e Motorista.
+ * 
+ * [ATUALIZADO]: Adicionada ordenação natural estritamente crescente por número do Identificador (Aparelho).
  */
 
 import { jsPDF } from 'jspdf';
@@ -302,13 +304,8 @@ export const generateStatementPDF = (dados, empresa, entidadeInfo) => {
 
 /**
  * Relatório de Validação e Conciliação Via Verde.
- * [ATUALIZADO]: Grupo de rowSpan fatiado de forma inteligente por IDENTIFICADOR + MOTORISTA!
- * 
- * @param {Object} viaVerdeProcessed - Objeto estruturado do parser
- * @param {Object} empresa - Configurações da Empresa Operadora
- * @param {Array} viaVerdeDB - Lista de aparelhos do Firestore (com timelines)
- * @param {Array} veiculosDB - Lista de veículos do Firestore
- * @returns {jsPDF}
+ * [ATUALIZADO]: Grupo de rowSpan fatiado por IDENTIFICADOR + MOTORISTA!
+ * [ATUALIZADO]: Ordenação natural estritamente crescente do número do Identificador.
  */
 export const generateViaVerdeValidationPDF = (viaVerdeProcessed, empresa, viaVerdeDB = [], veiculosDB = []) => {
   try {
@@ -356,10 +353,9 @@ export const generateViaVerdeValidationPDF = (viaVerdeProcessed, empresa, viaVer
     doc.setLineWidth(0.4);
     doc.line(margin, 36, 195, 36);
 
-    // [ATUALIZADO] Nova tabela de 8 colunas contendo a coluna "Motorista"
     const columns = [
       { header: 'Identificador', dataKey: 'identificador' },
-      { header: 'Motorista', dataKey: 'motorista' }, // [NOVO] Coluna para o Motorista Responsável
+      { header: 'Motorista', dataKey: 'motorista' }, 
       { header: 'Matrícula', dataKey: 'matricula' },
       { header: 'Lançamento / Tipo', dataKey: 'descricao' },
       { header: 'Valor Unitário', dataKey: 'unitario' },
@@ -370,7 +366,7 @@ export const generateViaVerdeValidationPDF = (viaVerdeProcessed, empresa, viaVer
 
     const rows = [];
     
-    // [ATUALIZADO] LÓGICA DE DETEÇÃO CRONOLÓGICA DE CONDUTORES PARA A PRÉ-VISUALIZAÇÃO / PDF AVULSO
+    // DETEÇÃO CRONOLÓGICA DE CONDUTORES PARA A PRÉ-VISUALIZAÇÃO / PDF AVULSO
     const transacoes = viaVerdeProcessed.transacoesDetalhadas || [];
     const agrupadoParaPDF = {};
 
@@ -387,7 +383,6 @@ export const generateViaVerdeValidationPDF = (viaVerdeProcessed, empresa, viaVer
       if (dispositivo && dispositivo.historico) {
         const txTime = new Date(t.dataHora).getTime();
         
-        // Localiza quem detinha a posse do aparelho no dia e hora do débito
         const atribuicao = dispositivo.historico.find(h => {
           if (h.tipo !== 'atribuicao') return false;
           const start = new Date(h.dataInicio).getTime();
@@ -401,7 +396,7 @@ export const generateViaVerdeValidationPDF = (viaVerdeProcessed, empresa, viaVer
         }
       }
 
-      // 2. Fallback por matrícula (Motorista Habitual)
+      // 2. Fallback por matrícula
       if (!motoristaId) {
         const veiculo = veiculosDB.find(v => v.matricula.replace(/-/g, '').toUpperCase() === t.matricula);
         if (veiculo) {
@@ -410,8 +405,6 @@ export const generateViaVerdeValidationPDF = (viaVerdeProcessed, empresa, viaVer
         }
       }
 
-      // Criamos uma chave composta por Aparelho e por Motorista!
-      // Isto divide o transponder VV-0002 em múltiplos blocos se tiver tido mais do que 1 motorista.
       const chaveUnica = `${t.identificador}___${motoristaNome}`;
 
       if (!agrupadoParaPDF[chaveUnica]) {
@@ -435,7 +428,6 @@ export const generateViaVerdeValidationPDF = (viaVerdeProcessed, empresa, viaVer
       }
     });
 
-    // Calcula arredondamentos e totais por bloco Identificador/Motorista
     Object.keys(agrupadoParaPDF).forEach(k => {
       const item = agrupadoParaPDF[k];
       item.portagens = Number(item.portagens.toFixed(2));
@@ -447,13 +439,19 @@ export const generateViaVerdeValidationPDF = (viaVerdeProcessed, empresa, viaVer
 
     const chavesCompostas = Object.keys(agrupadoParaPDF);
 
+    // [NOVO] ORDENAÇÃO NATURAL ESTRICTAMENTE CRESCENTE POR NÚMERO DO IDENTIFICADOR
+    chavesCompostas.sort((a, b) => {
+      const idA = agrupadoParaPDF[a].identificador;
+      const idB = agrupadoParaPDF[b].identificador;
+      return idA.localeCompare(idB, undefined, { numeric: true, sensitivity: 'base' });
+    });
+
     chavesCompostas.forEach((chave) => {
       const d = agrupadoParaPDF[chave];
       
-      // Desenha o bloco triplo de rowSpan no PDF indexando Identificador, Motorista e Matrícula!
       rows.push([
         { content: d.identificador, rowSpan: 3, styles: { valign: 'middle', fontStyle: 'bold', halign: 'center' } },
-        { content: d.motoristaNome, rowSpan: 3, styles: { valign: 'middle', fontStyle: 'bold', halign: 'center', textColor: '#2563eb' } }, // Destaca o motorista a azul
+        { content: d.motoristaNome, rowSpan: 3, styles: { valign: 'middle', fontStyle: 'bold', halign: 'center', textColor: '#2563eb' } },
         { content: d.matriculaOriginal || '---', rowSpan: 3, styles: { valign: 'middle', fontStyle: 'bold', halign: 'center', font: 'Courier' } },
         'Portagens / Autoestradas',
         formatCurrency(d.portagens),
@@ -474,14 +472,12 @@ export const generateViaVerdeValidationPDF = (viaVerdeProcessed, empresa, viaVer
       ]);
     });
 
-    // Totais Consolidados Finais Globais
     const totalPortagens = Object.values(agrupadoParaPDF).reduce((acc, curr) => acc + curr.portagens, 0);
     const totalParques = Object.values(agrupadoParaPDF).reduce((acc, curr) => acc + curr.parques, 0);
     const totalCirculacao = totalPortagens + totalParques;
     const totalMensalidade = Object.values(agrupadoParaPDF).reduce((acc, curr) => acc + curr.mensalidade, 0);
     const totalGeralGlobal = Object.values(agrupadoParaPDF).reduce((acc, curr) => acc + curr.totalGeral, 0);
 
-    // Adiciona linha final consolidada ao PDF
     rows.push([
       'TOTAIS CONSOLIDADOS',
       '---',
@@ -500,7 +496,7 @@ export const generateViaVerdeValidationPDF = (viaVerdeProcessed, empresa, viaVer
       margin: { left: margin, right: margin },
       theme: 'striped',
       styles: {
-        fontSize: 7.5, // Ligeiro ajuste de fonte para acomodar 8 colunas perfeitamente no A4
+        fontSize: 7.5, 
         font: 'Helvetica',
         cellPadding: 2.5,
         valign: 'middle'
@@ -567,7 +563,7 @@ export const generateDriverPDF = (dados, empresa) => {
     seguro: Number(dados.despesas?.seguro || 0),
     combustivel: Number(dados.despesas?.combustivel || 0),
     portagens: Number(dados.despesas?.viaVerde || dados.despesas?.portagens || 0),
-    viaVerdeRetroativas: Number(dados.despesas?.viaVerdeRetroativas || 0), // [NOVO] Conectamos a UI do fecho ao PDF de Extrato
+    viaVerdeRetroativas: Number(dados.despesas?.viaVerdeRetroativas || 0), 
     oficina: Number(dados.despesas?.oficina || 0),
     debitosGerais: Number(dados.despesas?.debitosGerais || dados.contaCorrente?.debitos || 0),
     creditosGerais: Number(dados.creditosGerais || dados.contaCorrente?.creditos || 0),
