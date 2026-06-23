@@ -5,6 +5,9 @@
  * Módulo administrativo de gestão de identificadores físicos Via Verde.
  * Garante a atribuição temporal de aparelhos diretamente aos motoristas (e não aos veículos),
  * servindo como a "verdade absoluta" para a imputação de portagens atrasadas.
+ *
+ * Otimizado com:
+ * - [NOVA UX]: Substituído input datetime-local por campos divididos de Data e Hora com Atalhos Rápidos.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -17,7 +20,7 @@ import {
 import { db } from '../firebase';
 import { 
   collection, query, onSnapshot, doc, 
-  runTransaction, updateDoc, addDoc, serverTimestamp 
+  runTransaction, updateDoc, addDoc 
 } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
 
@@ -43,8 +46,15 @@ export default function ViaVerdeGestao() {
   const [selectedAparelho, setSelectedAparelho] = useState(null);
   const [novoAparelhoNumero, setNovoAparelhoNumero] = useState('');
   const [selectedMotoristaId, setSelectedMotoristaId] = useState('');
-  const [dataHoraAtribuicao, setDataHoraAtribuicao] = useState('');
-  const [dataHoraDevolucao, setDataHoraDevolucao] = useState('');
+  
+  // [NOVO] Estados divididos para Atribuição
+  const [dataAtribuicao, setDataAtribuicao] = useState('');
+  const [horaAtribuicao, setHoraAtribuicao] = useState('');
+
+  // [NOVO] Estados divididos para Devolução
+  const [dataDevolucao, setDataDevolucao] = useState('');
+  const [horaDevolucao, setHoraDevolucao] = useState('');
+
   const [justificacao, setJustificacao] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
@@ -72,7 +82,6 @@ export default function ViaVerdeGestao() {
     const q = query(collection(db, "viaverde_aparelhos"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      // Ordena por código ID descrescente (VV-0004 antes de VV-0001)
       list.sort((a, b) => b.id.localeCompare(a.id));
       setAparelhos(list);
       setLoading(false);
@@ -103,11 +112,49 @@ export default function ViaVerdeGestao() {
     return `${dia}/${mes}/${ano} às ${horas}:${minutos}`;
   };
 
-  // Utilitário para definir o valor padrão de input "datetime-local" para a hora atual de Portugal
-  const obterDataHoraLocalISO = () => {
+  // [NOVO] Helper para obter a data local atual em Portugal (formato YYYY-MM-DD)
+  const obterDataLocal = () => {
     const agora = new Date();
-    const tzOffset = agora.getTimezoneOffset() * 60000; 
-    return (new Date(agora - tzOffset)).toISOString().slice(0, 16);
+    const tzOffset = agora.getTimezoneOffset() * 60000;
+    return (new Date(agora - tzOffset)).toISOString().split('T')[0];
+  };
+
+  // [NOVO] Helper para obter a hora local atual em Portugal (formato HH:MM)
+  const obterHoraLocal = () => {
+    const agora = new Date();
+    const horas = String(agora.getHours()).padStart(2, '0');
+    const minutos = String(agora.getMinutes()).padStart(2, '0');
+    return `${horas}:${minutos}`;
+  };
+
+  // [NOVO] Presets para o formulário de Atribuição
+  const aplicarPresetAtribuicao = (preset) => {
+    const hoje = obterDataLocal();
+    if (preset === 'agora') {
+      setDataAtribuicao(hoje);
+      setHoraAtribuicao(obterHoraLocal());
+    } else if (preset === 'turnoA') {
+      setDataAtribuicao(hoje);
+      setHoraAtribuicao('06:00');
+    } else if (preset === 'turnoB') {
+      setDataAtribuicao(hoje);
+      setHoraAtribuicao('18:00');
+    }
+  };
+
+  // [NOVO] Presets para o formulário de Devolução
+  const aplicarPresetDevolucao = (preset) => {
+    const hoje = obterDataLocal();
+    if (preset === 'agora') {
+      setDataDevolucao(hoje);
+      setHoraDevolucao(obterHoraLocal());
+    } else if (preset === 'turnoA') {
+      setDataDevolucao(hoje);
+      setHoraDevolucao('06:00');
+    } else if (preset === 'turnoB') {
+      setDataDevolucao(hoje);
+      setHoraDevolucao('18:00');
+    }
   };
 
   const fecharTodosModais = () => {
@@ -119,12 +166,14 @@ export default function ViaVerdeGestao() {
     setNovoAparelhoNumero('');
     setSelectedMotoristaId('');
     setJustificacao('');
-    setDataHoraAtribuicao('');
-    setDataHoraDevolucao('');
+    setDataAtribuicao('');
+    setHoraAtribuicao('');
+    setDataDevolucao('');
+    setHoraDevolucao('');
   };
 
   /**
-   * REGISTO DE APARELHO (TRANSACIONAL ATÓMICO - REGRA 4)
+   * REGISTO DE APARELHO (TRANSACIONAL ATÓMICO)
    */
   const handleRegistarAparelho = async (e) => {
     e.preventDefault();
@@ -142,7 +191,6 @@ export default function ViaVerdeGestao() {
       const contadorRef = doc(db, "metadados", "contador_viaverde");
       let proximoIDFormatado = "";
 
-      // Executa a transação para incremento atómico isolado de IDs
       await runTransaction(db, async (transaction) => {
         const docSnap = await transaction.get(contadorRef);
         let proximoNumero = 1;
@@ -159,7 +207,6 @@ export default function ViaVerdeGestao() {
         proximoIDFormatado = `VV-${numeroFormatado}`;
       });
 
-      // Criação física do documento utilizando o ID gerado de forma isolada
       const novoDocRef = doc(db, "viaverde_aparelhos", proximoIDFormatado);
       const novoObjeto = {
         id: proximoIDFormatado,
@@ -183,7 +230,6 @@ export default function ViaVerdeGestao() {
         transaction.set(novoDocRef, novoObjeto);
       });
 
-      // Registo na caixa preta do sistema (Auditoria Global)
       await addDoc(collection(db, "logs"), {
         acao: "VIA_VERDE_REGISTO",
         detalhes: `Identificador ${proximoIDFormatado} (${novoAparelhoNumero.trim()}) criado no ERP.`,
@@ -211,8 +257,8 @@ export default function ViaVerdeGestao() {
       alert("Por favor, selecione um motorista.");
       return;
     }
-    if (!dataHoraAtribuicao) {
-      alert("Por favor, selecione a data e hora exata da atribuição.");
+    if (!dataAtribuicao || !horaAtribuicao) {
+      alert("Por favor, preencha a data e a hora da atribuição.");
       return;
     }
     if (justificacao.trim().length < 5) {
@@ -227,11 +273,14 @@ export default function ViaVerdeGestao() {
 
       const aparelhoRef = doc(db, "viaverde_aparelhos", selectedAparelho.id);
       
+      // Reconstituição em ISOString única para o Firestore
+      const dataHoraCombinada = new Date(`${dataAtribuicao}T${horaAtribuicao}`).toISOString();
+
       const novaMovimentacao = {
         tipo: "atribuicao",
         motoristaId: selectedMotoristaId,
         nomeMotorista: nomeMotorista,
-        dataInicio: new Date(dataHoraAtribuicao).toISOString(),
+        dataInicio: dataHoraCombinada,
         dataFim: null,
         justificacao: justificacao.trim(),
         operador: userData?.nome || 'Operador Administrativo',
@@ -244,14 +293,13 @@ export default function ViaVerdeGestao() {
         estado: 'Em Uso',
         motoristaId: selectedMotoristaId,
         nomeMotorista: nomeMotorista,
-        dataAtribuicao: new Date(dataHoraAtribuicao).toISOString(),
+        dataAtribuicao: dataHoraCombinada,
         historico: historicoAtualizado
       });
 
-      // Gravação na Auditoria Global do ERP
       await addDoc(collection(db, "logs"), {
         acao: "VIA_VERDE_ATRIBUICAO",
-        detalhes: `Aparelho ${selectedAparelho.id} atribuído ao motorista ${nomeMotorista} a partir de ${formatarDataPT(dataHoraAtribuicao)}.`,
+        detalhes: `Aparelho ${selectedAparelho.id} atribuído ao motorista ${nomeMotorista} a partir de ${formatarDataPT(dataHoraCombinada)}.`,
         justificacao: justificacao.trim(),
         utilizadorNome: userData?.nome || 'Operador',
         utilizadorEmail: userData?.email || '',
@@ -272,8 +320,8 @@ export default function ViaVerdeGestao() {
    */
   const handleDevolverAparelho = async (e) => {
     e.preventDefault();
-    if (!dataHoraDevolucao) {
-      alert("Por favor, selecione a data e hora da devolução.");
+    if (!dataDevolucao || !horaDevolucao) {
+      alert("Por favor, preencha a data e a hora da devolução.");
       return;
     }
     if (justificacao.trim().length < 5) {
@@ -281,9 +329,10 @@ export default function ViaVerdeGestao() {
       return;
     }
 
-    // Validação lógica de cronologia
+    // Reconstituição e validação cronológica
     const dataInicioAtiva = new Date(selectedAparelho.dataAtribuicao);
-    const dataFimProposta = new Date(dataHoraDevolucao);
+    const dataFimProposta = new Date(`${dataDevolucao}T${horaDevolucao}`);
+
     if (dataFimProposta < dataInicioAtiva) {
       alert(`Erro Cronológico: A data/hora de devolução não pode ser anterior à data/hora de atribuição (${formatarDataPT(selectedAparelho.dataAtribuicao)}).`);
       return;
@@ -292,13 +341,13 @@ export default function ViaVerdeGestao() {
     setSubmitting(true);
     try {
       const aparelhoRef = doc(db, "viaverde_aparelhos", selectedAparelho.id);
+      const dataFimISO = dataFimProposta.toISOString();
       
-      // Mapear histórico e fechar o registo temporal que estava em aberto
       const historicoAtualizado = (selectedAparelho.historico || []).map(item => {
         if (item.tipo === "atribuicao" && item.motoristaId === selectedAparelho.motoristaId && item.dataFim === null) {
           return {
             ...item,
-            dataFim: dataFimProposta.toISOString(),
+            dataFim: dataFimISO,
             justificacaoDevolucao: justificacao.trim(),
             operadorDevolucao: userData?.nome || 'Operador Administrativo'
           };
@@ -306,12 +355,11 @@ export default function ViaVerdeGestao() {
         return item;
       });
 
-      // Adiciona o evento de receção física ao histórico de auditoria
       historicoAtualizado.push({
         tipo: "devolucao",
         motoristaId: selectedAparelho.motoristaId,
         nomeMotorista: selectedAparelho.nomeMotorista,
-        dataFim: dataFimProposta.toISOString(),
+        dataFim: dataFimISO,
         justificacao: justificacao.trim(),
         operador: userData?.nome || 'Operador Administrativo',
         dataOperacao: new Date().toISOString()
@@ -325,10 +373,9 @@ export default function ViaVerdeGestao() {
         historico: historicoAtualizado
       });
 
-      // Gravação na Auditoria Global
       await addDoc(collection(db, "logs"), {
         acao: "VIA_VERDE_DEVOLUCAO",
-        detalhes: `Aparelho ${selectedAparelho.id} devolvido pelo motorista ${selectedAparelho.nomeMotorista} em ${formatarDataPT(dataHoraDevolucao)}.`,
+        detalhes: `Aparelho ${selectedAparelho.id} devolvido pelo motorista ${selectedAparelho.nomeMotorista} em ${formatarDataPT(dataFimISO)}.`,
         justificacao: justificacao.trim(),
         utilizadorNome: userData?.nome || 'Operador',
         utilizadorEmail: userData?.email || '',
@@ -351,7 +398,7 @@ export default function ViaVerdeGestao() {
     const acaoTexto = novoEstado === 'Inativo' ? 'desativar' : 'reativar';
     const justificacaoPrompt = prompt(`Escreva a justificação obrigatória para ${acaoTexto} o aparelho ${aparelho.id} (mínimo 5 caracteres):`);
     
-    if (justificacaoPrompt === null) return; // Operação cancelada
+    if (justificacaoPrompt === null) return;
     if (justificacaoPrompt.trim().length < 5) {
       alert("A operação foi cancelada. A justificação necessita de pelo menos 5 caracteres.");
       return;
@@ -361,7 +408,6 @@ export default function ViaVerdeGestao() {
       const aparelhoRef = doc(db, "viaverde_aparelhos", aparelho.id);
       let historicoAtualizado = [...(aparelho.historico || [])];
 
-      // Se estivesse em uso e for desativado, fecha o registo cronológico ativo
       if (novoEstado === 'Inativo' && aparelho.estado === 'Em Uso') {
         historicoAtualizado = historicoAtualizado.map(item => {
           if (item.tipo === "atribuicao" && item.motoristaId === aparelho.motoristaId && item.dataFim === null) {
@@ -392,7 +438,6 @@ export default function ViaVerdeGestao() {
         historico: historicoAtualizado
       });
 
-      // Gravação na Auditoria Global
       await addDoc(collection(db, "logs"), {
         acao: "VIA_VERDE_ESTADO",
         detalhes: `Aparelho ${aparelho.id} alterado para estado '${novoEstado}'.`,
@@ -409,7 +454,6 @@ export default function ViaVerdeGestao() {
     }
   };
 
-  // Filtragem local dos aparelhos na tabela de visualização
   const aparelhosFiltrados = aparelhos.filter(a => {
     const texto = filtroPesquisa.toLowerCase();
     const matchesID = a.id.toLowerCase().includes(texto);
@@ -418,7 +462,6 @@ export default function ViaVerdeGestao() {
     return matchesID || matchesNumero || matchesMotorista;
   });
 
-  // KPIs calculados reativamente com base no estado do Firestore
   const kpiTotal = aparelhos.length;
   const kpiEmUso = aparelhos.filter(a => a.estado === 'Em Uso').length;
   const kpiDisponiveis = aparelhos.filter(a => a.estado === 'Disponível').length;
@@ -426,10 +469,6 @@ export default function ViaVerdeGestao() {
 
   return (
     <div className="space-y-6">
-      {/* 
-        [SLOT CABEÇALHO DINÂMICO]
-        Injeta o título e o botão de ação rápida diretamente no portal do Header global.
-      */}
       {headerSlot && createPortal(
         <div className="flex items-center justify-between w-full">
           <div className="flex flex-col">
@@ -454,7 +493,7 @@ export default function ViaVerdeGestao() {
         headerSlot
       )}
 
-      {/* MINI-DASHBOARD DE MÉTRICAS COMPACTO */}
+      {/* MINI-DASHBOARD DE MÉTRICAS */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex items-center gap-3">
           <div className="p-3 bg-slate-50 rounded-lg text-slate-500">
@@ -497,10 +536,9 @@ export default function ViaVerdeGestao() {
         </div>
       </div>
 
-      {/* PAINEL DE FILTRAGEM E TABELA DE IDENTIFICADORES */}
+      {/* PAINEL DE FILTRAGEM E TABELA */}
       <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
         
-        {/* Barra de Pesquisa */}
         <div className="p-4 bg-slate-50 border-b border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="relative w-full sm:max-w-xs">
             <Search className="absolute left-3 top-2.5 text-slate-400" size={16} />
@@ -517,7 +555,6 @@ export default function ViaVerdeGestao() {
           </div>
         </div>
 
-        {/* Tabela de Dados */}
         <div className="overflow-x-auto">
           {loading ? (
             <div className="p-12 text-center text-xs font-bold text-slate-400 flex items-center justify-center gap-2">
@@ -543,7 +580,6 @@ export default function ViaVerdeGestao() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {aparelhosFiltrados.map((aparelho) => {
-                  // Resolve dinamicamente os dados do motorista detentor do aparelho
                   const motoristaVinculado = motoristas.find(m => m.id === aparelho.motoristaId);
                   const matriculaViatura = motoristaVinculado?.matricula || motoristaVinculado?.veiculo || "-";
 
@@ -592,7 +628,6 @@ export default function ViaVerdeGestao() {
                       <td className="py-3 px-4 text-right">
                         <div className="flex items-center justify-end gap-1.5">
                           
-                          {/* Histórico Temporal de Auditoria */}
                           <button
                             onClick={() => {
                               setSelectedAparelho(aparelho);
@@ -604,12 +639,12 @@ export default function ViaVerdeGestao() {
                             <FileText size={15} />
                           </button>
 
-                          {/* Botão de Transição de Atribuição ou Devolução */}
                           {aparelho.estado === 'Disponível' && (
                             <button
                               onClick={() => {
                                 setSelectedAparelho(aparelho);
-                                setDataHoraAtribuicao(obterDataHoraLocalISO());
+                                setDataAtribuicao(obterDataLocal());
+                                setHoraAtribuicao(obterHoraLocal());
                                 setShowAtribuicaoModal(true);
                               }}
                               className="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 px-2 py-1 rounded text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer"
@@ -623,7 +658,8 @@ export default function ViaVerdeGestao() {
                             <button
                               onClick={() => {
                                 setSelectedAparelho(aparelho);
-                                setDataHoraDevolucao(obterDataHoraLocalISO());
+                                setDataDevolucao(obterDataLocal());
+                                setHoraDevolucao(obterHoraLocal());
                                 setShowDevolucaoModal(true);
                               }}
                               className="bg-blue-50 text-blue-600 hover:bg-blue-100 px-2 py-1 rounded text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer"
@@ -633,7 +669,6 @@ export default function ViaVerdeGestao() {
                             </button>
                           )}
 
-                          {/* Ativar / Desativar Dispositivo */}
                           {aparelho.estado !== 'Inativo' ? (
                             <button
                               onClick={() => handleAlternarEstadoAtivo(aparelho, 'Inativo')}
@@ -735,7 +770,7 @@ export default function ViaVerdeGestao() {
       )}
 
       {/* ========================================================= */}
-      {/* MODAL 2: ATRIBUIÇÃO A MOTORISTA                          */}
+      {/* MODAL 2: ATRIBUIÇÃO A MOTORISTA (UX MELHORADA)            */}
       {/* ========================================================= */}
       {showAtribuicaoModal && selectedAparelho && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
@@ -776,16 +811,54 @@ export default function ViaVerdeGestao() {
                 </select>
               </div>
 
-              <div className="grid grid-cols-1 gap-4">
-                <div>
-                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Data e Hora de Início de Posse</label>
-                  <input
-                    type="datetime-local"
-                    required
-                    value={dataHoraAtribuicao}
-                    onChange={(e) => setDataHoraAtribuicao(e.target.value)}
-                    className="w-full py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-tvde-primary/20 focus:border-tvde-primary outline-none transition-all text-slate-700"
-                  />
+              {/* [NOVO]: Campo dividido de data/hora de entrega com atalhos de presets */}
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Atalhos Rápidos de Horário</label>
+                <div className="flex flex-wrap gap-1.5 mb-2.5">
+                  <button
+                    type="button"
+                    onClick={() => aplicarPresetAtribuicao('agora')}
+                    className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-tvde-primary rounded-lg text-[10px] font-bold transition-all cursor-pointer"
+                  >
+                    ⚡ Agora
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => aplicarPresetAtribuicao('turnoA')}
+                    className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-lg text-[10px] font-bold transition-all cursor-pointer"
+                  >
+                    🌅 Turno A (06:00)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => aplicarPresetAtribuicao('turnoB')}
+                    className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-[10px] font-bold transition-all cursor-pointer"
+                  >
+                    Option B (18:00)
+                  </button>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Data de Início</label>
+                    <input
+                      type="date"
+                      required
+                      value={dataAtribuicao}
+                      onChange={(e) => setDataAtribuicao(e.target.value)}
+                      className="w-full py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-tvde-primary/20 focus:border-tvde-primary outline-none transition-all text-slate-700 text-center"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Hora de Início</label>
+                    <input
+                      type="time"
+                      required
+                      value={horaAtribuicao}
+                      onChange={(e) => setHoraAtribuicao(e.target.value)}
+                      className="w-full py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-tvde-primary/20 focus:border-tvde-primary outline-none transition-all text-slate-700 text-center"
+                    />
+                  </div>
                 </div>
               </div>
 
@@ -818,7 +891,7 @@ export default function ViaVerdeGestao() {
                 </button>
                 <button
                   type="submit"
-                  disabled={submitting || justificacao.trim().length < 5 || !selectedMotoristaId || !dataHoraAtribuicao}
+                  disabled={submitting || justificacao.trim().length < 5 || !selectedMotoristaId || !dataAtribuicao || !horaAtribuicao}
                   className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md cursor-pointer"
                 >
                   {submitting ? "A Gravar..." : "Atribuir Agora"}
@@ -830,7 +903,7 @@ export default function ViaVerdeGestao() {
       )}
 
       {/* ========================================================= */}
-      {/* MODAL 3: DEVOLUÇÃO / RECEÇÃO FÍSICA                       */}
+      {/* MODAL 3: DEVOLUÇÃO / RECEÇÃO FÍSICA (UX MELHORADA)        */}
       {/* ========================================================= */}
       {showDevolucaoModal && selectedAparelho && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
@@ -864,15 +937,55 @@ export default function ViaVerdeGestao() {
                 </div>
               </div>
 
+              {/* [NOVO]: Campo dividido de data/hora de fim com atalhos de presets */}
               <div>
-                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Data e Hora da Devolução</label>
-                <input
-                  type="datetime-local"
-                  required
-                  value={dataHoraDevolucao}
-                  onChange={(e) => setDataHoraDevolucao(e.target.value)}
-                  className="w-full py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-tvde-primary/20 focus:border-tvde-primary outline-none transition-all text-slate-700"
-                />
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Atalhos Rápidos de Horário</label>
+                <div className="flex flex-wrap gap-1.5 mb-2.5">
+                  <button
+                    type="button"
+                    onClick={() => aplicarPresetDevolucao('agora')}
+                    className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-tvde-primary rounded-lg text-[10px] font-bold transition-all cursor-pointer"
+                  >
+                    ⚡ Agora
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => aplicarPresetDevolucao('turnoA')}
+                    className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-lg text-[10px] font-bold transition-all cursor-pointer"
+                  >
+                    🌅 Turno A (06:00)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => aplicarPresetDevolucao('turnoB')}
+                    className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-[10px] font-bold transition-all cursor-pointer"
+                  >
+                    🌃 Turno B (18:00)
+                  </button>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Data de Devolução</label>
+                    <input
+                      type="date"
+                      required
+                      value={dataDevolucao}
+                      onChange={(e) => setDataDevolucao(e.target.value)}
+                      className="w-full py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-tvde-primary/20 focus:border-tvde-primary outline-none transition-all text-slate-700 text-center"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Hora de Devolução</label>
+                    <input
+                      type="time"
+                      required
+                      value={horaDevolucao}
+                      onChange={(e) => setHoraDevolucao(e.target.value)}
+                      className="w-full py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-tvde-primary/20 focus:border-tvde-primary outline-none transition-all text-slate-700 text-center"
+                    />
+                  </div>
+                </div>
               </div>
 
               <div>
@@ -904,7 +1017,7 @@ export default function ViaVerdeGestao() {
                 </button>
                 <button
                   type="submit"
-                  disabled={submitting || justificacao.trim().length < 5 || !dataHoraDevolucao}
+                  disabled={submitting || justificacao.trim().length < 5 || !dataDevolucao || !horaDevolucao}
                   className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md cursor-pointer"
                 >
                   {submitting ? "A Guardar..." : "Registar Devolução"}
@@ -916,7 +1029,7 @@ export default function ViaVerdeGestao() {
       )}
 
       {/* ========================================================= */}
-      {/* MODAL 4: HISTÓRICO DE ATRIBUIÇÕES (AUDITORIA TEMPORAL)    */}
+      {/* MODAL 4: HISTÓRICO DE ATRIBUIÇÕES                         */}
       {/* ========================================================= */}
       {showHistoricoModal && selectedAparelho && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
@@ -959,7 +1072,6 @@ export default function ViaVerdeGestao() {
 
                     return (
                       <div key={index} className="relative">
-                        {/* Indicador visual na linha temporal */}
                         <div className={`absolute -left-[31px] top-1.5 w-4 h-4 rounded-full border-2 border-white flex items-center justify-center ${
                           isAtribuicao ? 'bg-emerald-500' : isDevolucao ? 'bg-blue-500' : 'bg-slate-500'
                         }`} />
@@ -986,7 +1098,6 @@ export default function ViaVerdeGestao() {
                             {isRegisto && `Registo inicial: ${log.detalhes}`}
                           </p>
 
-                          {/* Faixa cronológica exata do log de entrega/receção */}
                           {isAtribuicao && (
                             <div className="bg-white p-2 rounded-lg border border-slate-100 text-[11px] font-medium text-slate-500 space-y-1">
                               <div>
