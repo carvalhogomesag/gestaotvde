@@ -3,7 +3,8 @@
  * Localização: src/utils/parsers.js
  *
  * Utilitários de Extração de Dados e Geração SEPA.
- * [ATUALIZADO]: Suporte híbrido a CSV (texto) e XLSX (Excel) usando SheetJS de forma dinâmica e imune a índices fixos!
+ * [ATUALIZADO]: Suporte híbrido a CSV (texto) e XLSX (Excel) usando SheetJS de forma dinâmica e imune a índices fixos.
+ * [ATUALIZADO]: Adicionado extrator cronológico detalhado por Identificador Via Verde com preservação de retrocompatibilidade.
  */
 
 import * as XLSX from 'xlsx';
@@ -56,6 +57,74 @@ const limparStringSEPA = (str) => {
     .replace(/[çÇ]/g, "c")
     .replace(/[&]/g, "e")
     .replace(/[^a-zA-Z0-9 ]/g, ""); // Garante apenas alfanuméricos e espaços
+};
+
+/**
+ * [NOVO] Algoritmo Resiliente de Reconstituição de Data/Hora da Via Verde
+ * Lida com serializações de datas do Excel, frações de tempo ou strings heterogéneas.
+ */
+const formatarDataHoraViaVerde = (dataVal, horaVal) => {
+  if (dataVal === undefined || dataVal === null || dataVal === '') return null;
+  
+  let dataStr = '';
+  if (dataVal instanceof Date) {
+    dataStr = dataVal.toISOString().split('T')[0];
+  } else if (typeof dataVal === 'number') {
+    // Trata número de série decimal ou inteiro do Excel
+    try {
+      const dateObj = XLSX.SSF.parse_date_code(dataVal);
+      const y = dateObj.y;
+      const m = String(dateObj.m).padStart(2, '0');
+      const d = String(dateObj.d).padStart(2, '0');
+      dataStr = `${y}-${m}-${d}`;
+    } catch (e) {
+      return null;
+    }
+  } else {
+    // Strings como "23/06/2026", "23-06-2026" ou "2026-06-23"
+    const str = String(dataVal).trim().replace(/\//g, '-');
+    const parts = str.split('-');
+    if (parts.length === 3) {
+      if (parts[0].length === 4) {
+        // YYYY-MM-DD
+        dataStr = `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+      } else {
+        // DD-MM-YYYY -> Converte para YYYY-MM-DD
+        dataStr = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+      }
+    } else {
+      dataStr = str;
+    }
+  }
+
+  let horaStr = '00:00';
+  if (horaVal !== undefined && horaVal !== null && horaVal !== '') {
+    if (typeof horaVal === 'number') {
+      // Trata fração decimal de dia do Excel (ex: 0.605)
+      try {
+        const totalSeconds = Math.round(horaVal * 24 * 3600);
+        const h = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
+        const m = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
+        horaStr = `${h}:${m}`;
+      } catch (e) {
+        horaStr = '00:00';
+      }
+    } else {
+      // Strings como "14:32:00" ou "14:32"
+      const str = String(horaVal).trim();
+      const parts = str.split(':');
+      if (parts.length >= 2) {
+        horaStr = `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
+      }
+    }
+  }
+
+  try {
+    const d = new Date(`${dataStr}T${horaStr}`);
+    return isNaN(d.getTime()) ? null : d.toISOString();
+  } catch (e) {
+    return null;
+  }
 };
 
 export const parseUberCSV = (input) => {
@@ -120,11 +189,10 @@ export const parseBoltCSV = (input) => {
 
 /**
  * Analisa e categoriza despesas da Via Verde por matrícula (Portagem, Parque e Mensalidade)
- * em conformidade com o layout desenhado no post-it do utilizador.
- * [ATUALIZADO]: Mapeamento flexível por cabeçalhos (Nomes de Colunas) resolvendo erros de colunas deslocadas.
+ * [ATUALIZADO]: Extração cronológica avançada por Identificador (Aparelho) compatível com intersecção temporal de posse.
  * 
  * @param {string|ArrayBuffer} input - Conteúdo bruto (CSV) ou binário (Excel) do extrato Via Verde
- * @returns {Object} Estrutura consolidada agrupada por matrícula
+ * @returns {Object} Estrutura bidirecional e compatível com chaves antigas de Matrícula.
  */
 export const parseViaVerdeCSV = (input) => {
   const rows = converterParaLinhasJSON(input);
@@ -132,12 +200,22 @@ export const parseViaVerdeCSV = (input) => {
 
   const headers = rows[0].map(h => String(h || '').trim().toLowerCase());
   
-  // Deteção dinâmica dos índices baseada nos cabeçalhos reais (conforme imagem do Excel)
+  // Deteção dinâmica dos índices baseada nos cabeçalhos reais
   const colMatricula = headers.findIndex(h => h.includes('matrícula') || h.includes('matricula'));
   const colValor = headers.findIndex(h => h.includes('valor transação') || h.includes('valor transacao') || h.includes('valor') || h.includes('líquido') || h.includes('liquido'));
   const colTipo = headers.findIndex(h => h.includes('tipo de ev') || h.includes('tipo') || h.includes('descrição') || h.includes('operador') || h.includes('barreira'));
+  
+  // [NOVO] Deteção de Identificador de Aparelho, Datas e Entradas/Saídas
+  const colIdentificador = headers.findIndex(h => h.includes('identificador') || h.includes('dispositivo') || h.includes('ref. ident') || h.includes('aparelho'));
+  const colDataSaida = headers.findIndex(h => h.includes('data saída') || h.includes('data saida') || h.includes('data trans') || h.includes('data'));
+  const colHoraSaida = headers.findIndex(h => h.includes('hora saída') || h.includes('hora saida') || h.includes('hora trans') || h.includes('hora'));
+  const colEntrada = headers.findIndex(h => h.includes('entrada') || h.includes('origem'));
+  const colSaida = headers.findIndex(h => h.includes('saída') || h.includes('saida') || h.includes('local') || h.includes('destino'));
 
-  const results = {};
+  // Estruturas de agregação
+  const resultsMatricula = {};
+  const resultsIdentificador = {};
+  const listaTransacoes = [];
 
   for (let i = 1; i < rows.length; i++) {
     const row = rows[i];
@@ -148,20 +226,24 @@ export const parseViaVerdeCSV = (input) => {
 
     const matriculaChave = matriculaOriginal.replace(/-/g, '').toUpperCase();
     const valor = extrairNumeroSeguro(row[colValor]);
-
-    // Inicialização da estrutura da matrícula se ainda não existir
-    if (!results[matriculaChave]) {
-      results[matriculaChave] = {
-        matriculaFormatada: matriculaOriginal, // Guarda a grafia original (ex: BI-49-FP)
-        portagens: 0,
-        parques: 0,
-        mensalidade: 0,
-        totalCirculacao: 0, // Portagens + Parques
-        totalGeral: 0       // Portagens + Parques + Mensalidade
-      };
+    
+    // [NOVO] Extração do Identificador físico (Exclui espaços e formatações de texto)
+    let identificadorFisico = String(row[colIdentificador] || '').replace(/\s/g, '').trim();
+    if (!identificadorFisico || identificadorFisico === '--') {
+      identificadorFisico = 'SEM_IDENTIFICADOR';
     }
 
-    // Varredura de classificação inteligente em toda a linha para robustez
+    // [NOVO] Reconstituição precisa do momento cronológico
+    const dataBruta = row[colDataSaida];
+    const horaBruta = row[colHoraSaida];
+    const dataHoraISO = formatarDataHoraViaVerde(dataBruta, horaBruta);
+
+    // [NOVO] Extração das barreiras geográficas
+    const entradaTexto = String(row[colEntrada] || '').trim();
+    const saidaTexto = String(row[colSaida] || '').trim();
+    const localidadeTexto = saidaTexto || entradaTexto || "Local Desconhecido";
+
+    // Classificação inteligente da categoria
     const linhaTexto = row.map(cell => String(cell || '').toLowerCase()).join(' ');
     let categoria = 'portagem';
 
@@ -184,26 +266,104 @@ export const parseViaVerdeCSV = (input) => {
       categoria = 'parque';
     }
 
-    // Acumula os valores por categoria
-    if (categoria === 'mensalidade') {
-      results[matriculaChave].mensalidade += valor;
-    } else if (categoria === 'parque') {
-      results[matriculaChave].parques += valor;
-    } else {
-      results[matriculaChave].portagens += valor;
+    // -------------------------------------------------------------
+    // Agregação Clássica (Matrícula) - Mantém compatibilidade 100%
+    // -------------------------------------------------------------
+    if (!resultsMatricula[matriculaChave]) {
+      resultsMatricula[matriculaChave] = {
+        matriculaFormatada: matriculaOriginal,
+        portagens: 0,
+        parques: 0,
+        mensalidade: 0,
+        totalCirculacao: 0,
+        totalGeral: 0
+      };
     }
+
+    if (categoria === 'mensalidade') {
+      resultsMatricula[matriculaChave].mensalidade += valor;
+    } else if (categoria === 'parque') {
+      resultsMatricula[matriculaChave].parques += valor;
+    } else {
+      resultsMatricula[matriculaChave].portagens += valor;
+    }
+
+    // -------------------------------------------------------------
+    // Agregação Avançada (Identificador)
+    // -------------------------------------------------------------
+    if (!resultsIdentificador[identificadorFisico]) {
+      resultsIdentificador[identificadorFisico] = {
+        identificador: identificadorFisico,
+        matriculaOriginal: matriculaOriginal,
+        portagens: 0,
+        parques: 0,
+        mensalidade: 0,
+        totalGeral: 0
+      };
+    }
+
+    if (categoria === 'mensalidade') {
+      resultsIdentificador[identificadorFisico].mensalidade += valor;
+    } else if (categoria === 'parque') {
+      resultsIdentificador[identificadorFisico].parques += valor;
+    } else {
+      resultsIdentificador[identificadorFisico].portagens += valor;
+    }
+
+    // -------------------------------------------------------------
+    // Registo de Transações Individuais (Delineamento Temporal)
+    // -------------------------------------------------------------
+    listaTransacoes.push({
+      id: `${identificadorFisico}-${i}`,
+      identificador: identificadorFisico,
+      matricula: matriculaChave,
+      matriculaOriginal: matriculaOriginal,
+      dataHora: dataHoraISO || new Date().toISOString(), // Fallback para data atual se corrompido
+      tipo: categoria,
+      valor: valor,
+      local: localidadeTexto,
+      detalhes: `Via Verde - ${localidadeTexto} (${categoria.toUpperCase()})`
+    });
   }
 
-  // Arredonda todos os subtotais para 2 casas decimais no final
-  Object.keys(results).forEach(mat => {
-    results[mat].portagens = Number(results[mat].portagens.toFixed(2));
-    results[mat].parques = Number(results[mat].parques.toFixed(2));
-    results[mat].mensalidade = Number(results[mat].mensalidade.toFixed(2));
-    results[mat].totalCirculacao = Number((results[mat].portagens + results[mat].parques).toFixed(2));
-    results[mat].totalGeral = Number((results[mat].totalCirculacao + results[mat].mensalidade).toFixed(2));
+  // Arredondamentos matemáticos precisos (Matrícula)
+  Object.keys(resultsMatricula).forEach(mat => {
+    resultsMatricula[mat].portagens = Number(resultsMatricula[mat].portagens.toFixed(2));
+    resultsMatricula[mat].parques = Number(resultsMatricula[mat].parques.toFixed(2));
+    resultsMatricula[mat].mensalidade = Number(resultsMatricula[mat].mensalidade.toFixed(2));
+    resultsMatricula[mat].totalCirculacao = Number((resultsMatricula[mat].portagens + resultsMatricula[mat].parques).toFixed(2));
+    resultsMatricula[mat].totalGeral = Number((resultsMatricula[mat].totalCirculacao + resultsMatricula[mat].mensalidade).toFixed(2));
   });
 
-  return results;
+  // Arredondamentos matemáticos precisos (Identificador)
+  Object.keys(resultsIdentificador).forEach(id => {
+    resultsIdentificador[id].portagens = Number(resultsIdentificador[id].portagens.toFixed(2));
+    resultsIdentificador[id].parques = Number(resultsIdentificador[id].parques.toFixed(2));
+    resultsIdentificador[id].mensalidade = Number(resultsIdentificador[id].mensalidade.toFixed(2));
+    resultsIdentificador[id].totalGeral = Number((resultsIdentificador[id].portagens + resultsIdentificador[id].parques + resultsIdentificador[id].mensalidade).toFixed(2));
+  });
+
+  // Ordena a lista de transações por ordem cronológica (Mais antigas para mais recentes)
+  listaTransacoes.sort((a, b) => new Date(a.dataHora) - new Date(b.dataHora));
+
+  // ----------------------------------------------------------------------
+  // ENGENHARIA DE COMPATIBILIDADE: Propriedades Invisíveis (Não-Enumeráveis)
+  // ----------------------------------------------------------------------
+  Object.defineProperty(resultsMatricula, 'transacoesDetalhadas', {
+    value: listaTransacoes,
+    enumerable: false,
+    writable: true,
+    configurable: true
+  });
+
+  Object.defineProperty(resultsMatricula, 'agrupadoPorIdentificador', {
+    value: resultsIdentificador,
+    enumerable: false,
+    writable: true,
+    configurable: true
+  });
+
+  return resultsMatricula;
 };
 
 export const parseCartoesConsumoCSV = (input) => {
@@ -239,7 +399,6 @@ export const generateSEPAXML = (pagamentos, contaEmpresa) => {
     if (p.saldoFinal <= 0 || !p.iban) return;
     totalAmount += p.saldoFinal;
     
-    // Aplicação da higienização nos campos críticos
     const nomeLimpo = limparStringSEPA(p.nomeMotorista);
     const remessaLimpa = limparStringSEPA(`PAGAMENTO TVDE SEMANA`);
 
