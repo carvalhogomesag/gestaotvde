@@ -3,15 +3,15 @@
  * Localização: src/pages/FechoSemanal.jsx
  *
  * Processador de fecho financeiro semanal (Upload de CSVs e Geração de SEPA/PDF).
- * Atualizado com suporte responsivo e integração das despesas fixas (Abastecimento e Portagens) [2].
- * [NOVO]: Leitor de ficheiros híbrido (FileReader) para processar de forma transparente ficheiros CSV e XLSX/Excel!
+ * [ATUALIZADO]: Integração de auditoria temporal Via Verde com imputação retroativa de portagens e parques a antigos condutores.
+ * [ATUALIZADO]: Criação automática de lançamentos manuais detalhados para débitos retroativos na finalização do lote.
  */
 
 import React, { useState, useEffect } from 'react';
 import { 
   UploadCloud, FileSpreadsheet, Calculator, 
   CheckCircle2, Download, ArrowRight, Loader2, Banknote, Fuel, Zap, FileText,
-  PlusCircle, MinusCircle, Lock
+  PlusCircle, MinusCircle, Lock, Radio
 } from 'lucide-react';
 import { db } from '../firebase';
 import { 
@@ -36,12 +36,13 @@ export default function FechoSemanal() {
   const [motoristasDB, setMotoristasDB] = useState([]);
   const [veiculosDB, setVeiculosDB] = useState([]);
   const [cartoesDB, setCartoesDB] = useState([]);
+  const [viaVerdeDB, setViaVerdeDB] = useState([]); // [NOVO] Stock de aparelhos e histórico de atribuições
   
   // Dados Processados
   const [dadosProcessados, setDadosProcessados] = useState([]);
   const [viaVerdeProcessed, setViaVerdeProcessed] = useState({}); // Estado para auditoria em lote
   
-  // Ficheiros (pode armazenar strings ou ArrayBuffers de Excel)
+  // Ficheiros (armazenar strings ou ArrayBuffers de Excel)
   const [files, setFiles] = useState({ 
     uber: null, bolt: null, viaverde: null, combustivel: null, eletrico: null 
   });
@@ -58,14 +59,16 @@ export default function FechoSemanal() {
     // Só carrega os dados se for admin
     if (userData?.role === 'admin') {
       const loadBaseData = async () => {
-        const [mSnap, vSnap, cSnap] = await Promise.all([
+        const [mSnap, vSnap, cSnap, vvSnap] = await Promise.all([
           getDocs(collection(db, "motoristas")),
           getDocs(collection(db, "veiculos")),
-          getDocs(collection(db, "cartoes"))
+          getDocs(collection(db, "cartoes")),
+          getDocs(collection(db, "viaverde_aparelhos")) // [NOVO]
         ]);
         setMotoristasDB(mSnap.docs.map(d => ({ id: d.id, ...d.data() })));
         setVeiculosDB(vSnap.docs.map(d => ({ id: d.id, ...d.data() })));
         setCartoesDB(cSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        setViaVerdeDB(vvSnap.docs.map(d => ({ id: d.id, ...d.data() }))); // [NOVO]
       };
       loadBaseData();
     }
@@ -90,7 +93,7 @@ export default function FechoSemanal() {
   }
 
   /**
-   * [MODIFICADO]: Leitor híbrido com suporte a leitura de binários (Excel) ou texto simples (CSV)
+   * Leitor híbrido com suporte a leitura de binários (Excel) ou texto simples (CSV)
    */
   const handleFileChange = (e, type) => {
     const file = e.target.files[0];
@@ -103,10 +106,8 @@ export default function FechoSemanal() {
       };
 
       if (isExcel) {
-        // Lógica de leitura de folha binária para o SheetJS converter em memória
         reader.readAsArrayBuffer(file);
       } else {
-        // Lógica padrão de leitura de texto simples
         reader.readAsText(file);
       }
     }
@@ -145,15 +146,88 @@ export default function FechoSemanal() {
       const movSnap = await getDocs(qMov);
       const todosMovimentos = movSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
+      // [NOVO] Mapa para acumulação e distribuição inteligente de Portagens/Parques por Motorista
+      const distribuicaoPortagens = {};
+      motoristasDB.forEach(m => {
+        distribuicaoPortagens[m.id] = {
+          portagensAtivas: 0,
+          portagensRetroativas: 0,
+          retroativasList: [] // Detalhes individuais para justificação de lançamentos manuais
+        };
+      });
+
+      // [NOVO] ALGORITMO DE AUDITORIA CRONOLÓGICA DE VIA VERDE (INTERSECÇÃO DE POSSE)
+      const transacoesDetalhadas = viaVerdeData.transacoesDetalhadas || [];
+      
+      transacoesDetalhadas.forEach(tx => {
+        let motoristaResponsavelId = null;
+        let nomeMotoristaResponsavel = null;
+        let isAtiva = false;
+
+        // 1. Procurar o transponder correspondente no nosso stock
+        const dispositivo = viaVerdeDB.find(vv => 
+          vv.numeroAparelho === tx.identificador || 
+          vv.id === tx.identificador
+        );
+
+        if (dispositivo && dispositivo.historico) {
+          const txTime = new Date(tx.dataHora).getTime();
+
+          // Procurar na timeline de atribuições qual o motorista detinha o aparelho naquele instante
+          const atribuicaoCorrespondente = dispositivo.historico.find(h => {
+            if (h.tipo !== 'atribuicao') return false;
+            const start = new Date(h.dataInicio).getTime();
+            const end = h.dataFim ? new Date(h.dataFim).getTime() : null;
+            return txTime >= start && (end === null || txTime <= end);
+          });
+
+          if (atribuicaoCorrespondente) {
+            motoristaResponsavelId = atribuicaoCorrespondente.motoristaId;
+            nomeMotoristaResponsavel = atribuicaoCorrespondente.nomeMotorista;
+            isAtiva = (atribuicaoCorrespondente.dataFim === null); // Ativa se não houver data de término
+          }
+        }
+
+        // 2. FALLBACK INTELIGENTE: Se o aparelho não foi mapeado manualmente no histórico,
+        // cruza o débito com o motorista habitual associado à matrícula do carro
+        if (!motoristaResponsavelId) {
+          const veiculo = veiculosDB.find(v => v.matricula.replace(/-/g, '').toUpperCase() === tx.matricula);
+          if (veiculo) {
+            motoristaResponsavelId = veiculo.motoristaId;
+            nomeMotoristaResponsavel = veiculo.motoristaNome;
+            isAtiva = true; // Cai no fluxo regular semanal por defeito
+          }
+        }
+
+        // 3. Acumular os valores conforme a tipologia de responsabilidade
+        if (motoristaResponsavelId && distribuicaoPortagens[motoristaResponsavelId]) {
+          // Desconsideramos "mensalidades" de aparelhos (responsabilidade da empresa/proprietário)
+          if (tx.tipo === 'portagem' || tx.tipo === 'parque') {
+            if (isAtiva) {
+              distribuicaoPortagens[motoristaResponsavelId].portagensAtivas += tx.valor;
+            } else {
+              distribuicaoPortagens[motoristaResponsavelId].portagensRetroativas += tx.valor;
+              distribuicaoPortagens[motoristaResponsavelId].retroativasList.push({
+                valor: tx.valor,
+                local: tx.local,
+                dataHora: tx.dataHora,
+                identificador: tx.identificador,
+                tipo: tx.tipo
+              });
+            }
+          }
+        }
+      });
+
       const consolidado = motoristasDB.map(m => {
         const u = uberData[m.nome] || { bruto: 0, liquido: 0, gorjetas: 0, portagens: 0 };
         const b = boltData[m.nome] || { bruto: 0, liquido: 0 };
         const veiculo = veiculosDB.find(v => v.motoristaId === m.id);
         
-        // Processamento adaptado para ler do novo parser estruturado (Portagens = totalCirculacao) [2]
-        const matriculaLimpa = veiculo ? veiculo.matricula.replace(/-/g, '').toUpperCase() : '';
-        const vvEstruturado = viaVerdeData[matriculaLimpa] || null;
-        const vvCustoFisico = vvEstruturado ? (vvEstruturado.totalCirculacao || 0) : 0;
+        // [MODIFICADO] Extraímos as contas calculadas pelo nosso motor de intersecção temporal
+        const mPortagens = distribuicaoPortagens[m.id] || { portagensAtivas: 0, portagensRetroativas: 0, retroativasList: [] };
+        const portagemAtivaFinal = mPortagens.portagensAtivas;
+        const portagemRetroativaFinal = mPortagens.portagensRetroativas;
 
         // Processamento de Combustível / Energia via Cartões (CSV) [2]
         let totalCombustivelCSV = 0;
@@ -172,7 +246,7 @@ export default function FechoSemanal() {
         const movAbastecimentoDB = movsEntidade.find(mov => mov.categoria === 'abastecimento');
 
         // LÓGICA DE PRECEDÊNCIA: Lançamentos dedicados na DB sobrepõem os CSVs [2]
-        const portagemFinal = movPortagemDB ? movPortagemDB.valor : vvCustoFisico;
+        const portagemFinal = movPortagemDB ? movPortagemDB.valor : portagemAtivaFinal;
         const abastecimentoFinal = movAbastecimentoDB ? movAbastecimentoDB.valor : (totalCombustivelCSV + totalEletricoCSV);
 
         const totalCreditosManuais = movsEntidade
@@ -188,7 +262,9 @@ export default function FechoSemanal() {
         const custosFixos = 125.00; // Taxa operacional semanal padrão
 
         const ganhosTotais = liqPlataformas + u.portagens + totalCreditosManuais;
-        const despesasTotais = portagemFinal + abastecimentoFinal + custosFixos + totalDebitosManuais;
+        
+        // [MODIFICADO] O valor retroativo é deduzido como uma despesa na semana corrente
+        const despesasTotais = portagemFinal + portagemRetroativaFinal + abastecimentoFinal + custosFixos + totalDebitosManuais;
 
         return {
           motoristaId: m.id,
@@ -197,18 +273,19 @@ export default function FechoSemanal() {
           uber: u,
           bolt: b,
           movimentosIds: movsEntidade.map(mov => mov.id),
+          portagensRetroativasList: mPortagens.retroativasList, // Guardamos para criar os movimentos físicos na finalização
           contaCorrente: { creditos: totalCreditosManuais, debitos: totalDebitosManuais },
-          // Consolida as despesas calculadas com base nas regras de precedência [2]
           despesas: { 
             viaVerde: portagemFinal, 
+            viaVerdeRetroativas: portagemRetroativaFinal, // Exposição clara para UI e PDF de extrato
             combustivel: abastecimentoFinal, 
-            eletrico: 0, // Consolidado sob abastecimento para compatibilidade visual do PDF
+            eletrico: 0, 
             custosFixos: custosFixos 
           },
           ajustes: 0,
           saldoFinal: ganhosTotais - despesasTotais
         };
-      }).filter(d => d.uber.bruto > 0 || d.bolt.bruto > 0 || d.contaCorrente.creditos > 0 || d.contaCorrente.debitos > 0);
+      }).filter(d => d.uber.bruto > 0 || d.bolt.bruto > 0 || d.contaCorrente.creditos > 0 || d.contaCorrente.debitos > 0 || d.despesas.viaVerdeRetroativas > 0);
 
       setDadosProcessados(consolidado);
       setStep(2);
@@ -226,21 +303,50 @@ export default function FechoSemanal() {
     try {
       for (const item of dadosProcessados) {
         const fechoRef = doc(collection(db, "fechos_semanais"));
+        
+        // Persiste o documento consolidado da semana do motorista
         batch.set(fechoRef, {
           ...item,
           dataFecho: new Date().toISOString(),
           processadoPor: userData.nome,
           pago: false
         });
+
+        // Atualiza movimentos manuais/IA pendentes pré-existentes como fechados
         item.movimentosIds.forEach(movId => {
           const movRef = doc(db, "movimentos_financeiros", movId);
           batch.update(movRef, { pagoNoFechoId: fechoRef.id });
         });
+
+        // [NOVO] CRIAÇÃO AUTOMÁTICA DE LANÇAMENTOS DE VIA VERDE RETROATIVA NO HISTÓRICO DO MOTORISTA
+        if (item.portagensRetroativasList && item.portagensRetroativasList.length > 0) {
+          item.portagensRetroativasList.forEach(pRetro => {
+            const novoMovRef = doc(collection(db, "movimentos_financeiros"));
+            const dataPassagem = new Date(pRetro.dataHora).toLocaleDateString('pt-PT');
+            
+            // Justificação descritiva automatizada ultra detalhada para a caixa-preta e extrato do motorista
+            const descCompleta = `[VIA VERDE RETROATIVA] Débito de ${pRetro.tipo.toUpperCase()} em ${dataPassagem} - ${pRetro.local} (Aparelho: ${pRetro.identificador})`;
+
+            batch.set(novoMovRef, {
+              entidadeId: item.motoristaId,
+              tipoEntidade: "motorista",
+              tipoMovimento: "debito",
+              valor: pRetro.valor,
+              descricao: descCompleta,
+              dataLancamento: new Date().toISOString().split('T')[0],
+              pagoNoFechoId: fechoRef.id, // Vinculado de imediato ao lote corrente (já descontado)
+              criadoPor: "Auditoria Temporal Via Verde",
+              dataCriacao: new Date().toISOString()
+            });
+          });
+        }
       }
+      
       await batch.commit();
       await logAcaoGlobal(userData.nome, "Finalização de Fecho", "Financeiro", `Semana ${new Date().toLocaleDateString()}`, "BATCH");
       setStep(3);
     } catch (error) {
+      console.error("Erro ao finalizar lote:", error);
       alert("Erro ao finalizar semana.");
     } finally {
       setLoading(false);
@@ -264,7 +370,6 @@ export default function FechoSemanal() {
     a.click();
   };
 
-  // Handler de descarregamento do PDF consolidado da auditoria da Via Verde
   const handleDownloadViaVerdePDF = () => {
     const docPdf = generateViaVerdeValidationPDF(viaVerdeProcessed, empresaConfig);
     docPdf.save(`Validacao_ViaVerde_${new Date().toISOString().split('T')[0]}.pdf`);
@@ -287,7 +392,6 @@ export default function FechoSemanal() {
             <UploadBox title="UBER" icon={UploadCloud} color="blue" onChange={(e) => handleFileChange(e, 'uber')} ready={!!files.uber} />
             <UploadBox title="BOLT" icon={UploadCloud} color="green" onChange={(e) => handleFileChange(e, 'bolt')} ready={!!files.bolt} />
             
-            {/* Upload da Via Verde agora renderiza o botão "Validar PDF" avulso em tempo real */}
             <UploadBox title="VIA VERDE" icon={FileSpreadsheet} color="purple" onChange={(e) => handleFileChange(e, 'viaverde')} ready={!!files.viaverde}>
               {files.viaverde && (
                 <Button 
@@ -345,8 +449,16 @@ export default function FechoSemanal() {
                         <MinusCircle size={12} /> {formatCurrency(d.contaCorrente.debitos)}
                       </span>
                     </td>
-                    <td className="p-5 text-center text-slate-500 font-medium">
-                      -{formatCurrency(d.despesas.combustivel + d.despesas.viaVerde + d.despesas.custosFixos)}
+                    <td className="p-5 text-center text-slate-500 font-medium space-y-1">
+                      <div>-{formatCurrency(d.despesas.combustivel + d.despesas.viaVerde + d.despesas.custosFixos)}</div>
+                      
+                      {/* [NOVO] Alerta visual explícito de portagens retroativas na listagem */}
+                      {d.despesas.viaVerdeRetroativas > 0 && (
+                        <div className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full text-[9px] font-black border border-amber-100">
+                          <Radio size={8} className="animate-pulse" />
+                          {formatCurrency(d.despesas.viaVerdeRetroativas)} Retroativo
+                        </div>
+                      )}
                     </td>
                     <td className="p-5 text-right">
                       <span className={`px-4 py-2 rounded-xl font-black text-sm ${d.saldoFinal >= 0 ? 'bg-slate-800 text-white' : 'bg-red-100 text-red-600'}`}>
@@ -478,7 +590,7 @@ export default function FechoSemanal() {
   );
 }
 
-// UploadBox reestruturado com suporte de elementos filhos e mapa de cores correto
+// UploadBox
 const UploadBox = ({ title, icon: Icon, color, onChange, ready, children }) => {
   const colorMap = {
     blue:   'bg-blue-50 text-blue-500 hover:border-blue-400',
