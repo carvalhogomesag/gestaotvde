@@ -3,8 +3,7 @@
  * Localização: src/pages/FechoSemanal.jsx
  *
  * Processador de fecho financeiro semanal (Upload de CSVs e Geração de SEPA/PDF).
- * [ATUALIZADO]: Integração de auditoria temporal Via Verde com imputação retroativa de portagens e parques a antigos condutores.
- * [ATUALIZADO]: Criação automática de lançamentos manuais detalhados para débitos retroativos na finalização do lote.
+ * [ATUALIZADO]: Passagem de coleções do Firestore para o gerador de PDF permitindo rastreabilidade temporal de motoristas por transponder.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -36,7 +35,7 @@ export default function FechoSemanal() {
   const [motoristasDB, setMotoristasDB] = useState([]);
   const [veiculosDB, setVeiculosDB] = useState([]);
   const [cartoesDB, setCartoesDB] = useState([]);
-  const [viaVerdeDB, setViaVerdeDB] = useState([]); // [NOVO] Stock de aparelhos e histórico de atribuições
+  const [viaVerdeDB, setViaVerdeDB] = useState([]); // Stock de aparelhos e histórico de atribuições
   
   // Dados Processados
   const [dadosProcessados, setDadosProcessados] = useState([]);
@@ -63,12 +62,12 @@ export default function FechoSemanal() {
           getDocs(collection(db, "motoristas")),
           getDocs(collection(db, "veiculos")),
           getDocs(collection(db, "cartoes")),
-          getDocs(collection(db, "viaverde_aparelhos")) // [NOVO]
+          getDocs(collection(db, "viaverde_aparelhos"))
         ]);
         setMotoristasDB(mSnap.docs.map(d => ({ id: d.id, ...d.data() })));
         setVeiculosDB(vSnap.docs.map(d => ({ id: d.id, ...d.data() })));
         setCartoesDB(cSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-        setViaVerdeDB(vvSnap.docs.map(d => ({ id: d.id, ...d.data() }))); // [NOVO]
+        setViaVerdeDB(vvSnap.docs.map(d => ({ id: d.id, ...d.data() })));
       };
       loadBaseData();
     }
@@ -115,13 +114,16 @@ export default function FechoSemanal() {
 
   /**
    * Executa o processamento e a exportação direta do PDF de auditoria Via Verde
-   * no Passo 1, sem tocar no Firestore ou avançar o fluxo semanal.
+   * no Passo 1, cruzando em tempo real com a base de dados de aparelhos e frotas.
    */
   const exportarApenasViaVerde = () => {
     if (!files.viaverde) return;
     try {
       const viaVerdeData = parseViaVerdeCSV(files.viaverde);
-      const docPdf = generateViaVerdeValidationPDF(viaVerdeData, empresaConfig);
+      
+      // [ATUALIZADO] Passamos as coleções do Firestore para auditoria cronológica em lote antes de gerar o PDF
+      const docPdf = generateViaVerdeValidationPDF(viaVerdeData, empresaConfig, viaVerdeDB, veiculosDB);
+      
       docPdf.save(`Validacao_ViaVerde_Avulsa_${new Date().toISOString().split('T')[0]}.pdf`);
     } catch (error) {
       console.error("Erro ao gerar PDF de auditoria avulsa:", error);
@@ -146,7 +148,7 @@ export default function FechoSemanal() {
       const movSnap = await getDocs(qMov);
       const todosMovimentos = movSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
-      // [NOVO] Mapa para acumulação e distribuição inteligente de Portagens/Parques por Motorista
+      // Mapa para acumulação e distribuição inteligente de Portagens/Parques por Motorista
       const distribuicaoPortagens = {};
       motoristasDB.forEach(m => {
         distribuicaoPortagens[m.id] = {
@@ -156,7 +158,7 @@ export default function FechoSemanal() {
         };
       });
 
-      // [NOVO] ALGORITMO DE AUDITORIA CRONOLÓGICA DE VIA VERDE (INTERSECÇÃO DE POSSE)
+      // ALGORITMO DE AUDITORIA CRONOLÓGICA DE VIA VERDE (INTERSECÇÃO DE POSSE)
       const transacoesDetalhadas = viaVerdeData.transacoesDetalhadas || [];
       
       transacoesDetalhadas.forEach(tx => {
@@ -201,7 +203,6 @@ export default function FechoSemanal() {
 
         // 3. Acumular os valores conforme a tipologia de responsabilidade
         if (motoristaResponsavelId && distribuicaoPortagens[motoristaResponsavelId]) {
-          // Desconsideramos "mensalidades" de aparelhos (responsabilidade da empresa/proprietário)
           if (tx.tipo === 'portagem' || tx.tipo === 'parque') {
             if (isAtiva) {
               distribuicaoPortagens[motoristaResponsavelId].portagensAtivas += tx.valor;
@@ -224,7 +225,7 @@ export default function FechoSemanal() {
         const b = boltData[m.nome] || { bruto: 0, liquido: 0 };
         const veiculo = veiculosDB.find(v => v.motoristaId === m.id);
         
-        // [MODIFICADO] Extraímos as contas calculadas pelo nosso motor de intersecção temporal
+        // Extraímos as contas calculadas pelo nosso motor de intersecção temporal
         const mPortagens = distribuicaoPortagens[m.id] || { portagensAtivas: 0, portagensRetroativas: 0, retroativasList: [] };
         const portagemAtivaFinal = mPortagens.portagensAtivas;
         const portagemRetroativaFinal = mPortagens.portagensRetroativas;
@@ -263,7 +264,7 @@ export default function FechoSemanal() {
 
         const ganhosTotais = liqPlataformas + u.portagens + totalCreditosManuais;
         
-        // [MODIFICADO] O valor retroativo é deduzido como uma despesa na semana corrente
+        // O valor retroativo é deduzido como uma despesa na semana corrente
         const despesasTotais = portagemFinal + portagemRetroativaFinal + abastecimentoFinal + custosFixos + totalDebitosManuais;
 
         return {
@@ -304,7 +305,6 @@ export default function FechoSemanal() {
       for (const item of dadosProcessados) {
         const fechoRef = doc(collection(db, "fechos_semanais"));
         
-        // Persiste o documento consolidado da semana do motorista
         batch.set(fechoRef, {
           ...item,
           dataFecho: new Date().toISOString(),
@@ -312,19 +312,17 @@ export default function FechoSemanal() {
           pago: false
         });
 
-        // Atualiza movimentos manuais/IA pendentes pré-existentes como fechados
         item.movimentosIds.forEach(movId => {
           const movRef = doc(db, "movimentos_financeiros", movId);
           batch.update(movRef, { pagoNoFechoId: fechoRef.id });
         });
 
-        // [NOVO] CRIAÇÃO AUTOMÁTICA DE LANÇAMENTOS DE VIA VERDE RETROATIVA NO HISTÓRICO DO MOTORISTA
+        // CRIAÇÃO AUTOMÁTICA DE LANÇAMENTOS DE VIA VERDE RETROATIVA NO HISTÓRICO DO MOTORISTA
         if (item.portagensRetroativasList && item.portagensRetroativasList.length > 0) {
           item.portagensRetroativasList.forEach(pRetro => {
             const novoMovRef = doc(collection(db, "movimentos_financeiros"));
             const dataPassagem = new Date(pRetro.dataHora).toLocaleDateString('pt-PT');
             
-            // Justificação descritiva automatizada ultra detalhada para a caixa-preta e extrato do motorista
             const descCompleta = `[VIA VERDE RETROATIVA] Débito de ${pRetro.tipo.toUpperCase()} em ${dataPassagem} - ${pRetro.local} (Aparelho: ${pRetro.identificador})`;
 
             batch.set(novoMovRef, {
@@ -334,7 +332,7 @@ export default function FechoSemanal() {
               valor: pRetro.valor,
               descricao: descCompleta,
               dataLancamento: new Date().toISOString().split('T')[0],
-              pagoNoFechoId: fechoRef.id, // Vinculado de imediato ao lote corrente (já descontado)
+              pagoNoFechoId: fechoRef.id, 
               criadoPor: "Auditoria Temporal Via Verde",
               dataCriacao: new Date().toISOString()
             });
@@ -371,7 +369,8 @@ export default function FechoSemanal() {
   };
 
   const handleDownloadViaVerdePDF = () => {
-    const docPdf = generateViaVerdeValidationPDF(viaVerdeProcessed, empresaConfig);
+    // [ATUALIZADO] Passamos o histórico Firestore para a geração finalizada de auditoria
+    const docPdf = generateViaVerdeValidationPDF(viaVerdeProcessed, empresaConfig, viaVerdeDB, veiculosDB);
     docPdf.save(`Validacao_ViaVerde_${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
@@ -452,7 +451,6 @@ export default function FechoSemanal() {
                     <td className="p-5 text-center text-slate-500 font-medium space-y-1">
                       <div>-{formatCurrency(d.despesas.combustivel + d.despesas.viaVerde + d.despesas.custosFixos)}</div>
                       
-                      {/* [NOVO] Alerta visual explícito de portagens retroativas na listagem */}
                       {d.despesas.viaVerdeRetroativas > 0 && (
                         <div className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full text-[9px] font-black border border-amber-100">
                           <Radio size={8} className="animate-pulse" />
