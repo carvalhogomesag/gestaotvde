@@ -4,11 +4,12 @@
  *
  * Menu lateral administrativo flutuante e auto-retrátil.
  * Otimizado com:
- * - [NOVO] Ocultação total por defeito em Desktop.
- * - [NOVO] Deteção de passagem do rato (hover) para deslizar e abrir automaticamente.
- * - [NOVO] Gatilho de borda invisível na margem esquerda para ativação tátil.
+ * - Ocultação total por defeito em Desktop.
+ * - Deteção de passagem do rato (hover) para deslizar e abrir automaticamente.
+ * - Gatilho de borda invisível na margem esquerda para ativação tátil.
  * - Secção "Administração" simplificada (Registos/Serviços).
  * - Responsividade fluida com preservação de comportamento em ecrãs móveis (Mobile).
+ * - [NOVO] Adicionado suporte ao ecrã de gestão de aparelhos Via Verde associados a motoristas.
  */
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -18,7 +19,7 @@ import {
   Settings, LogOut, CreditCard, ChevronDown, ChevronUp,
   Fuel, Zap, ClipboardList, Inbox, ShieldAlert, Users2,
   Sparkles, UserPlus, X, BookOpen, Sliders,
-  Briefcase, Gift, FileText, GraduationCap
+  Briefcase, Gift, FileText, GraduationCap, Radio
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -68,8 +69,8 @@ export default function Sidebar({ aberta, setAberta }) {
   // Mapeamento que identifica se a rota de configuração de serviços está ativa
   const isServicosActive = location.pathname === '/config/servicos';
 
-  // Mapeamento que identifica se algum sub-registo está ativo
-  const isRegistrosActive = ['/motoristas', '/veiculos', '/proprietarios', '/cartoes'].some(path => 
+  // Mapeamento que identifica se algum sub-registo está ativo (incluindo via-verde)
+  const isRegistrosActive = ['/motoristas', '/veiculos', '/proprietarios', '/cartoes', '/via-verde'].some(path => 
     location.pathname.includes(path)
   );
 
@@ -222,6 +223,7 @@ export default function Sidebar({ aberta, setAberta }) {
                   <SubMenuItem icon={UserCheck} label="Motoristas" to="/motoristas" active={location.pathname === '/motoristas'} />
                   <SubMenuItem icon={Car} label="Veículos" to="/veiculos" active={location.pathname === '/veiculos'} />
                   <SubMenuItem icon={Users} label="Proprietários" to="/proprietarios" active={location.pathname === '/proprietarios'} />
+                  <SubMenuItem icon={Radio} label="Via Verde" to="/via-verde" active={location.pathname === '/via-verde'} />
 
                   {/* Sub-menu Cartões */}
                   <div className="space-y-0.5 pt-0.5" ref={cartoesRef}>
@@ -247,7 +249,7 @@ export default function Sidebar({ aberta, setAberta }) {
               )}
             </div>
 
-            {/* NOVO LINK ÚNICO: Serviços */}
+            {/* LINK ÚNICO: Serviços */}
             <div className="pt-1">
               <MenuItem 
                 icon={Briefcase} 

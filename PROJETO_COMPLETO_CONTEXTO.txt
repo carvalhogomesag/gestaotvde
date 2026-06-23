@@ -144,7 +144,8 @@ try {
     "react-datepicker": "^9.1.0",
     "react-dom": "^19.2.6",
     "react-ga4": "^3.0.1",
-    "react-router-dom": "^7.15.1"
+    "react-router-dom": "^7.15.1",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
@@ -1868,11 +1869,13 @@ export default function FileUpload({ label, onUploadComplete, folder = "document
  * Janela flutuante (modal) de justificação para logs de histórico e segurança.
  * Otimizado com:
  * - Correção de persistência indesejada limpando o estado ao cancelar.
- * - [NOVO] Bloqueio contra justificações vazias ou insignificantes (Mínimo de 5 caracteres).
- * - [NOVO] Contador visual interativo e estilização de botão desativado para UX profissional.
+ * - Bloqueio contra justificações vazias ou insignificantes (Mínimo de 5 caracteres) [2].
+ * - Contador visual interativo e estilização de botão desativado para UX profissional.
+ * - [NOVO] Suporte ao fecho por tecla "Escape" (ESC) para máxima acessibilidade.
+ * - [NOVO] Limpeza defensiva de estado automática ao inicializar a modal para evitar resíduos.
  */
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { MessageSquare, Send, AlertCircle } from 'lucide-react';
 import Button from './Button';
 
@@ -1881,6 +1884,25 @@ export default function JustificacaoModal({ isOpen, onConfirm, onCancel }) {
   
   // Mínimo de caracteres exigido para que o log tenha utilidade na auditoria [2]
   const minLength = 5; 
+
+  // Efeito colateral para controlo de acessibilidade (ESC) e limpeza defensiva de estado
+  useEffect(() => {
+    if (!isOpen) return;
+
+    // Garante que o campo inicia totalmente limpo sempre que a modal é aberta
+    setMotivo(''); 
+
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape' && onCancel) {
+        onCancel();
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [isOpen, onCancel]);
 
   if (!isOpen) return null;
 
@@ -8480,7 +8502,7 @@ export default function ProprietarioForm({
 import React from 'react';
 import { Edit, Trash2, Building2, Phone, Mail, Eye, AlertCircle } from 'lucide-react';
 
-export default function ProprietariosList({ proprietarios, onEdit, onDelete }) {
+export default function ProprietariosList({ proprietarios, onEdit, onDelete, onToggleStatus }) {
   
   // Função para verificar se o registo está incompleto
   const isProfileIncomplete = (p) => {
@@ -8497,12 +8519,14 @@ export default function ProprietariosList({ proprietarios, onEdit, onDelete }) {
             <th className="p-4 font-semibold text-slate-600 text-sm">ID Interno</th>
             <th className="p-4 font-semibold text-slate-600 text-sm">NIF / NIPC</th>
             <th className="p-4 font-semibold text-slate-600 text-sm">Contacto</th>
+            <th className="p-4 font-semibold text-slate-600 text-sm">Estado</th>
             <th className="p-4 font-semibold text-slate-600 text-sm text-right">Ações</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-slate-50">
           {proprietarios.map((p) => {
             const incomplete = isProfileIncomplete(p);
+            const isAtivo = p.ativo !== false;
 
             return (
               <tr key={p.id} className="hover:bg-slate-50/50 transition-colors">
@@ -8518,7 +8542,7 @@ export default function ProprietariosList({ proprietarios, onEdit, onDelete }) {
                   </div>
                 </td>
 
-                {/* NOVA COLUNA: ID INTERNO */}
+                {/* COLUNA: ID INTERNO */}
                 <td className="p-4">
                   <span className="bg-slate-800 text-white text-[10px] font-black px-2 py-1 rounded shadow-sm tracking-wider font-mono">
                     {p.codigoInterno || 'S/ID'}
@@ -8550,25 +8574,42 @@ export default function ProprietariosList({ proprietarios, onEdit, onDelete }) {
                     </div>
                   </div>
                 </td>
+
+                {/* NOVA COLUNA: ESTADO (ATIVO / INATIVO) */}
+                <td className="p-4">
+                  <button
+                    onClick={() => onToggleStatus && onToggleStatus(p)}
+                    className="flex items-center gap-2 focus:outline-none group cursor-pointer"
+                    title={isAtivo ? "Clique para desativar proprietário" : "Clique para ativar proprietário"}
+                  >
+                    <div className={`w-10 h-6 flex items-center rounded-full p-1 transition-colors duration-200 ease-in-out ${isAtivo ? 'bg-emerald-500' : 'bg-slate-300'}`}>
+                      <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-200 ease-in-out ${isAtivo ? 'translate-x-4' : 'translate-x-0'}`} />
+                    </div>
+                    <span className={`text-xs font-bold uppercase tracking-wider transition-colors duration-200 ${isAtivo ? 'text-emerald-600' : 'text-slate-400'}`}>
+                      {isAtivo ? 'Ativo' : 'Inativo'}
+                    </span>
+                  </button>
+                </td>
+
                 <td className="p-4 text-right">
                   <div className="flex justify-end gap-2">
                     <button 
                       onClick={() => onEdit(p, true)} 
-                      className="p-2 text-slate-400 hover:text-indigo-600 transition-colors bg-slate-50 rounded-lg hover:bg-indigo-50"
+                      className="p-2 text-slate-400 hover:text-indigo-600 transition-colors bg-slate-50 rounded-lg hover:bg-indigo-50 cursor-pointer"
                       title="Visualizar Ficha"
                     >
                       <Eye size={18} />
                     </button>
                     <button 
                       onClick={() => onEdit(p, false)} 
-                      className="p-2 text-slate-400 hover:text-tvde-primary transition-colors bg-slate-50 rounded-lg hover:bg-blue-50"
+                      className="p-2 text-slate-400 hover:text-tvde-primary transition-colors bg-slate-50 rounded-lg hover:bg-blue-50 cursor-pointer"
                       title="Editar"
                     >
                       <Edit size={18} />
                     </button>
                     <button 
                       onClick={() => onDelete(p.id)} 
-                      className="p-2 text-slate-400 hover:text-tvde-danger transition-colors bg-slate-50 rounded-lg hover:bg-red-50"
+                      className="p-2 text-slate-400 hover:text-tvde-danger transition-colors bg-slate-50 rounded-lg hover:bg-red-50 cursor-pointer"
                       title="Eliminar"
                     >
                       <Trash2 size={18} />
@@ -8754,10 +8795,12 @@ export default function UsuarioForm({ onSubmit, onCancel, initialData = {} }) {
  * - Migrado integralmente para a arquitetura de grelha de botões táteis com sub-modais de UX.
  * - Histórico de alterações formatado com data e hora detalhadas no padrão PT-PT.
  * - Preservação total das ações de criação inline de Motoristas/Proprietários e Sincronização.
- * - [NOVO] Suporte a Regimes de Aluguer: Integral (1 Condutor) ou Partilhado por Turnos (2 Condutores).
+ * - Suporte a Regimes de Aluguer: Integral (1 Condutor) ou Partilhado por Turnos (2 Condutores).
+ * - Dropdown de Marcas inteligente exibindo até as 10 marcas mais registadas na frota no topo.
+ * - [NOVO] Adição de Data da Primeira Matrícula e cálculo dinâmico de tempo de circulação TVDE restante.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   CreditCard, Car, Users, FileText, Eye, Trash2, 
   CheckCircle2, AlertCircle, Calendar, ShieldCheck, ClipboardCheck, History,
@@ -8773,6 +8816,23 @@ import { useAuth } from '../../context/AuthContext';
 import { logAcaoGlobal } from '../../utils/logger';
 import ModalFinanceiro from '../financeiro/ModalFinanceiro';
 
+// Listas Estáticas fora do ciclo de render do componente
+const TODAS_AS_MARCAS = [
+  "ABARTH", "AIXAM", "ALFA ROMEO", "ALPINA", "ALPINE", "ASTON MARTIN", "AUDI", "AUSTIN", 
+  "AUTOBIANCHI", "BENTLEY", "BMW", "CADILLAC", "CHEVROLET", "CHRYSLER", "CITROЁN", "CUPRA", 
+  "DACIA", "DAEWOO", "DAIHATSU", "DODGE", "DR", "DS", "FERRARI", "FIAT", "FORD", "FORD USA", 
+  "HONDA", "HUMMER", "HYUNDAI", "INFINITI", "ISUZU", "IVECO", "JAGUAR", "JEEP", "KIA", "LADA", 
+  "LAMBORGHINI", "LANCIA", "LAND ROVER", "LEXUS", "LOTUS", "MAN", "MASERATI", "MAZDA", 
+  "MERCEDES-BENZ", "MG", "MINI", "MITSUBISHI", "NISSAN", "OPEL", "PEUGEOT", "PIAGGIO", 
+  "POLESTAR", "PONTIAC", "PORSCHE", "RAM", "RENAULT", "RENAULT TRUCKS", "ROLLS-ROYCE", "ROVER", 
+  "SAAB", "SANTANA", "SEAT", "SKODA", "SMART", "SSANGYONG", "SUBARU", "SUZUKI", "TALBOT", 
+  "TATA (TELCO)", "TESLA", "TOYOTA", "TRABANT", "TRIUMPH", "VAUXHALL", "VOLVO", "VW"
+];
+
+const POPULARES_ESTATICOS = [
+  "BMW", "VW", "MERCEDES-BENZ", "RENAULT", "AUDI", "OPEL", "PEUGEOT", "SEAT", "FORD", "CITROЁN"
+];
+
 /**
  * Função Auxiliar didática para formatar data e hora em PT-PT
  */
@@ -8786,6 +8846,52 @@ const formatDataHora = (isoString) => {
   } catch (e) {
     return isoString;
   }
+};
+
+/**
+ * [NOVO] Algoritmo de cálculo legal de tempo restante para circulação TVDE
+ */
+const calcularTempoRestanteTVDE = (dataPrimeiraMatricula, limiteAnos = 7) => {
+  if (!dataPrimeiraMatricula) return null;
+  
+  const dataMatricula = new Date(dataPrimeiraMatricula);
+  const dataLimite = new Date(dataMatricula);
+  dataLimite.setFullYear(dataMatricula.getFullYear() + Number(limiteAnos));
+  
+  const hoje = new Date();
+  
+  // Calcular diferenças de calendário precisas
+  let anos = dataLimite.getFullYear() - hoje.getFullYear();
+  let meses = dataLimite.getMonth() - hoje.getMonth();
+  let dias = dataLimite.getDate() - hoje.getDate();
+  
+  if (dias < 0) {
+    meses--;
+    const ultimoDiaMesAnterior = new Date(hoje.getFullYear(), hoje.getMonth(), 0).getDate();
+    dias += ultimoDiaMesAnterior;
+  }
+  
+  if (meses < 0) {
+    anos--;
+    meses += 12;
+  }
+  
+  const totalDias = Math.ceil((dataLimite - hoje) / (1000 * 60 * 60 * 24));
+  
+  if (totalDias <= 0) {
+    return { expirado: true, texto: "Excedeu o limite regulamentar de circulação TVDE" };
+  }
+  
+  let partes = [];
+  if (anos > 0) partes.push(`${anos} ${anos === 1 ? 'ano' : 'anos'}`);
+  if (meses > 0) partes.push(`${meses} ${meses === 1 ? 'mês' : 'meses'}`);
+  if (dias > 0 && partes.length < 2) partes.push(`${dias} ${dias === 1 ? 'dia' : 'dias'}`);
+  
+  return { 
+    expirado: false, 
+    texto: `Faltam: ${partes.join(' e ')}`, 
+    totalDias 
+  };
 };
 
 /**
@@ -8810,6 +8916,8 @@ export default function VeiculoForm({
   motoristas = [], 
   proprietarios = [], 
   cartoes = [], 
+  veiculos = [], // Array de viaturas registadas vindo do orquestrador
+  limiteAnosTVDE = 7, // [NOVO] Limite regulamentar configurável (padrão legal: 7 anos)
   onCancel, 
   isReadOnly = false, 
   onCriarProprietario, 
@@ -8823,9 +8931,10 @@ export default function VeiculoForm({
     modelo: initialData.modelo || '', 
     matricula: initialData.matricula || '', 
     ano: initialData.ano || '',
+    dataPrimeiraMatricula: initialData.dataPrimeiraMatricula || '', // [NOVO]
     proprietarioId: initialData.proprietarioId || '', 
     proprietarioNome: initialData.proprietarioNome || '', 
-    // [NOVO] Regime de Aluguer ('integral' ou 'turnos')
+    // Regime de Aluguer ('integral' ou 'turnos')
     tipoAluguer: initialData.tipoAluguer || 'integral',
     // Turno Diurno / Único (1)
     motoristaId: initialData.motoristaId || '',
@@ -8892,6 +9001,48 @@ export default function VeiculoForm({
     }
   }, [initialData.id]);
 
+  // ALGORITMO DEDUPICADO PARA ATÉ 10 SUGESTÕES
+  const sugeridas = useMemo(() => {
+    if (!veiculos || veiculos.length === 0) return [];
+    
+    const contagem = {};
+    veiculos.forEach(v => {
+      if (v.marca) {
+        const marcaNormalizada = v.marca.trim().toUpperCase();
+        contagem[marcaNormalizada] = (contagem[marcaNormalizada] || 0) + 1;
+      }
+    });
+
+    const ordenadas = Object.entries(contagem)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 10)
+      .map(par => par[0]);
+
+    return ordenadas.map(marca => 
+      TODAS_AS_MARCAS.find(m => m.toUpperCase() === marca) || marca
+    );
+  }, [veiculos]);
+
+  // Filtra marcas populares padrão tirando as que já constam nos sugeridos
+  const popularesFiltradas = useMemo(() => {
+    return POPULARES_ESTATICOS.filter(
+      marca => !sugeridas.some(s => s.toUpperCase() === marca.toUpperCase())
+    );
+  }, [sugeridas]);
+
+  // Filtra a lista completa tirando marcas sugeridas e marcas populares
+  const restantesFiltradas = useMemo(() => {
+    return TODAS_AS_MARCAS.filter(
+      marca => !sugeridas.some(s => s.toUpperCase() === marca.toUpperCase()) &&
+               !popularesFiltradas.some(p => p.toUpperCase() === marca.toUpperCase())
+    );
+  }, [sugeridas, popularesFiltradas]);
+
+  // [NOVO] Cálculo em tempo real do tempo regulamentar restante
+  const tempoRestanteTVDE = useMemo(() => {
+    return calcularTempoRestanteTVDE(formData.dataPrimeiraMatricula, limiteAnosTVDE);
+  }, [formData.dataPrimeiraMatricula, limiteAnosTVDE]);
+
   const handleCategoriaToggle = (cat) => {
     setCategoriasSelecionadas(prev => {
       if (prev.includes(cat)) {
@@ -8904,7 +9055,7 @@ export default function VeiculoForm({
   };
 
   /**
-   * [NOVO] Altera o tipo de aluguer e limpa o motorista do Turno B 
+   * Altera o tipo de aluguer e limpa o motorista do Turno B 
    * se reverter para "Período Integral" (24h)
    */
   const handleTipoAluguerChange = (tipo) => {
@@ -9172,10 +9323,68 @@ export default function VeiculoForm({
             <div className="space-y-4 overflow-y-auto pr-2 custom-scrollbar">
               <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                 <div><label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Matrícula *</label><input required readOnly={isReadOnly} placeholder="AA-00-AA" className={`${inputClass} uppercase font-bold text-center tracking-widest`} value={formData.matricula} onChange={handleMatriculaChange} /></div>
-                <div><label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Marca</label><input readOnly={isReadOnly} className={inputClass} value={formData.marca} onChange={(e) => setFormData({...formData, marca: e.target.value})} /></div>
+                
+                {/* [Dropdown Inteligente para Marcas - Expandido para 10] */}
+                <div>
+                  <label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Marca</label>
+                  {isReadOnly ? (
+                    <input readOnly className={inputClass} value={formData.marca} />
+                  ) : (
+                    <select
+                      className={inputClass}
+                      value={formData.marca}
+                      onChange={(e) => setFormData({...formData, marca: e.target.value})}
+                    >
+                      <option value="">Selecione...</option>
+                      
+                      {sugeridas.length > 0 && (
+                        <optgroup label="✨ Sugeridos (Mais Registados)">
+                          {sugeridas.map(m => (
+                            <option key={`sug-${m}`} value={m}>{m}</option>
+                          ))}
+                        </optgroup>
+                      )}
+                      
+                      <optgroup label="🔥 Marcas Populares">
+                        {popularesFiltradas.map(m => (
+                          <option key={`pop-${m}`} value={m}>{m}</option>
+                        ))}
+                      </optgroup>
+                      
+                      <optgroup label="📋 Todas as Marcas (A-Z)">
+                        {restantesFiltradas.map(m => (
+                          <option key={`all-${m}`} value={m}>{m}</option>
+                        ))}
+                      </optgroup>
+                    </select>
+                  )}
+                </div>
+
                 <div><label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Modelo</label><input readOnly={isReadOnly} className={inputClass} value={formData.modelo} onChange={(e) => setFormData({...formData, modelo: e.target.value})} /></div>
                 <div><label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Ano</label><input type="number" readOnly={isReadOnly} className={inputClass} value={formData.ano} onChange={(e) => setFormData({...formData, ano: e.target.value})} /></div>
               </div>
+
+              {/* [NOVO] Seletor de Data da Primeira Matrícula & Cálculo do Tempo Restante */}
+              <div className="grid grid-cols-1 gap-3 pt-2">
+                <div>
+                  <DatePicker 
+                    label="Data da Primeira Matrícula *" 
+                    value={formData.dataPrimeiraMatricula} 
+                    onChange={(val) => setFormData({...formData, dataPrimeiraMatricula: val})} 
+                    isReadOnly={isReadOnly} 
+                  />
+                  {formData.dataPrimeiraMatricula && tempoRestanteTVDE && (
+                    <div className={`mt-2.5 p-3 rounded-xl text-xs font-bold border flex items-center gap-2 select-none animate-in fade-in duration-200 ${tempoRestanteTVDE.expirado ? 'bg-red-50 border-red-100 text-red-600' : 'bg-emerald-50 border-emerald-100 text-emerald-700'}`}>
+                      {tempoRestanteTVDE.expirado ? <AlertCircle size={14} className="shrink-0" /> : <Sparkles size={14} className="shrink-0" />}
+                      <div className="flex-1">
+                        <p className="font-black">{tempoRestanteTVDE.texto}</p>
+                        <p className="text-[10px] opacity-80 font-medium">Limite legal configurado em {limiteAnosTVDE} anos para circulação de viaturas nas plataformas TVDE.</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+
               <div className="pt-2">
                 <label className="block text-[9px] font-black text-slate-400 uppercase mb-1 ml-1">Tipo de Combustível</label>
                 <select disabled={isReadOnly} className={inputClass} value={formData.combustivel} onChange={(e) => setFormData({...formData, combustivel: e.target.value})}>
@@ -9219,7 +9428,7 @@ export default function VeiculoForm({
             </h3>
             <div className="space-y-4 overflow-y-auto pr-2 custom-scrollbar">
               
-              {/* [NOVO] Regime / Tipo de Aluguer */}
+              {/* Regime / Tipo de Aluguer */}
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/60 space-y-2">
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">Regime de Aluguer / Operação</label>
                 <select 
@@ -9267,7 +9476,7 @@ export default function VeiculoForm({
                 {formData.tipoAluguer === 'integral' ? (
                   /* Regime Integral: Apenas 1 condutor habitual */
                   <div className="space-y-2">
-                    <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Motorista Habitual (24h)</label>
+                    <label className="block text-xs font-bold text-slate-505 uppercase tracking-wider">Motorista Habitual (24h)</label>
                     {!isReadOnly && !initialData.id && (
                       <div className="flex rounded-lg border border-slate-200 overflow-hidden bg-slate-50 p-1 gap-1 w-fit">
                         <button type="button" onClick={() => setModoMotorista('existente')} className={`px-3 py-1 text-xs font-bold rounded transition-colors ${modoMotorista === 'existente' ? 'bg-white text-tvde-primary shadow-sm' : 'text-slate-400'}`}>Existente</button>
@@ -11371,22 +11580,41 @@ export default function CentroComando() {
 
 ### ARQUIVO: src\pages\Configuracoes.jsx ###
 --------------------------------------------------
+/**
+ * Configuracoes.jsx
+ * Localização: src/pages/Configuracoes.jsx
+ *
+ * Página de controlo e parametrização geral do ERP.
+ * Otimizado com:
+ * - Gestão de acessos à equipa administrativa.
+ * - [CORRIGIDO] Adição da função fecharModal para corrigir o erro de runtime.
+ * - Separador de configuração de frotas ("Veículos") para parametrizar limite de anos TVDE.
+ */
+
 import React, { useState, useEffect } from 'react';
-import { Plus, ShieldCheck, Trash2, Settings, Lock, Loader2 } from 'lucide-react';
+import { Plus, ShieldCheck, Trash2, Settings, Lock, Loader2, Car, Save, AlertCircle } from 'lucide-react';
 import { db } from '../firebase';
-import { collection, getDocs, doc, deleteDoc, setDoc, query } from 'firebase/firestore';
+import { collection, getDocs, doc, deleteDoc, setDoc, getDoc, query } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
+import { logAcaoGlobal } from '../utils/logger';
 import Button from '../components/ui/Button';
 import Modal from '../components/ui/Modal';
 import UsuarioForm from '../features/usuarios/UsuarioForm';
 
 export default function Configuracoes() {
-  const { userData, loading: authLoading } = useAuth(); // Pegamos o loading do contexto
+  const { userData, loading: authLoading } = useAuth(); // Contexto de autenticação original
   const [usuarios, setUsuarios] = useState([]);
   const [loadingData, setLoadingData] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [editingUser, setEditingUser] = useState(null);
 
+  // Estados para o separador de frotas e parametrização
+  const [activeTab, setActiveTab] = useState('acessos'); // 'acessos' ou 'veiculos'
+  const [limiteAnosTVDE, setLimiteAnosTVDE] = useState(7);
+  const [loadingConfig, setLoadingConfig] = useState(false);
+  const [savingConfig, setSavingConfig] = useState(false);
+
+  // Carrega os dados de utilizadores
   const fetchUsuarios = async () => {
     setLoadingData(true);
     try {
@@ -11399,23 +11627,75 @@ export default function Configuracoes() {
     }
   };
 
+  // Carrega as configurações de veículos do Firestore
+  const fetchConfig = async () => {
+    setLoadingConfig(true);
+    try {
+      const docSnap = await getDoc(doc(db, "configuracoes", "veiculos"));
+      if (docSnap.exists()) {
+        setLimiteAnosTVDE(docSnap.data().limiteAnosTVDE || 7);
+      }
+    } catch (error) {
+      console.error("Erro ao carregar configurações de veículos:", error);
+    } finally {
+      setLoadingConfig(false);
+    }
+  };
+
   useEffect(() => {
-    // Só tenta carregar se o utilizador for admin
     if (userData?.role === 'admin') {
       fetchUsuarios();
+      fetchConfig();
     }
   }, [userData]);
 
+  // Função centralizada para fechar a modal e limpar estados residuais
+  const fecharModal = () => {
+    setIsModalOpen(false);
+    setEditingUser(null);
+  };
+
   const handleSaveUser = async (dados) => {
     try {
-      // Usamos o email como ID (limpo de pontos) ou o ID existente
       const userId = editingUser?.id || dados.email.replace(/\./g, '_');
       await setDoc(doc(db, "usuarios", userId), dados, { merge: true });
-      setIsModalOpen(false);
-      setEditingUser(null);
+      fecharModal();
       fetchUsuarios();
     } catch (error) {
       alert("Erro ao salvar permissões.");
+    }
+  };
+
+  // Grava as parametrizações de idade limite do veículo no Firestore
+  const handleSaveConfigVeiculos = async () => {
+    if (!limiteAnosTVDE || isNaN(limiteAnosTVDE) || limiteAnosTVDE < 1) {
+      alert("Por favor, insira um número de anos válido.");
+      return;
+    }
+    
+    setSavingConfig(true);
+    try {
+      const configRef = doc(db, "configuracoes", "veiculos");
+      await setDoc(configRef, {
+        limiteAnosTVDE: Number(limiteAnosTVDE),
+        atualizadoPor: userData?.nome || 'Administrador',
+        dataAtualizacao: new Date().toISOString()
+      }, { merge: true });
+
+      await logAcaoGlobal(
+        userData?.nome || 'Administrador', 
+        "Configuração Veículos", 
+        "Frotas", 
+        `Limite TVDE alterado para ${limiteAnosTVDE} anos`, 
+        "veiculos"
+      );
+
+      alert("Parâmetros de frotas TVDE guardados com sucesso!");
+    } catch (error) {
+      console.error("Erro ao salvar configuração:", error);
+      alert("Erro ao registar a nova configuração.");
+    } finally {
+      setSavingConfig(false);
     }
   };
 
@@ -11430,7 +11710,7 @@ export default function Configuracoes() {
     }
   };
 
-  // 1. Enquanto o Firebase está a verificar quem você é
+  // 1. Enquanto o Firebase está a verificar a sessão ativa
   if (authLoading) {
     return (
       <div className="flex items-center justify-center h-[60vh]">
@@ -11439,7 +11719,7 @@ export default function Configuracoes() {
     );
   }
 
-  // 2. Se já carregou e você NÃO é admin
+  // 2. Se já carregou e o utilizador NÃO tem cargo admin
   if (userData?.role !== 'admin') {
     return (
       <div className="flex flex-col items-center justify-center h-[60vh] text-center">
@@ -11447,89 +11727,203 @@ export default function Configuracoes() {
           <Lock size={40} />
         </div>
         <h2 className="text-2xl font-bold text-slate-800">Acesso Restrito</h2>
-        <p className="text-slate-500">Apenas administradores podem gerir utilizadores.</p>
+        <p className="text-slate-500">Apenas administradores podem gerir utilizadores e parametrizações.</p>
         <p className="text-xs text-slate-400 mt-2">O seu cargo atual é: <span className="font-bold">{userData?.role || 'Não definido'}</span></p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-8">
-      <header className="flex justify-between items-center">
+    <div className="space-y-8 text-left">
+      <header className="flex justify-between items-center select-none">
         <div>
           <h1 className="text-2xl font-bold text-slate-800 flex items-center gap-2">
             <Settings className="text-tvde-primary" /> Configurações
           </h1>
-          <p className="text-slate-500 text-sm">Gestão de acessos ao sistema.</p>
+          <p className="text-slate-500 text-sm">
+            {activeTab === 'acessos' ? 'Gestão de acessos ao sistema.' : 'Parametrização global de frotas e regras.'}
+          </p>
         </div>
-        <Button onClick={() => { setEditingUser(null); setIsModalOpen(true); }}>
-          <Plus size={20} /> Novo Utilizador
-        </Button>
+        {activeTab === 'acessos' && (
+          <Button onClick={() => { setEditingUser(null); setIsModalOpen(true); }}>
+            <Plus size={20} /> Novo Utilizador
+          </Button>
+        )}
       </header>
 
-      {loadingData ? (
-        <div className="flex justify-center py-20">
-          <Loader2 className="animate-spin text-slate-300" size={32} />
-        </div>
-      ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {usuarios.map(u => (
-            <div key={u.id} className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm hover:shadow-md transition-all relative group">
-              <div className="flex items-start justify-between mb-4">
-                <div className={`p-3 rounded-2xl ${u.role === 'admin' ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-600'}`}>
-                  <ShieldCheck size={24} />
+      {/* Navegação de Abas internas das Configurações */}
+      <div className="flex border-b border-slate-100 select-none gap-6">
+        <button 
+          onClick={() => setActiveTab('acessos')}
+          className={`pb-2.5 px-2 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${activeTab === 'acessos' ? 'border-tvde-primary text-tvde-primary' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+        >
+          👤 Equipa & Permissões
+        </button>
+        <button 
+          onClick={() => setActiveTab('veiculos')}
+          className={`pb-2.5 px-2 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer flex items-center gap-2 ${activeTab === 'veiculos' ? 'border-indigo-600 text-indigo-600 font-black' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+        >
+          <Car size={14} /> Parametrizar Veículos
+        </button>
+      </div>
+
+      {/* CONTEÚDO 1: GESTÃO DE ACESSOS */}
+      {activeTab === 'acessos' && (
+        loadingData ? (
+          <div className="flex justify-center py-20">
+            <Loader2 className="animate-spin text-slate-300" size={32} />
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+            {usuarios.map(u => (
+              <div key={u.id} className="bg-white p-6 rounded-[2rem] border border-slate-200 shadow-sm hover:shadow-md transition-all relative group text-left">
+                <div className="flex items-start justify-between mb-4">
+                  <div className={`p-3 rounded-2xl ${u.role === 'admin' ? 'bg-red-50 text-red-600' : 'bg-blue-50 text-blue-600'}`}>
+                    <ShieldCheck size={24} />
+                  </div>
+                  <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+                    <button onClick={() => { setEditingUser(u); setIsModalOpen(true); }} className="p-2 text-slate-400 hover:text-tvde-primary bg-slate-50 rounded-lg cursor-pointer">
+                      <Settings size={16} />
+                    </button>
+                    <button onClick={() => handleDelete(u.id)} className="p-2 text-slate-400 hover:text-red-500 bg-slate-50 rounded-lg cursor-pointer">
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
                 </div>
-                <div className="flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <button onClick={() => { setEditingUser(u); setIsModalOpen(true); }} className="p-2 text-slate-400 hover:text-tvde-primary bg-slate-50 rounded-lg">
-                    <Settings size={16} />
-                  </button>
-                  <button onClick={() => handleDelete(u.id)} className="p-2 text-slate-400 hover:text-red-500 bg-slate-50 rounded-lg">
-                    <Trash2 size={16} />
-                  </button>
+
+                <div>
+                  <h3 className="font-bold text-slate-800 text-lg">{u.nome}</h3>
+                  <p className="text-sm text-slate-500 truncate">{u.email}</p>
+                  <div className="mt-4 flex items-center justify-between">
+                    <span className="text-[10px] font-black uppercase px-3 py-1 rounded-full bg-slate-100 text-slate-600">
+                      {u.role}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )
+      )}
+
+      {/* CONTEÚDO 2: PARAMETRIZAÇÃO DE VEÍCULOS */}
+      {activeTab === 'veiculos' && (
+        loadingConfig ? (
+          <div className="flex justify-center py-20">
+            <Loader2 className="animate-spin text-slate-300" size={32} />
+          </div>
+        ) : (
+          <div className="animate-in fade-in duration-200 text-left max-w-2xl">
+            <div className="bg-white p-6 sm:p-8 rounded-[2rem] border border-slate-200 shadow-sm space-y-6">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl shrink-0">
+                  <Car size={24} />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-800 text-lg">Regulamento de Frota TVDE</h3>
+                  <p className="text-xs text-slate-400">Configure as regras legais de idade limite para circulação das viaturas.</p>
                 </div>
               </div>
 
-              <div>
-                <h3 className="font-bold text-slate-800 text-lg">{u.nome}</h3>
-                <p className="text-sm text-slate-500 truncate">{u.email}</p>
-                <div className="mt-4 flex items-center justify-between">
-                  <span className="text-[10px] font-black uppercase px-3 py-1 rounded-full bg-slate-100 text-slate-600">
-                    {u.role}
-                  </span>
+              <div className="space-y-4 border-t border-slate-50 pt-4">
+                <div>
+                  <label className="block text-xs font-black text-slate-500 uppercase mb-2 ml-1">
+                    Tempo Limite de Circulação (Anos de Idade Máxima)
+                  </label>
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="number"
+                      min="1"
+                      max="25"
+                      className="w-32 py-2 px-3.5 border border-slate-200 rounded-xl outline-none transition-all text-sm bg-white focus:ring-2 focus:ring-tvde-primary/20 hover:border-slate-300 font-black text-center"
+                      value={limiteAnosTVDE}
+                      onChange={(e) => setLimiteAnosTVDE(e.target.value)}
+                    />
+                    <span className="text-xs font-bold text-slate-500">Anos desde a primeira matrícula</span>
+                  </div>
+                  <p className="text-xs text-slate-400 mt-3 leading-relaxed">
+                    Este parâmetro define qual a validade máxima de circulação das viaturas nas plataformas Uber e Bolt. 
+                    O ERP utiliza este limite dinamicamente para calcular e alertar em tempo real quanto tempo resta a cada veículo.
+                  </p>
+                </div>
+                
+                <div className="p-4 bg-amber-50/50 border border-amber-100 rounded-2xl flex gap-3 text-amber-700 text-xs">
+                  <AlertCircle size={18} className="shrink-0 mt-0.5" />
+                  <div>
+                    <p className="font-bold">Aviso Regulamentar</p>
+                    <p className="mt-1 leading-relaxed opacity-90">
+                      Atualmente a lei portuguesa impõe o limite estrito de <strong>7 anos</strong>. 
+                      Se a nova proposta de alteração legislativa for ratificada para <strong>10 anos</strong>, mude o valor acima e guarde para atualizar de forma imediata todas as fichas de viatura do sistema.
+                  </p>
                 </div>
               </div>
             </div>
-          ))}
-        </div>
-      )}
 
-      <Modal 
-        isOpen={isModalOpen} 
-        onClose={() => setIsModalOpen(false)} 
-        title={editingUser ? "Editar Permissões" : "Conceder Novo Acesso"}
-      >
-        <UsuarioForm 
-          onSubmit={handleSaveUser} 
-          onCancel={() => setIsModalOpen(false)} 
-          initialData={editingUser || {}} 
-        />
-      </Modal>
-    </div>
-  );
+            <div className="pt-4 border-t border-slate-100 flex justify-end">
+              <Button 
+                onClick={handleSaveConfigVeiculos} 
+                disabled={savingConfig || !limiteAnosTVDE}
+                className="px-6 h-10 text-xs shadow-md"
+              >
+                {savingConfig ? (
+                  <span className="flex items-center gap-2">
+                    <Loader2 className="animate-spin" size={14} /> A Guardar...
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1.5">
+                    <Save size={14} /> Guardar Parâmetros
+                  </span>
+                )}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )
+    )}
+
+    {/* MODAL UTILIZADORES */}
+    <Modal 
+      isOpen={isModalOpen} 
+      onClose={fecharModal} 
+      title={editingUser ? "Editar Permissões" : "Conceder Novo Acesso"}
+    >
+      <UsuarioForm 
+        onSubmit={handleSaveUser} 
+        onCancel={fecharModal} 
+        initialData={editingUser || {}} 
+      />
+    </Modal>
+  </div>
+);
 }
 --------------------------------------------------
 
 
 ### ARQUIVO: src\pages\Dashboard.jsx ###
 --------------------------------------------------
-import React, { useState, useEffect } from 'react';
+/**
+ * Dashboard.jsx
+ * Localização: src/pages/Dashboard.jsx
+ *
+ * Página de controlo e monitorização do ERP.
+ * Otimizado com:
+ * - Filtros rápidos e ordenação integrada.
+ * - Sincronização bidirecional dupla robusta (Turno A e Turno B).
+ * - Mini-Dashboard analítico super compacto com KPIs da frota em tempo real.
+ * - [ATUALIZADO] Substituição das dicas pelo card regulamentar dinâmico de vencimento de viaturas TVDE.
+ */
+
+import React, { useState, useEffect, useMemo } from 'react';
+import { createPortal } from 'react-dom'; // Importado para suporte a Portais dinâmicos no Header
+import { useLocation, useNavigate } from 'react-router-dom';
+// Adicionados os ícones para as frotas e alertas regulamentares
 import { 
   UserCheck, Car, Building2, TrendingUp, Calendar, 
-  AlertTriangle, CheckCircle2, Info, ChevronLeft, ChevronRight, ArrowRight, UserPlus 
+  AlertTriangle, CheckCircle2, Info, ChevronLeft, ChevronRight, ArrowRight, UserPlus,
+  AlertCircle, Sparkles
 } from 'lucide-react';
 import { db } from '../firebase';
-import { collection, getDocs } from 'firebase/firestore';
-import { useNavigate } from 'react-router-dom';
+import { collection, getDocs, doc, getDoc } from 'firebase/firestore';
 import StatCard from '../features/dashboard/StatCard';
 
 /**
@@ -11560,6 +11954,20 @@ const _hoje = new Date();
 const SEMANA_ATUAL = getISOWeekNumber(_hoje);
 const ANO_ATUAL = _hoje.getFullYear();
 
+/**
+ * Algoritmo de cálculo legal de tempo restante para circulação TVDE
+ */
+const obterDiasRestantesTVDE = (dataPrimeiraMatricula, limiteAnos = 7) => {
+  if (!dataPrimeiraMatricula) return null;
+  const dataMatricula = new Date(dataPrimeiraMatricula);
+  const dataLimite = new Date(dataMatricula);
+  dataLimite.setFullYear(dataMatricula.getFullYear() + Number(limiteAnos));
+  
+  const hoje = new Date();
+  const diffTime = dataLimite - hoje;
+  return Math.ceil(diffTime / (1000 * 60 * 60 * 24)); // Retorna dias (positivos ou negativos)
+};
+
 export default function Dashboard() {
   const navigate = useNavigate();
 
@@ -11572,28 +11980,34 @@ export default function Dashboard() {
     motoristas: 0,
     veiculos: 0,
     proprietarios: 0,
-    // Métricas do card de Leads
     leadsTotais: 0,
     leadsNovas: 0,
     leadsContacto: 0
   });
   const [alertas, setAlertas] = useState([]);
+  const [alertasTVDE, setAlertasTVDE] = useState([]); // [NOVO] Alertas regulamentares de idade das viaturas
+  const [limiteAnosTVDE, setLimiteAnosTVDE] = useState(7); // [NOVO] Limite configurado via administração
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       try {
-        const [motSnap, veiSnap, propSnap, leadsSnap] = await Promise.all([
+        const [motSnap, veiSnap, propSnap, leadsSnap, configSnap] = await Promise.all([
           getDocs(collection(db, "motoristas")),
           getDocs(collection(db, "veiculos")),
           getDocs(collection(db, "proprietarios")),
-          getDocs(collection(db, "leads_captadas")) // Consulta integrada de Leads
+          getDocs(collection(db, "leads_captadas")),
+          getDoc(doc(db, "configuracoes", "veiculos")) // [NOVO] Carrega o limite de circulação regulamentar
         ]);
 
         // Contabilização de estados do funil de Leads
         const todasLeads = leadsSnap.docs.map(doc => doc.data());
         const novas = todasLeads.filter(l => l.estado === 'novo').length;
         const contacto = todasLeads.filter(l => l.estado === 'contacto_iniciado').length;
+
+        // Limite de anos configurável
+        const limiteAnos = configSnap.exists() ? (configSnap.data().limiteAnosTVDE || 7) : 7;
+        setLimiteAnosTVDE(limiteAnos);
 
         setStats({
           motoristas: motSnap.size,
@@ -11607,7 +12021,7 @@ export default function Dashboard() {
         let listaAlertas = [];
         const hojeCheck = new Date();
 
-        // 1. Alertas de Motoristas
+        // 1. Alertas de Validade de Motoristas
         motSnap.docs.forEach(doc => {
           const m = doc.data();
           const checks = [
@@ -11627,7 +12041,7 @@ export default function Dashboard() {
           });
         });
 
-        // 2. Alertas de Veículos
+        // 2. Alertas de Validade de Veículos (Seguro e IPO)
         veiSnap.docs.forEach(doc => {
           const v = doc.data();
           const checks = [
@@ -11648,6 +12062,18 @@ export default function Dashboard() {
         });
 
         setAlertas(listaAlertas.sort((a, b) => a.dias - b.dias));
+
+        // 3. [NOVO] Filtro regulamentar TVDE: Calcula validade máxima de circulação de frotas
+        const todosVeiculos = veiSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        const listagemTVDE = todosVeiculos
+          .map(v => {
+            const dias = obterDiasRestantesTVDE(v.dataPrimeiraMatricula, limiteAnos);
+            return { ...v, diasRestantes: dias };
+          })
+          .filter(v => v.diasRestantes !== null && v.diasRestantes <= 30)
+          .sort((a, b) => a.diasRestantes - b.diasRestantes);
+
+        setAlertasTVDE(listagemTVDE);
 
       } catch (error) {
         console.error("Erro ao carregar dashboard:", error);
@@ -11689,18 +12115,18 @@ export default function Dashboard() {
     navigate(`${rota}?id=${alerta.itemId}`);
   };
 
-  const isHoje = javaScriptCheck => semanaVisivel === SEMANA_ATUAL && anoVisivel === ANO_ATUAL;
+  const isHoje = () => semanaVisivel === SEMANA_ATUAL && anoVisivel === ANO_ATUAL;
 
   return (
     <div className="space-y-6 sm:space-y-8">
-      {/* ◄ ALTERADO: Header empilhável para evitar sobreposição em ecrãs pequenos */}
+      {/* Header empilhável para evitar sobreposição em ecrãs pequenos */}
       <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h2 className="text-xl sm:text-2xl font-bold text-slate-800">Painel de Controlo</h2>
           <p className="text-slate-500 text-xs sm:text-sm">Resumo em tempo real da sua operação TVDE.</p>
         </div>
 
-        {/* NAVEGADOR SEMANAL (Agora flui corretamente abaixo do título no telemóvel) */}
+        {/* NAVEGADOR SEMANAL */}
         <div className="flex flex-col items-start sm:items-end gap-1 w-full sm:w-auto">
           <div className="bg-white rounded-2xl shadow-sm border border-slate-200 flex items-center gap-0 overflow-hidden w-full sm:w-auto justify-between">
             <button 
@@ -11745,7 +12171,7 @@ export default function Dashboard() {
         </div>
       </header>
 
-      {/* Grid de Estatísticas Gerais (Gap dinâmico para poupar espaço em mobile) */}
+      {/* Grid de Estatísticas Gerais */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4 sm:gap-6">
         <div className="space-y-1">
           <StatCard 
@@ -11812,7 +12238,6 @@ export default function Dashboard() {
                       : 'bg-orange-50 border-orange-100 hover:bg-orange-100 hover:border-orange-200'
                     }`}
                   >
-                    {/* ◄ ALTERADO: Truncagem flexível inteligente para qualquer tamanho de tela */}
                     <div className="flex items-center gap-3 min-w-0 flex-1 mr-2 text-left">
                       <div className={`w-2 h-2 rounded-full shrink-0 ${alerta.dias < 0 ? 'bg-red-500' : 'bg-orange-500'}`} />
                       <span className="text-xs sm:text-sm font-bold text-slate-700 truncate flex-1">
@@ -11880,26 +12305,83 @@ export default function Dashboard() {
           </button>
         </div>
 
-        {/* COLUNA 3: DICAS DE GESTÃO */}
+        {/* [ATUALIZADO] COLUNA 3: ALERTAS DE FIM DE CIRCULAÇÃO TVDE (30 DIAS OU MENOS) */}
         <div className="bg-white p-5 sm:p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between">
-          <div>
-            <h4 className="font-bold text-slate-800 mb-4 flex items-center gap-2 text-sm sm:text-base">
-              <Info size={20} className="text-tvde-primary" />
-              Dicas de Gestão
-            </h4>
-            <div className="space-y-4">
-              <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-                <p className="text-sm font-bold text-slate-700 leading-tight">Mantenha os PINs seguros</p>
-                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                  Pode consultar os PINs dos cartões de combustível rapidamente na secção de Cartões em Registos.
-                </p>
+          <div className="flex-1 flex flex-col min-h-0">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h4 className="font-bold text-slate-800 flex items-center gap-2 text-sm sm:text-base select-none">
+                  <AlertCircle className={alertasTVDE.length > 0 ? "text-amber-500" : "text-slate-300"} size={20} />
+                  Fim de Ciclo TVDE
+                </h4>
+                {alertasTVDE.length > 0 && (
+                  <p className="text-[10px] text-slate-400 mt-0.5 ml-7 italic select-none">Limite legal de circulação</p>
+                )}
               </div>
-              <div className="p-4 bg-slate-50 rounded-xl border border-slate-100">
-                <p className="text-sm font-bold text-slate-700 leading-tight">Documentação Digital</p>
-                <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                  Ao carregar o DUA e o Seguro no sistema, evita ter de procurar pastas físicas em caso de fiscalização.
-                </p>
-              </div>
+              {alertasTVDE.length > 0 && (
+                <span className="text-[9px] font-black bg-amber-100 text-amber-600 px-2 py-0.5 rounded-md uppercase shrink-0 select-none">
+                  Prazo {limiteAnosTVDE}a
+                </span>
+              )}
+            </div>
+
+            <div className="flex-1 overflow-y-auto space-y-2.5 max-h-[280px] pr-1.5 custom-scrollbar text-left">
+              {alertasTVDE.length > 0 ? (
+                alertasTVDE.map((v) => {
+                  const expirado = v.diasRestantes <= 0;
+                  return (
+                    <button
+                      key={v.id}
+                      type="button"
+                      onClick={() => navigate(`/veiculos?id=${v.id}`)}
+                      className={`w-full p-3 rounded-xl border flex items-center justify-between gap-3 transition-all group cursor-pointer text-left ${
+                        expirado 
+                          ? 'bg-red-50/50 border-red-100 hover:bg-red-50 hover:border-red-200' 
+                          : 'bg-orange-50/50 border-orange-100 hover:bg-orange-50 hover:border-orange-200'
+                      }`}
+                    >
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2">
+                          <span className="bg-slate-800 text-white text-[9px] font-black px-1.5 py-0.5 rounded font-mono select-none shrink-0">
+                            {v.matricula}
+                          </span>
+                          <span className="text-xs font-bold text-slate-700 truncate">
+                            {v.marca} {v.modelo}
+                          </span>
+                        </div>
+                        {v.dataPrimeiraMatricula && (
+                          <p className="text-[9px] text-slate-400 mt-1 select-none">
+                            Matrícula: {new Date(v.dataPrimeiraMatricula).toLocaleDateString('pt-PT')}
+                          </p>
+                        )}
+                      </div>
+
+                      <div className="shrink-0 flex items-center gap-1.5">
+                        {expirado ? (
+                          <span className="text-[9px] font-black uppercase text-red-600 bg-red-100/60 px-1.5 py-0.5 rounded">
+                            EXPIRADO
+                          </span>
+                        ) : (
+                          <span className="text-[9px] font-black uppercase text-orange-600 bg-orange-100/60 px-1.5 py-0.5 rounded">
+                            {v.diasRestantes}d
+                          </span>
+                        )}
+                        <ArrowRight size={13} className={`transition-transform group-hover:translate-x-1 shrink-0 ${
+                          expirado ? 'text-red-300' : 'text-orange-300'
+                        }`} />
+                      </div>
+                    </button>
+                  );
+                })
+              ) : (
+                <div className="flex flex-col items-center justify-center py-12 text-center h-full">
+                  <div className="w-12 h-12 bg-green-50 text-green-500 rounded-full flex items-center justify-center mb-3">
+                    <CheckCircle2 size={24} />
+                  </div>
+                  <p className="text-slate-500 font-medium">Tudo em dia!</p>
+                  <p className="text-slate-400 text-xs mt-1">Nenhum veículo próximo do limite regulamentar.</p>
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -12339,6 +12821,7 @@ export default function EGuiaPage() {
  *
  * Processador de fecho financeiro semanal (Upload de CSVs e Geração de SEPA/PDF).
  * Atualizado com suporte responsivo e integração das despesas fixas (Abastecimento e Portagens) [2].
+ * [NOVO]: Leitor de ficheiros híbrido (FileReader) para processar de forma transparente ficheiros CSV e XLSX/Excel!
  */
 
 import React, { useState, useEffect } from 'react';
@@ -12358,7 +12841,7 @@ import {
   parseUberCSV, parseBoltCSV, parseViaVerdeCSV, 
   parseCartoesConsumoCSV, generateSEPAXML 
 } from '../utils/parsers';
-import { generateDriverPDF } from '../utils/pdfGenerator';
+import { generateDriverPDF, generateViaVerdeValidationPDF } from '../utils/pdfGenerator';
 import Button from '../components/ui/Button';
 
 export default function FechoSemanal() {
@@ -12373,8 +12856,9 @@ export default function FechoSemanal() {
   
   // Dados Processados
   const [dadosProcessados, setDadosProcessados] = useState([]);
+  const [viaVerdeProcessed, setViaVerdeProcessed] = useState({}); // Estado para auditoria em lote
   
-  // Ficheiros
+  // Ficheiros (pode armazenar strings ou ArrayBuffers de Excel)
   const [files, setFiles] = useState({ 
     uber: null, bolt: null, viaverde: null, combustivel: null, eletrico: null 
   });
@@ -12422,12 +12906,42 @@ export default function FechoSemanal() {
     );
   }
 
+  /**
+   * [MODIFICADO]: Leitor híbrido com suporte a leitura de binários (Excel) ou texto simples (CSV)
+   */
   const handleFileChange = (e, type) => {
     const file = e.target.files[0];
     if (file) {
       const reader = new FileReader();
-      reader.onload = (event) => setFiles(prev => ({ ...prev, [type]: event.target.result }));
-      reader.readAsText(file);
+      const isExcel = file.name.endsWith('.xlsx') || file.name.endsWith('.xls');
+
+      reader.onload = (event) => {
+        setFiles(prev => ({ ...prev, [type]: event.target.result }));
+      };
+
+      if (isExcel) {
+        // Lógica de leitura de folha binária para o SheetJS converter em memória
+        reader.readAsArrayBuffer(file);
+      } else {
+        // Lógica padrão de leitura de texto simples
+        reader.readAsText(file);
+      }
+    }
+  };
+
+  /**
+   * Executa o processamento e a exportação direta do PDF de auditoria Via Verde
+   * no Passo 1, sem tocar no Firestore ou avançar o fluxo semanal.
+   */
+  const exportarApenasViaVerde = () => {
+    if (!files.viaverde) return;
+    try {
+      const viaVerdeData = parseViaVerdeCSV(files.viaverde);
+      const docPdf = generateViaVerdeValidationPDF(viaVerdeData, empresaConfig);
+      docPdf.save(`Validacao_ViaVerde_Avulsa_${new Date().toISOString().split('T')[0]}.pdf`);
+    } catch (error) {
+      console.error("Erro ao gerar PDF de auditoria avulsa:", error);
+      alert("Não foi possível processar o PDF da Via Verde. Verifique se o ficheiro importado está correto.");
     }
   };
 
@@ -12440,6 +12954,9 @@ export default function FechoSemanal() {
       const combustivelData = files.combustivel ? parseCartoesConsumoCSV(files.combustivel) : {};
       const eletricoData = files.eletrico ? parseCartoesConsumoCSV(files.eletrico) : {};
 
+      // Guarda os dados processados da Via Verde para o painel de auditoria do Passo 2
+      setViaVerdeProcessed(viaVerdeData);
+
       // Busca movimentos financeiros pendentes no Firestore [2]
       const qMov = query(collection(db, "movimentos_financeiros"), where("pagoNoFechoId", "==", ""));
       const movSnap = await getDocs(qMov);
@@ -12450,10 +12967,12 @@ export default function FechoSemanal() {
         const b = boltData[m.nome] || { bruto: 0, liquido: 0 };
         const veiculo = veiculosDB.find(v => v.motoristaId === m.id);
         
-        // 1. Processamento de Portagens / Via Verde [2]
-        const vvCustoCSV = veiculo ? (viaVerdeData[veiculo.matricula.replace(/-/g, '')] || 0) : 0;
+        // Processamento adaptado para ler do novo parser estruturado (Portagens = totalCirculacao) [2]
+        const matriculaLimpa = veiculo ? veiculo.matricula.replace(/-/g, '').toUpperCase() : '';
+        const vvEstruturado = viaVerdeData[matriculaLimpa] || null;
+        const vvCustoFisico = vvEstruturado ? (vvEstruturado.totalCirculacao || 0) : 0;
 
-        // 2. Processamento de Combustível / Energia via Cartões (CSV) [2]
+        // Processamento de Combustível / Energia via Cartões (CSV) [2]
         let totalCombustivelCSV = 0;
         let totalEletricoCSV = 0;
         cartoesDB.filter(c => c.veiculoId === veiculo?.id).forEach(c => {
@@ -12470,7 +12989,7 @@ export default function FechoSemanal() {
         const movAbastecimentoDB = movsEntidade.find(mov => mov.categoria === 'abastecimento');
 
         // LÓGICA DE PRECEDÊNCIA: Lançamentos dedicados na DB sobrepõem os CSVs [2]
-        const portagemFinal = movPortagemDB ? movPortagemDB.valor : vvCustoCSV;
+        const portagemFinal = movPortagemDB ? movPortagemDB.valor : vvCustoFisico;
         const abastecimentoFinal = movAbastecimentoDB ? movAbastecimentoDB.valor : (totalCombustivelCSV + totalEletricoCSV);
 
         const totalCreditosManuais = movsEntidade
@@ -12562,8 +13081,16 @@ export default function FechoSemanal() {
     a.click();
   };
 
+  // Handler de descarregamento do PDF consolidado da auditoria da Via Verde
+  const handleDownloadViaVerdePDF = () => {
+    const docPdf = generateViaVerdeValidationPDF(viaVerdeProcessed, empresaConfig);
+    docPdf.save(`Validacao_ViaVerde_${new Date().toISOString().split('T')[0]}.pdf`);
+  };
+
+  const chavesViaVerde = Object.keys(viaVerdeProcessed);
+
   return (
-    <div className="space-y-6 sm:space-y-8 pb-20">
+    <div className="space-y-6 sm:space-y-8 pb-20 text-left">
       <header>
         <h1 className="text-xl sm:text-2xl font-bold text-slate-800 flex items-center gap-3">
           <Calculator className="text-tvde-primary" /> Fecho de Semana
@@ -12576,7 +13103,20 @@ export default function FechoSemanal() {
           <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-5 gap-4">
             <UploadBox title="UBER" icon={UploadCloud} color="blue" onChange={(e) => handleFileChange(e, 'uber')} ready={!!files.uber} />
             <UploadBox title="BOLT" icon={UploadCloud} color="green" onChange={(e) => handleFileChange(e, 'bolt')} ready={!!files.bolt} />
-            <UploadBox title="VIA VERDE" icon={FileSpreadsheet} color="purple" onChange={(e) => handleFileChange(e, 'viaverde')} ready={!!files.viaverde} />
+            
+            {/* Upload da Via Verde agora renderiza o botão "Validar PDF" avulso em tempo real */}
+            <UploadBox title="VIA VERDE" icon={FileSpreadsheet} color="purple" onChange={(e) => handleFileChange(e, 'viaverde')} ready={!!files.viaverde}>
+              {files.viaverde && (
+                <Button 
+                  type="button"
+                  onClick={exportarApenasViaVerde}
+                  className="bg-purple-600 hover:bg-purple-700 text-[10px] font-black h-8 uppercase justify-center shadow-sm select-none animate-in fade-in duration-200 mt-2"
+                >
+                  <Download size={11} /> Validar PDF
+                </Button>
+              )}
+            </UploadBox>
+
             <UploadBox title="PRIO/GALP" icon={Fuel} color="orange" onChange={(e) => handleFileChange(e, 'combustivel')} ready={!!files.combustivel} />
             <UploadBox title="MIIO/ZAP" icon={Zap} color="yellow" onChange={(e) => handleFileChange(e, 'eletrico')} ready={!!files.eletrico} />
           </div>
@@ -12589,7 +13129,9 @@ export default function FechoSemanal() {
       )}
 
       {step === 2 && (
-        <div className="space-y-6 animate-in fade-in zoom-in-95">
+        <div className="space-y-8 animate-in fade-in zoom-in-95">
+          
+          {/* TABELA PRINCIPAL DE FECHO (MOTORISTAS) */}
           <div className="bg-white rounded-[2rem] sm:rounded-[2.5rem] border border-slate-200 shadow-sm overflow-x-auto w-full custom-scrollbar">
             <table className="w-full text-left border-collapse min-w-[750px]">
               <thead className="bg-slate-50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
@@ -12634,6 +13176,83 @@ export default function FechoSemanal() {
             </table>
           </div>
 
+          {/* PAINEL DE AUDITORIA DE VIA VERDE */}
+          {chavesViaVerde.length > 0 && (
+            <div className="bg-white p-6 sm:p-8 rounded-[2rem] sm:rounded-[2.5rem] border border-slate-200 shadow-sm text-left space-y-6">
+              <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-100 pb-4">
+                <div>
+                  <h3 className="text-base font-black text-slate-800 flex items-center gap-2">
+                    <FileSpreadsheet className="text-purple-600" size={18} /> Auditoria Detalhada Via Verde
+                  </h3>
+                  <p className="text-xs text-slate-400">Verificação estruturada de passagens, portagens e mensalidades por matrícula.</p>
+                </div>
+                <Button 
+                  onClick={handleDownloadViaVerdePDF}
+                  className="bg-purple-600 hover:bg-purple-700 text-white text-[10px] font-black uppercase h-9 px-3 gap-1.5 shadow-sm"
+                >
+                  <Download size={14} /> Descarregar Auditoria (PDF)
+                </Button>
+              </div>
+
+              <div className="overflow-x-auto w-full custom-scrollbar">
+                <table className="w-full text-left border-collapse text-xs min-w-[650px]">
+                  <thead className="bg-slate-50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                    <tr>
+                      <th className="p-5">Matrícula</th>
+                      <th className="p-5">Lançamento / Tipo</th>
+                      <th className="p-5 text-right">Valor Unitário</th>
+                      <th className="p-5 text-right">Subtotal Circulação</th>
+                      <th className="p-5 text-right">Mensalidade</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {chavesViaVerde.map((mat) => {
+                      const dados = viaVerdeProcessed[mat];
+                      return (
+                        <React.Fragment key={mat}>
+                          {/* Sub-Linha 1: Portagem */}
+                          <tr className="hover:bg-slate-50/50 font-medium">
+                            <td className="p-4 font-black text-slate-800" rowSpan={3}>
+                              <span className="bg-slate-800 text-white text-[10px] font-mono font-black px-2 py-1 rounded shadow-sm">
+                                {dados.matriculaFormatada || mat}
+                              </span>
+                            </td>
+                            <td className="p-4 pl-6 text-slate-500">Portagens / Concessionárias</td>
+                            <td className="p-4 text-right text-slate-600 font-bold">{formatCurrency(dados.portagens)}</td>
+                            <td className="p-4 text-right font-black text-slate-800 text-sm" rowSpan={2}>
+                              {formatCurrency(dados.totalCirculacao)}
+                            </td>
+                            <td className="p-4 text-right font-black text-slate-600" rowSpan={3}>
+                              {dados.mensalidade > 0 ? (
+                                <span className="text-purple-600 bg-purple-50 px-2.5 py-1 rounded-xl font-bold">
+                                  {formatCurrency(dados.mensalidade)}
+                                </span>
+                              ) : (
+                                <span className="text-slate-300 italic">---</span>
+                              )}
+                            </td>
+                          </tr>
+                          {/* Sub-Linha 2: Parque */}
+                          <tr className="hover:bg-slate-50/50 font-medium">
+                            <td className="p-4 pl-6 text-slate-500">Parques / Estacionamentos</td>
+                            <td className="p-4 text-right text-slate-600 font-bold">{formatCurrency(dados.parques)}</td>
+                          </tr>
+                          {/* Sub-Linha 3: Mensalidade */}
+                          <tr className="hover:bg-slate-50/50 font-medium bg-slate-50/20">
+                            <td className="p-4 pl-6 text-slate-400 italic">Mensalidade Dispositivo / Aluguer</td>
+                            <td className="p-4 text-right text-slate-400 italic">{formatCurrency(dados.mensalidade)}</td>
+                            <td className="p-4 text-right text-slate-300">---</td>
+                          </tr>
+                        </React.Fragment>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
+          {/* TOTALIZADOR GLOBAL */}
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-tvde-dark p-6 sm:p-8 rounded-[2rem] sm:rounded-[2.5rem] text-white shadow-2xl gap-6">
             <div>
               <p className="text-[10px] font-black uppercase tracking-widest text-slate-400">Total Global a Pagar</p>
@@ -12676,8 +13295,8 @@ export default function FechoSemanal() {
   );
 }
 
-// ◄ CORRIGIDO: UploadBox reestruturado com suporte de clique, resolvido o erro "cat" e mapa de cores correto
-const UploadBox = ({ title, icon: Icon, color, onChange, ready }) => {
+// UploadBox reestruturado com suporte de elementos filhos e mapa de cores correto
+const UploadBox = ({ title, icon: Icon, color, onChange, ready, children }) => {
   const colorMap = {
     blue:   'bg-blue-50 text-blue-500 hover:border-blue-400',
     green:  'bg-green-50 text-green-500 hover:border-green-400',
@@ -12689,29 +13308,32 @@ const UploadBox = ({ title, icon: Icon, color, onChange, ready }) => {
   const idInput = `file-upload-${title.toLowerCase().replace(/\s/g, '-')}`;
 
   return (
-    <label 
-      htmlFor={idInput}
-      className={`bg-white p-5 rounded-[2rem] border-2 border-dashed transition-all flex flex-col items-center text-center group cursor-pointer ${
-        ready ? 'border-green-500 bg-green-50/30' : 'border-slate-200 hover:border-slate-400'
-      }`}
-    >
-      <input 
-        id={idInput}
-        type="file" 
-        accept=".csv, .xls, .xlsx" 
-        onChange={onChange} 
-        className="hidden" 
-      />
-      <div className={`w-11 h-11 rounded-xl flex items-center justify-center mb-3 ${
-        ready ? 'bg-green-500 text-white' : colorMap[color] || 'bg-slate-50 text-slate-500'
-      }`}>
-        {ready ? <CheckCircle2 size={20} /> : <Icon size={20} />}
-      </div>
-      <h4 className="text-xs font-bold text-slate-700">{title}</h4>
-      <p className="text-[10px] text-slate-400 mt-1 leading-snug">
-        {ready ? 'Ficheiro pronto' : 'Formatos: CSV, XLS, XLSX'}
-      </p>
-    </label>
+    <div className="flex flex-col gap-2 h-full">
+      <label 
+        htmlFor={idInput}
+        className={`bg-white p-5 rounded-[2rem] border-2 border-dashed transition-all flex flex-col items-center text-center group cursor-pointer flex-1 justify-center ${
+          ready ? 'border-green-500 bg-green-50/30' : 'border-slate-200 hover:border-slate-400'
+        }`}
+      >
+        <input 
+          id={idInput}
+          type="file" 
+          accept=".csv, .xls, .xlsx" 
+          onChange={onChange} 
+          className="hidden" 
+        />
+        <div className={`w-11 h-11 rounded-xl flex items-center justify-center mb-3 ${
+          ready ? 'bg-green-500 text-white' : colorMap[color] || 'bg-slate-50 text-slate-500'
+        }`}>
+          {ready ? <CheckCircle2 size={20} /> : <Icon size={20} />}
+        </div>
+        <h4 className="text-xs font-bold text-slate-700">{title}</h4>
+        <p className="text-[10px] text-slate-400 mt-1 leading-snug">
+          {ready ? 'Ficheiro pronto' : 'Formatos: CSV, XLS, XLSX'}
+        </p>
+      </label>
+      {children}
+    </div>
   );
 };
 --------------------------------------------------
@@ -14321,34 +14943,33 @@ export default function LogsSistema() {
 
 ### ARQUIVO: src\pages\MigracaoFirestore.jsx ###
 --------------------------------------------------
+/**
+ * MigracaoFirestore.jsx
+ * Localização: src/pages/MigracaoFirestore.jsx
+ *
+ * Centro de controlo de manutenção da base de dados.
+ * [ATUALIZADO]: Funcionalidade de importação de mocks desativada devido à exclusão 
+ * do ficheiro mockVeiculos.js para transição para produção real.
+ */
+
 import React, { useState } from 'react';
 import { db } from '../firebase';
-import { collection, getDocs, updateDoc, doc, setDoc } from 'firebase/firestore';
-import { MOCK_VEICULOS } from '../utils/mockVeiculos';
+import { collection, getDocs, updateDoc, doc } from 'firebase/firestore';
 
-/**
- * UTILITÁRIO DE MIGRAÇÃO — Executar conforme necessário
- * 
- * Permite:
- * 1. Corrigir movimentos financeiros antigos (pagoNoFechoId: null -> "")
- * 2. Popular a base de dados com as 25 viaturas de teste para o catálogo.
- */
 export default function MigracaoFirestore() {
   const [status, setStatus]     = useState('idle'); // idle | running | done | error
   const [log, setLog]           = useState([]);
   const [totalFixed, setTotal]  = useState(0);
-  const [acaoAtual, setAcaoAtual] = useState(''); // 'financeiro' | 'veiculos'
 
   const addLog = (msg) => setLog(prev => [...prev, `${new Date().toLocaleTimeString('pt-PT')} — ${msg}`]);
 
-  // 1. Migração de Movimentos Financeiros (Existente)
+  // 1. Migração de Movimentos Financeiros
   const executarMigracaoFinanceira = async () => {
     if (!window.confirm(
       'Esta operação vai actualizar todos os lançamentos financeiros com pagoNoFechoId: null para pagoNoFechoId: "". Confirmas?'
     )) return;
 
     setStatus('running');
-    setAcaoAtual('financeiro');
     setLog([]);
     setTotal(0);
     let count = 0;
@@ -14383,52 +15004,19 @@ export default function MigracaoFirestore() {
     }
   };
 
-  // 2. Importação das 25 Viaturas de Teste (Nova)
-  const executarImportacaoVeiculos = async () => {
-    if (!window.confirm(
-      'Esta operação vai importar 25 viaturas de teste para a coleção "veiculos" no Firestore. Se as viaturas já existirem, serão atualizadas. Confirmas?'
-    )) return;
-
-    setStatus('running');
-    setAcaoAtual('veiculos');
-    setLog([]);
-    setTotal(0);
-    let count = 0;
-
-    try {
-      addLog('A iniciar a importação de viaturas para o Firestore...');
-      addLog(`Lendo ${MOCK_VEICULOS.length} viaturas do mock...`);
-
-      for (const veiculo of MOCK_VEICULOS) {
-        // Usamos setDoc com ID fixo para evitar duplicações se correr o script várias vezes
-        await setDoc(doc(db, 'veiculos', veiculo.id), veiculo);
-        count++;
-        addLog(`[${count}/25] Guardado: ${veiculo.marca} ${veiculo.modelo} (${veiculo.matricula})`);
-      }
-
-      setTotal(count);
-      addLog(`✅ Importação concluída! ${count} viaturas prontas no Firestore.`);
-      setStatus('done');
-
-    } catch (error) {
-      addLog(`❌ Erro ao importar viaturas: ${error.message}`);
-      setStatus('error');
-    }
-  };
-
   return (
-    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-8">
+    <div className="min-h-screen bg-slate-50 flex items-center justify-center p-8 text-left">
       <div className="bg-white rounded-3xl shadow-xl border border-slate-100 p-8 max-w-2xl w-full space-y-6">
         
         <div>
           <h1 className="text-2xl font-black text-slate-800">Centro de Migrações Firestore</h1>
           <p className="text-slate-500 text-sm mt-1">
-            Utilitários de manutenção e carregamento de dados de teste.
+            Utilitários de manutenção de registos.
           </p>
         </div>
 
         {/* Painel de Ações */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div className="grid grid-cols-1 gap-4">
           
           {/* Caixa 1: Financeiro */}
           <div className="border border-slate-100 rounded-2xl p-4 flex flex-col justify-between space-y-4 hover:border-slate-200 transition-all bg-slate-50/50">
@@ -14447,32 +15035,13 @@ export default function MigracaoFirestore() {
               </button>
             )}
           </div>
-
-          {/* Caixa 2: Viaturas de Teste */}
-          <div className="border border-slate-100 rounded-2xl p-4 flex flex-col justify-between space-y-4 hover:border-slate-200 transition-all bg-slate-50/50">
-            <div>
-              <h2 className="font-bold text-slate-800 text-sm">Catálogo de Teste (25)</h2>
-              <p className="text-xs text-slate-500 mt-1 leading-relaxed">
-                Cria ou atualiza 25 viaturas reais na coleção <code className="bg-slate-100 px-1 py-0.5 rounded">veiculos</code> para a landing page.
-              </p>
-            </div>
-            {status === 'idle' && (
-              <button
-                onClick={executarImportacaoVeiculos}
-                className="w-full py-2.5 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 transition-colors text-xs"
-              >
-                Importar 25 Viaturas
-              </button>
-            )}
-          </div>
-
         </div>
 
         {/* Feedback de Execução */}
         {status === 'running' && (
           <div className="flex items-center gap-3 text-blue-600 font-bold justify-center bg-blue-50 py-3 rounded-2xl border border-blue-100 text-sm">
             <div className="w-4 h-4 border-2 border-blue-600 border-t-transparent rounded-full animate-spin" />
-            A executar {acaoAtual === 'financeiro' ? 'correção financeira' : 'importação de viaturas'}...
+            A executar correção financeira...
           </div>
         )}
 
@@ -14484,18 +15053,6 @@ export default function MigracaoFirestore() {
               className="block mx-auto mt-2 text-xs text-green-700 underline hover:text-green-900"
             >
               Voltar ao início
-            </button>
-          </div>
-        )}
-
-        {status === 'error' && (
-          <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-red-800 font-bold text-center text-sm">
-            ❌ Ocorreu um erro durante a execução. Verifique os registos no log abaixo.
-            <button 
-              onClick={() => setStatus('idle')}
-              className="block mx-auto mt-2 text-xs text-red-700 underline hover:text-red-900"
-            >
-              Tentar novamente
             </button>
           </div>
         )}
@@ -15555,8 +16112,9 @@ function OnboardingCard({ title, subtitle, icon: Icon, slots, onUpload }) {
  * - Filtros rápidos e ordenação integrada.
  * - Sincronização e criação inline de condutores de frotas.
  * - Injeção de Título e Botão "Novo Proprietário" via React Portal diretamente no Header.
- * - [NOVO] Mini-Dashboard analítico super compacto com KPIs de frotas em tempo real.
- * - [NOVO] Remoção da barra de pesquisa redundante para máximo ganho de espaço vertical.
+ * - Mini-Dashboard analítico super compacto com KPIs de frotas em tempo real.
+ * - Remoção da barra de pesquisa redundante para máximo ganho de espaço vertical.
+ * - [ATUALIZADO] Ativação e desativação com barreira de justificação e logs confidenciais.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -15589,6 +16147,7 @@ export default function Proprietarios() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isJustifyModalOpen, setIsJustifyModalOpen] = useState(false);
   const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
+  const [isToggleAction, setIsToggleAction] = useState(false); // Flag para evitar modal de tickets na mudança de estado
   
   const [proprietarios, setProprietarios] = useState([]);
   const [funcionarios, setFuncionarios] = useState([]);
@@ -15678,6 +16237,7 @@ export default function Proprietarios() {
   const handleSave = async (dados) => {
     if (editingProp && !isViewOnly) {
       setTempDados(dados);
+      setIsToggleAction(false);
       setIsJustifyModalOpen(true);
     } else {
       try {
@@ -15687,6 +16247,8 @@ export default function Proprietarios() {
         
         const docRef = await addDoc(collection(db, "proprietarios"), {
           ...dadosLimpos,
+          ativo: true,
+          status: 'Ativo',
           codigoInterno: novoCodigo,
           criadoPor: userData?.nome || 'Sistema',
           dataCriacao: new Date().toISOString(),
@@ -15708,6 +16270,25 @@ export default function Proprietarios() {
     }
   };
 
+  /**
+   * FUNÇÃO: Lida com a mudança de Estado (Ativo/Inativo) vinda da tabela
+   */
+  const handleToggleStatus = (p) => {
+    const novoEstadoAtivo = !(p.ativo !== false);
+    const novoStatus = novoEstadoAtivo ? 'Ativo' : 'Inativo';
+    
+    const dadosAtualizados = {
+      ...p,
+      ativo: novoEstadoAtivo,
+      status: novoStatus
+    };
+    
+    setEditingProp(p);
+    setTempDados(dadosAtualizados);
+    setIsToggleAction(true);
+    setIsJustifyModalOpen(true);
+  };
+
   const confirmarSalvamentoComLog = async (motivo) => {
     try {
       setLoading(true);
@@ -15725,7 +16306,8 @@ export default function Proprietarios() {
         historico: arrayUnion(novoLog)
       });
 
-      await logAcaoGlobal(userData?.nome, "Edição", "Proprietários", dadosLimpos.nome, editingProp.id);
+      const acaoLog = isToggleAction ? "Alteração de Estado" : "Edição";
+      await logAcaoGlobal(userData?.nome, acaoLog, "Proprietários", dadosLimpos.nome, editingProp.id);
 
       setLastSavedItem({ 
         id: editingProp.id, 
@@ -15736,12 +16318,17 @@ export default function Proprietarios() {
       setIsJustifyModalOpen(false);
       fecharModal();
       fetchData();
-      setIsTicketModalOpen(true);
+      
+      // Abre a modal de tarefas apenas se for uma edição convencional de formulário
+      if (!isToggleAction) {
+        setIsTicketModalOpen(true);
+      }
     } catch (error) {
       console.error("Erro ao atualizar proprietário:", error);
       alert("Erro ao atualizar registo.");
     } finally {
       setLoading(false);
+      setIsToggleAction(false);
     }
   };
 
@@ -15805,18 +16392,19 @@ export default function Proprietarios() {
     setEditingProp(null);
     setIsViewOnly(false);
     setTempDados(null);
+    setIsToggleAction(false);
   };
 
-  // Cálculos dinâmicos e atómicos para os mini-cards do Dashboard de Proprietários
+  // Cálculos dinâmicos e atómicos com suporte a retrocompatibilidade
   const totalCount = proprietarios.length;
-  const activeCount = proprietarios.filter(p => p.status === 'Ativo').length;
+  const activeCount = proprietarios.filter(p => p.status === 'Ativo' || (p.status !== 'Inativo' && p.ativo !== false)).length;
   const inactiveCount = totalCount - activeCount;
 
   return (
     <div className="space-y-4">
       
       {/* 
-        [ATUALIZADO] PORTAL DINÂMICO DE CABEÇALHO PARA PROPRIETÁRIOS:
+        PORTAL DINÂMICO DE CABEÇALHO PARA PROPRIETÁRIOS:
         Injeta o título "Proprietários" e o botão "+ Novo Proprietário" diretamente no
         slot dinâmico do Header global do topo, poupando espaço vertical valioso!
       */}
@@ -15839,7 +16427,7 @@ export default function Proprietarios() {
         Gestão de parceiros e frotas de veículos.
       </p>
 
-      {/* [NOVO] DASHBOARD DE KPIs ANALÍTICO E SUPER COMPACTO PARA PROPRIETÁRIOS */}
+      {/* DASHBOARD DE KPIs ANALÍTICO E SUPER COMPACTO PARA PROPRIETÁRIOS */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 select-none">
         {/* Card 1: Registados */}
         <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex items-center gap-3">
@@ -15886,6 +16474,7 @@ export default function Proprietarios() {
             proprietarios={proprietarios} 
             onEdit={handleEditClick} 
             onDelete={handleDelete} 
+            onToggleStatus={handleToggleStatus}
           />
         </div>
       )}
@@ -15906,7 +16495,10 @@ export default function Proprietarios() {
 
       <JustificacaoModal 
         isOpen={isJustifyModalOpen}
-        onCancel={() => setIsJustifyModalOpen(false)}
+        onCancel={() => {
+          setIsJustifyModalOpen(false);
+          setIsToggleAction(false);
+        }}
         onConfirm={confirmarSalvamentoComLog}
       />
 
@@ -16651,7 +17243,8 @@ export default function Usuarios() {
  * - Sincronização bidirecional dupla robusta (Turno A e Turno B).
  * - Remoção definitiva da sementeira automática de frota em lote.
  * - Injeção de Título e Botão "Novo Veículo" via React Portal diretamente no Header.
- * - [NOVO] Mini-Dashboard analítico super compacto com KPIs da frota em tempo real.
+ * - Mini-Dashboard analítico super compacto com KPIs da frota em tempo real.
+ * - [ATUALIZADO] Leitura em tempo real do limite de idade parametrizado no Firebase.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -16672,11 +17265,11 @@ import { logAcaoGlobal } from '../utils/logger';
 import { alternarEstadoAnuncioViatura } from '../services/veiculoService';
 import { 
   collection, addDoc, getDocs, query, 
-  doc, deleteDoc, updateDoc, arrayUnion, writeBatch 
+  doc, deleteDoc, updateDoc, arrayUnion, writeBatch, onSnapshot 
 } from 'firebase/firestore';
 
 /**
- * [NOVO] Função Auxiliar didática para calcular viaturas com dados em falta no Dashboard
+ * Função Auxiliar didática para calcular viaturas com dados em falta no Dashboard
  */
 const isVehicleIncomplete = (v) => {
   const camposEssenciais = ['marca', 'modelo', 'docSeguro', 'docIPO'];
@@ -16711,11 +17304,24 @@ export default function Veiculos() {
   const [isViewOnly, setIsViewOnly] = useState(false);
   const [tempDados, setTempDados] = useState(null);
   const [lastSavedItem, setLastSavedItem] = useState(null);
+  const [limiteAnosTVDE, setLimiteAnosTVDE] = useState(7); // [NOVO] Estado para limite legal parametrizado (padrão: 7)
 
   // Ativa a montagem segura do portal no mount inicial do componente
   useEffect(() => {
     setMounted(true);
     return () => setMounted(false);
+  }, []);
+
+  /**
+   * [NOVO] Sincronização em tempo real do limite legal parametrizado no Firestore
+   */
+  useEffect(() => {
+    const unsubscribe = onSnapshot(doc(db, "configuracoes", "veiculos"), (docSnap) => {
+      if (docSnap.exists()) {
+        setLimiteAnosTVDE(docSnap.data().limiteAnosTVDE || 7);
+      }
+    });
+    return () => unsubscribe();
   }, []);
 
   /**
@@ -17065,7 +17671,7 @@ export default function Veiculos() {
     setTempDados(null);
   };
 
-  // [NOVO] Cálculos dinâmicos e atómicos para os mini-cards analíticos do veículo
+  // Cálculos dinâmicos e atómicos para os mini-cards analíticos do veículo
   const totalCount = veiculos.length;
   const incompleteCount = veiculos.filter(isVehicleIncomplete).length;
   const completeCount = totalCount - incompleteCount;
@@ -17095,7 +17701,7 @@ export default function Veiculos() {
         Gestão da frota, condutores e tarefas.
       </p>
 
-      {/* [NOVO] DASHBOARD DE KPIs ANALÍTICO E SUPER COMPACTO PARA VEÍCULOS */}
+      {/* DASHBOARD DE KPIs ANALÍTICO E SUPER COMPACTO PARA VEÍCULOS */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 select-none">
         {/* Card 1: Registados */}
         <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex items-center gap-3">
@@ -17189,6 +17795,8 @@ export default function Veiculos() {
           motoristas={motoristas}
           proprietarios={proprietarios}
           cartoes={cartoes}
+          veiculos={veiculos}
+          limiteAnosTVDE={limiteAnosTVDE} // [NOVO] Limite regulamentar do Firebase
           isReadOnly={isViewOnly}
           onCriarProprietario={handleCriarProprietarioInline}
           onCriarMotorista={handleCriarMotoristaInline}
@@ -17822,6 +18430,7 @@ export const executorFuncoes = async (db, name, args) => {
  *   - fechos_semanais            (processamentos semanais consolidados individuais ou em lote) [2]
  *
  * Todas as funções recebem `db` como primeiro argumento.
+ * CORRIGIDO: Erros de referência na parcela de caução e reinserção do objeto de plataformas no extrato.
  */
 
 import {
@@ -17829,7 +18438,7 @@ import {
   getDoc, getDocs,
   addDoc, updateDoc,
   query, where, runTransaction,
-  writeBatch // ◄ Adicionado writeBatch à lista de importações
+  writeBatch
 } from 'firebase/firestore';
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -18542,7 +19151,9 @@ export const obterDadosExtratoEntidade = async (db, entidadeId, tipoEntidade, da
       creditosGerais:           creditosGerais,
       dadosCaucao,
       historicoMovimentosCaucao,
-      parcelaCaucaoAplicavel:   parcelaCaucao ? { valor: parcelaCaucao } : null
+      plataformas, // ◄ [CORRIGIDO]: Retorno de dados de plataformas reintegrado no objeto final de resposta
+      // ◄ CORRIGIDO: Retorno correto da variável declarada (parcelaCaucaoAplicavel) em vez da variável indefinida (parcelaCaucao)
+      parcelaCaucaoAplicavel:   parcelaCaucaoAplicavel ? { valor: Number(parcelaCaucaoAplicavel.valor || 0) } : null
     };
   } catch (error) {
     console.error('[financeiroService] obterDadosExtratoEntidade:', error);
@@ -19270,6 +19881,10 @@ export const registarLeadPública = async (dados) => {
 /**
  * veiculoService.js
  * Localização: src/services/veiculoService.js
+ *
+ * Funções Firestore para as coleções de frotas e controlo de anúncios:
+ *   - obterViaturasParaCatalogo (Consulta pública com mapeamento de UX e fallbacks)
+ *   - alternarEstadoAnuncioViatura (Ativação transacional com registo de log confidencial)
  */
 
 import { 
@@ -19288,45 +19903,49 @@ import { logAcaoGlobal } from '../utils/logger';
  */
 export const obterViaturasParaCatalogo = async (db) => {
   try {
-    console.log("[veiculoService] A procurar todas as viaturas para o catálogo público...");
-    const veiculosRef = collection(db, 'veiculos');
-    const snap = await getDocs(veiculosRef);
+    console.log("[veiculoService] A iniciar consulta de viaturas para o catálogo público...");
+    const q = query(collection(db, 'veiculos'), where('anuncioAtivo', '==', true));
+    const snap = await getDocs(q);
     
-    const listaViaturas = snap.docs.map(doc => {
-      const dados = doc.data();
+    return snap.docs.map(doc => {
+      const data = doc.data();
       return {
         id: doc.id,
-        marca: dados.marca || '---',
-        modelo: dados.modelo || '---',
-        matricula: dados.matricula || '---',
-        ano: dados.ano || '---',
-        combustivel: dados.combustivel || '---',
-        km: Number(dados.km || 0),
-        anuncioAtivo: dados.anuncioAtivo ?? false,
-        precoSemanal: Number(dados.precoSemanal || 0),
-        cidade: dados.cidade || 'Lisboa',
-        fotoUrl: dados.fotoUrl || "", 
-        
-        // ◄ ADICIONADO: Novos mapeamentos com fallback para garantir a UX do catálogo
-        transmissao: dados.transmissao || 'Automática',
-        autonomia: Number(dados.autonomia || 350),
-        lugares: Number(dados.lugares || 5),
-        categoria: dados.categoria || 'Standard',
-        estado: dados.estado || (dados.anuncioAtivo ? 'Disponível' : 'Alugado')
+        marca: data.marca || '',
+        modelo: data.modelo || '',
+        matricula: data.matricula || '',
+        ano: data.ano || '---',
+        dataPrimeiraMatricula: data.dataPrimeiraMatricula || '',
+        cidade: data.cidade || 'Lisboa',
+        combustivel: data.combustivel || 'Gasóleo',
+        categoria: data.categoria || 'Standard',
+        fotoUrl: data.fotoUrl || '',
+        precoSemanal: Number(data.precoSemanal || 0),
+        anuncioAtivo: data.anuncioAtivo ?? false,
+        estado: data.estado || 'Disponível',
+        // Propriedades técnicas para a ficha técnica do catálogo público
+        transmissao: data.transmissao || 'Automática',
+        autonomia: data.autonomia || 350,
+        lugares: data.lugares || 5,
+        ...data
       };
     });
-
-    console.log(`[veiculoService] Encontradas ${listaViaturas.length} viaturas para o catálogo.`);
-    return listaViaturas;
   } catch (error) {
-    console.error("[veiculoService] Erro ao obter viaturas para catálogo:", error);
-    throw error;
+    console.error("[veiculoService] Erro ao obter viaturas:", error);
+    return []; // Retorna array vazio em caso de erro, sem quebrar o componente público
   }
 };
 
 /**
- * Altera o estado de ativação do anúncio público de uma viatura.
- * Atualiza o campo 'anuncioAtivo' no Firestore e regista um log na auditoria global do ERP.
+ * Ativa ou pausa o anúncio de aluguer de uma viatura no catálogo.
+ * Regista o log correspondente no histórico confidencial do ERP.
+ * 
+ * @param {Firestore} db 
+ * @param {string} veiculoId 
+ * @param {boolean} novoEstado 
+ * @param {string} matricula 
+ * @param {string} alteradoPor 
+ * @returns {Promise<Object>}
  */
 export const alternarEstadoAnuncioViatura = async (db, veiculoId, novoEstado, matricula, alteradoPor) => {
   try {
@@ -19975,8 +20594,53 @@ export const MOCK_VEICULOS = [
 ### ARQUIVO: src\utils\parsers.js ###
 --------------------------------------------------
 /**
- * Utilitários de Extração de Dados e Geração SEPA
+ * parsers.js
+ * Localização: src/utils/parsers.js
+ *
+ * Utilitários de Extração de Dados e Geração SEPA.
+ * [ATUALIZADO]: Suporte híbrido a CSV (texto) e XLSX (Excel) usando SheetJS de forma dinâmica e imune a índices fixos!
  */
+
+import * as XLSX from 'xlsx';
+
+/**
+ * Converte o input (string ou ArrayBuffer de CSV/Excel) para um array bidimensional de células.
+ * 
+ * @param {string|ArrayBuffer} input - Dados do ficheiro carregado
+ * @returns {Array<Array<any>>} Grelha de linhas e colunas
+ */
+const converterParaLinhasJSON = (input) => {
+  if (!input) return [];
+  try {
+    let workbook;
+    if (input instanceof ArrayBuffer || (typeof input === 'object' && input.byteLength !== undefined)) {
+      const data = new Uint8Array(input);
+      workbook = XLSX.read(data, { type: 'array' });
+    } else if (typeof input === 'string') {
+      workbook = XLSX.read(input, { type: 'string' });
+    } else {
+      return [];
+    }
+    
+    const firstSheetName = workbook.SheetNames[0];
+    const worksheet = workbook.Sheets[firstSheetName];
+    // Retorna array de arrays (grelha pura sem omissão de células vazias)
+    return XLSX.utils.sheet_to_json(worksheet, { header: 1, raw: true });
+  } catch (err) {
+    console.error("[parsers] Erro ao converter folha com SheetJS:", err);
+    return [];
+  }
+};
+
+/**
+ * Extrai e normaliza números em formato de texto (com vírgulas ou espaços) de forma segura.
+ */
+const extrairNumeroSeguro = (val) => {
+  if (val === undefined || val === null || val === '') return 0;
+  if (typeof val === 'number') return val;
+  const num = parseFloat(String(val).replace(/\s/g, '').replace(',', '.'));
+  return isNaN(num) ? 0 : num;
+};
 
 // Função Pura de Higienização para conformidade bancária ISO 20022
 const limparStringSEPA = (str) => {
@@ -19989,67 +20653,170 @@ const limparStringSEPA = (str) => {
     .replace(/[^a-zA-Z0-9 ]/g, ""); // Garante apenas alfanuméricos e espaços
 };
 
-export const parseUberCSV = (csvText) => {
-  const lines = csvText.split('\n');
-  const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim());
-  const results = {};
-  for (let i = 1; i < lines.length; i++) {
-    const row = lines[i].split(',').map(c => c.replace(/"/g, '').trim());
-    if (row.length < headers.length) continue;
-    const motorista = row[headers.indexOf('Nome do motorista')] || row[1];
-    if (!motorista) continue;
-    if (!results[motorista]) results[motorista] = { bruto: 0, liquido: 0, gorjetas: 0, portagens: 0 };
-    results[motorista].bruto += parseFloat(row[headers.indexOf('Tarifa:Tarifa')] || 0);
-    results[motorista].liquido += parseFloat(row[headers.indexOf('Pago a si')] || 0);
-    results[motorista].gorjetas += parseFloat(row[headers.indexOf('Os seus rendimentos:Gratificação')] || 0);
-    results[motorista].portagens += parseFloat(row[headers.indexOf('Saldo da viagem:Reembolsos:Portagem')] || 0);
-  }
-  return results;
-};
+export const parseUberCSV = (input) => {
+  const rows = converterParaLinhasJSON(input);
+  if (rows.length === 0) return {};
 
-export const parseBoltCSV = (csvText) => {
-  const lines = csvText.split('\n');
-  const headers = lines[0].split(',').map(h => h.replace(/"/g, '').trim());
+  const headers = rows[0].map(h => String(h || '').trim());
   const results = {};
-  for (let i = 1; i < lines.length; i++) {
-    const row = lines[i].split(',').map(c => c.replace(/"/g, '').trim());
-    if (row.length < headers.length) continue;
-    const motorista = row[headers.indexOf('Driver name')] || row[0];
-    if (!motorista) continue;
-    if (!results[motorista]) results[motorista] = { bruto: 0, liquido: 0 };
-    results[motorista].bruto += parseFloat(row[headers.indexOf('Gross amount')] || 0);
-    results[motorista].liquido += parseFloat(row[headers.indexOf('Net amount')] || 0);
-  }
-  return results;
-};
 
-export const parseViaVerdeCSV = (csvText) => {
-  const lines = csvText.split('\n');
-  const results = {};
-  lines.forEach((line, index) => {
-    if (index === 0) return;
-    const row = line.split(';');
-    if (row.length < 5) return;
-    const matricula = row[2]?.replace(/-/g, '').trim();
-    const valor = parseFloat(row[4]?.replace(',', '.'));
-    if (matricula && !isNaN(valor)) {
-      results[matricula] = (results[matricula] || 0) + valor;
+  const colMotorista = headers.indexOf('Nome do motorista');
+  const colTarifa = headers.indexOf('Tarifa:Tarifa');
+  const colLiquido = headers.indexOf('Pago a si');
+  const colGorjetas = headers.indexOf('Os seus rendimentos:Gratificação');
+  const colPortagens = headers.indexOf('Saldo da viagem:Reembolsos:Portagem');
+
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    if (!row || row.length === 0) continue;
+
+    const motorista = row[colMotorista] || row[1];
+    if (!motorista) continue;
+
+    if (!results[motorista]) {
+      results[motorista] = { bruto: 0, liquido: 0, gorjetas: 0, portagens: 0 };
     }
-  });
+
+    results[motorista].bruto += extrairNumeroSeguro(row[colTarifa]);
+    results[motorista].liquido += extrairNumeroSeguro(row[colLiquido]);
+    results[motorista].gorjetas += extrairNumeroSeguro(row[colGorjetas]);
+    results[motorista].portagens += extrairNumeroSeguro(row[colPortagens]);
+  }
   return results;
 };
 
-export const parseCartoesConsumoCSV = (csvText) => {
-  const lines = csvText.split('\n');
-  const headers = lines[0].toLowerCase().split(/[;,]/);
+export const parseBoltCSV = (input) => {
+  const rows = converterParaLinhasJSON(input);
+  if (rows.length === 0) return {};
+
+  const headers = rows[0].map(h => String(h || '').trim());
+  const results = {};
+
+  const colBruto = headers.indexOf('Gross amount');
+  const colLiquido = headers.indexOf('Net amount');
+  const colMotorista = headers.indexOf('Driver name');
+
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    if (!row || row.length === 0) continue;
+
+    const motoristaNome = row[colMotorista] || row[0];
+    if (!motoristaNome) continue;
+
+    if (!results[motoristaNome]) {
+      results[motoristaNome] = { bruto: 0, liquido: 0 };
+    }
+
+    results[motoristaNome].bruto += extrairNumeroSeguro(row[colBruto]);
+    results[motoristaNome].liquido += extrairNumeroSeguro(row[colLiquido]);
+  }
+  return results;
+};
+
+/**
+ * Analisa e categoriza despesas da Via Verde por matrícula (Portagem, Parque e Mensalidade)
+ * em conformidade com o layout desenhado no post-it do utilizador.
+ * [ATUALIZADO]: Mapeamento flexível por cabeçalhos (Nomes de Colunas) resolvendo erros de colunas deslocadas.
+ * 
+ * @param {string|ArrayBuffer} input - Conteúdo bruto (CSV) ou binário (Excel) do extrato Via Verde
+ * @returns {Object} Estrutura consolidada agrupada por matrícula
+ */
+export const parseViaVerdeCSV = (input) => {
+  const rows = converterParaLinhasJSON(input);
+  if (rows.length === 0) return {};
+
+  const headers = rows[0].map(h => String(h || '').trim().toLowerCase());
+  
+  // Deteção dinâmica dos índices baseada nos cabeçalhos reais (conforme imagem do Excel)
+  const colMatricula = headers.findIndex(h => h.includes('matrícula') || h.includes('matricula'));
+  const colValor = headers.findIndex(h => h.includes('valor transação') || h.includes('valor transacao') || h.includes('valor') || h.includes('líquido') || h.includes('liquido'));
+  const colTipo = headers.findIndex(h => h.includes('tipo de ev') || h.includes('tipo') || h.includes('descrição') || h.includes('operador') || h.includes('barreira'));
+
+  const results = {};
+
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    if (!row || row.length === 0) continue;
+
+    const matriculaOriginal = String(row[colMatricula] || '').trim();
+    if (!matriculaOriginal || matriculaOriginal === '--') continue;
+
+    const matriculaChave = matriculaOriginal.replace(/-/g, '').toUpperCase();
+    const valor = extrairNumeroSeguro(row[colValor]);
+
+    // Inicialização da estrutura da matrícula se ainda não existir
+    if (!results[matriculaChave]) {
+      results[matriculaChave] = {
+        matriculaFormatada: matriculaOriginal, // Guarda a grafia original (ex: BI-49-FP)
+        portagens: 0,
+        parques: 0,
+        mensalidade: 0,
+        totalCirculacao: 0, // Portagens + Parques
+        totalGeral: 0       // Portagens + Parques + Mensalidade
+      };
+    }
+
+    // Varredura de classificação inteligente em toda a linha para robustez
+    const linhaTexto = row.map(cell => String(cell || '').toLowerCase()).join(' ');
+    let categoria = 'portagem';
+
+    if (
+      linhaTexto.includes('mensalidade') || 
+      linhaTexto.includes('identificador') || 
+      linhaTexto.includes('aluguer') || 
+      linhaTexto.includes('tarifa de servico') || 
+      linhaTexto.includes('adesao')
+    ) {
+      categoria = 'mensalidade';
+    } else if (
+      linhaTexto.includes('parque') || 
+      linhaTexto.includes('estacionamento') || 
+      linhaTexto.includes('mcdrive') || 
+      linhaTexto.includes('parking') || 
+      linhaTexto.includes('silo') || 
+      linhaTexto.includes('aeroporto')
+    ) {
+      categoria = 'parque';
+    }
+
+    // Acumula os valores por categoria
+    if (categoria === 'mensalidade') {
+      results[matriculaChave].mensalidade += valor;
+    } else if (categoria === 'parque') {
+      results[matriculaChave].parques += valor;
+    } else {
+      results[matriculaChave].portagens += valor;
+    }
+  }
+
+  // Arredonda todos os subtotais para 2 casas decimais no final
+  Object.keys(results).forEach(mat => {
+    results[mat].portagens = Number(results[mat].portagens.toFixed(2));
+    results[mat].parques = Number(results[mat].parques.toFixed(2));
+    results[mat].mensalidade = Number(results[mat].mensalidade.toFixed(2));
+    results[mat].totalCirculacao = Number((results[mat].portagens + results[mat].parques).toFixed(2));
+    results[mat].totalGeral = Number((results[mat].totalCirculacao + results[mat].mensalidade).toFixed(2));
+  });
+
+  return results;
+};
+
+export const parseCartoesConsumoCSV = (input) => {
+  const rows = converterParaLinhasJSON(input);
+  if (rows.length === 0) return {};
+
+  const headers = rows[0].map(h => String(h || '').toLowerCase().trim());
   const results = {};
   const colCartao = headers.findIndex(h => h.includes('cart') || h.includes('ref') || h.includes('pan'));
   const colValor = headers.findIndex(h => h.includes('val') || h.includes('total') || h.includes('montante'));
-  for (let i = 1; i < lines.length; i++) {
-    const row = lines[i].split(/[;,]/);
-    if (row.length <= Math.max(colCartao, colValor)) continue;
-    const numCartao = row[colCartao]?.trim();
-    const valor = parseFloat(row[colValor]?.replace(',', '.').trim());
+
+  for (let i = 1; i < rows.length; i++) {
+    const row = rows[i];
+    if (!row || row.length <= Math.max(colCartao, colValor)) continue;
+
+    const numCartao = String(row[colCartao] || '').trim();
+    const valor = extrairNumeroSeguro(row[colValor]);
+
     if (numCartao && !isNaN(valor)) {
       results[numCartao] = (results[numCartao] || 0) + valor;
     }
@@ -20115,13 +20882,17 @@ export const generateSEPAXML = (pagamentos, contaEmpresa) => {
  * pdfGenerator.js
  * Localização: src/utils/pdfGenerator.js
  *
- * Gerador de PDF profissional em tamanho A4 (folha única) utilizando jsPDF.
- * Suporta a geração de extratos para Motoristas, Veículos e Proprietários com dados fictícios.
- * CORRIGIDO: Fallbacks contra NaN (valores indefinidos) e mapeamento robusto de conta corrente [2, 3].
+ * Gerador de PDF profissional em tamanho A4 utilizando jsPDF e jsPDF-AutoTable.
+ * Suporta:
+ *   - Extratos operacionais semanais de Motoristas, Veículos e Proprietários.
+ *   - Relatório consolidado de auditoria e validação de despesas Via Verde.
+ * 
+ * CORRIGIDO: autoTable compatível com ES Modules, desenho de sublinhas baseado no post-it 
+ * e adição de coluna de Total Geral com soma consolidada no rodapé da tabela.
  */
 
-import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import { jsPDF } from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { formatDatePT, formatCurrency } from './formatters';
 
 /**
@@ -20380,7 +21151,8 @@ export const generateStatementPDF = (dados, empresa, entidadeInfo) => {
       doc.setFontSize(7.5);
       doc.setTextColor(preto);
 
-      const dadosPlat = dados.plataformas[plat] || { bruto: 0, liquido: 0, impostos: 0 };
+      // Segurança em cascata para evitar quebra do PDF se as plataformas forem nulas
+      const dadosPlat = (dados?.plataformas && dados.plataformas[plat]) || { bruto: 0, liquido: 0, impostos: 0 };
 
       doc.text('Bruto', xPos + 3, currentY + 10.5);
       doc.text(formatCurrency(dadosPlat.bruto), xPos + colWidth - 3, currentY + 10.5, { align: 'right' });
@@ -20414,6 +21186,178 @@ export const generateStatementPDF = (dados, empresa, entidadeInfo) => {
 };
 
 /**
+ * Gera o Relatório Oficial de Validação de Custos da Via Verde
+ * de acordo com o padrão estruturado de sublinhas do seu post-it.
+ * [ATUALIZADO]: Adicionada a coluna "Total Geral" (Circulação + Mensalidade) por veículo e rodapé com total consolidado geral.
+ * 
+ * @param {Object} viaVerdeProcessed - Objeto estruturado vindo do parser da Via Verde
+ * @param {Object} empresa - Configurações da Empresa Operadora
+ * @returns {jsPDF}
+ */
+export const generateViaVerdeValidationPDF = (viaVerdeProcessed, empresa) => {
+  try {
+    console.log("[pdfGenerator] A iniciar desenho da validação estruturada da Via Verde...");
+
+    const doc = new jsPDF({
+      orientation: 'portrait',
+      unit: 'mm',
+      format: 'a4'
+    });
+
+    const margin = 15;
+    const azulEscuro = '#1e293b';
+    const cinzaTexto = '#475569';
+    const preto = '#0f172a';
+
+    // --- CABEÇALHO ESQUERDO ---
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(13);
+    doc.setTextColor(azulEscuro);
+    doc.text('Reconciliação e Auditoria Via Verde', margin, 18);
+
+    doc.setFont('Helvetica', 'normal');
+    doc.setFontSize(8.5);
+    doc.setTextColor(cinzaTexto);
+    doc.text(`Data de Emissão: ${new Date().toLocaleDateString('pt-PT')}`, margin, 23);
+    doc.text('Relatório semanal estruturado de validação de despesas por matrícula.', margin, 27);
+
+    // --- CABEÇALHO DIREITO ---
+    doc.setFont('Helvetica', 'bold');
+    doc.setFontSize(21);
+    doc.setTextColor(preto);
+    doc.text('Gestão', 132, 19);
+    doc.setTextColor('#3b82f6');
+    doc.text('TVDE', 159, 19);
+
+    doc.setFont('Helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(cinzaTexto);
+    doc.text(empresa?.nome || 'OPERADOR TVDE PORTUGAL LDA', 132, 24);
+    doc.text(`NIF: ${empresa?.nif || '500123456'}`, 132, 28);
+    doc.text(`IBAN: ${empresa?.iban || '---'}`, 132, 32);
+
+    doc.setDrawColor('#e2e8f0');
+    doc.setLineWidth(0.4);
+    doc.line(margin, 36, 195, 36);
+
+    // Configuração das colunas da tabela de validação incluindo o Total Geral
+    const columns = [
+      { header: 'Matrícula', dataKey: 'matricula' },
+      { header: 'Lançamento / Tipo', dataKey: 'descricao' },
+      { header: 'Valor Unitário', dataKey: 'unitario' },
+      { header: 'Subtotal Circulação', dataKey: 'subtotal' },
+      { header: 'Mensalidade', dataKey: 'mensalidade' },
+      { header: 'Total Geral', dataKey: 'totalGeral' } // [ADICIONADO] Coluna final de Total por Viatura
+    ];
+
+    const rows = [];
+    const chavesMatriculas = Object.keys(viaVerdeProcessed);
+
+    chavesMatriculas.forEach((mat) => {
+      const d = viaVerdeProcessed[mat];
+      
+      // Mapeamento modular de 3 sublinhas com rowSpan idêntico ao papel post-it e Total Geral no extremo direito!
+      rows.push([
+        { content: d.matriculaFormatada || mat, rowSpan: 3, styles: { valign: 'middle', fontStyle: 'bold', halign: 'center' } },
+        'Portagens / Autoestradas',
+        formatCurrency(d.portagens),
+        { content: formatCurrency(d.totalCirculacao), rowSpan: 2, styles: { valign: 'middle', fontStyle: 'bold', halign: 'right' } },
+        { content: d.mensalidade > 0 ? formatCurrency(d.mensalidade) : '---', rowSpan: 3, styles: { valign: 'middle', fontStyle: 'bold', halign: 'right', textColor: '#9333ea' } },
+        { content: formatCurrency(d.totalGeral), rowSpan: 3, styles: { valign: 'middle', fontStyle: 'bold', halign: 'right', fillColor: '#f8fafc' } } // [NOVO] Rowspan horizontal
+      ]);
+
+      rows.push([
+        // Matrícula rowspanned
+        'Parques / Estacionamento',
+        formatCurrency(d.parques)
+        // Subtotal rowspanned
+        // Mensalidade rowspanned
+        // Total Geral rowspanned
+      ]);
+
+      rows.push([
+        // Matrícula rowspanned
+        'Mensalidade Dispositivo / Aluguer',
+        formatCurrency(d.mensalidade),
+        '---' // Coluna Subtotal na 3.ª linha
+        // Mensalidade rowspanned
+        // Total Geral rowspanned
+      ]);
+    });
+
+    // Cálculos de Totais Consolidados Completos (incluindo o Total Geral Global)
+    const totalPortagens = Object.values(viaVerdeProcessed).reduce((acc, curr) => acc + curr.portagens, 0);
+    const totalParques = Object.values(viaVerdeProcessed).reduce((acc, curr) => acc + curr.parques, 0);
+    const totalCirculacao = Object.values(viaVerdeProcessed).reduce((acc, curr) => acc + curr.totalCirculacao, 0);
+    const totalMensalidade = Object.values(viaVerdeProcessed).reduce((acc, curr) => acc + curr.mensalidade, 0);
+    const totalGeralGlobal = Object.values(viaVerdeProcessed).reduce((acc, curr) => acc + curr.totalGeral, 0); // [NOVO] Soma acumulada global
+
+    // Linha final consolidada
+    rows.push([
+      'TOTAIS CONSOLIDADOS',
+      `Portagens: ${formatCurrency(totalPortagens)} | Parques: ${formatCurrency(totalParques)}`,
+      '---',
+      formatCurrency(totalCirculacao),
+      formatCurrency(totalMensalidade),
+      formatCurrency(totalGeralGlobal) // [ADICIONADO] Exibe o Total Acumulado Geral (Circulação + Mensalidades)
+    ]);
+
+    // Executa a injeção modular via ESM (importação estrita)
+    autoTable(doc, {
+      columns,
+      body: rows,
+      startY: 42,
+      margin: { left: margin, right: margin },
+      theme: 'striped',
+      styles: {
+        fontSize: 8,
+        font: 'Helvetica',
+        cellPadding: 3,
+        valign: 'middle'
+      },
+      headStyles: {
+        fillColor: '#1e293b',
+        textColor: '#ffffff',
+        fontStyle: 'bold',
+        halign: 'center'
+      },
+      columnStyles: {
+        matricula: { fontStyle: 'bold', halign: 'left' },
+        descricao: { halign: 'left' },
+        unitario: { halign: 'right' },
+        subtotal: { fontStyle: 'bold', halign: 'right' },
+        mensalidade: { fontStyle: 'bold', halign: 'right' },
+        totalGeral: { fontStyle: 'bold', halign: 'right' } // Alinhamento da nova coluna
+      },
+      didParseCell: function (data) {
+        // Estilização customizada da linha final de Totais Consolidados (Rodapé cinzento)
+        if (data.row.index === rows.length - 1) {
+          data.cell.styles.fontStyle = 'bold';
+          data.cell.styles.fillColor = '#cbd5e1'; // Cor de destaque do rodapé da tabela
+          data.cell.styles.textColor = '#0f172a';
+          // Para as células normais da última linha, desativa rowSpan para compatibilidade
+          if (data.column.index === 0) {
+            data.cell.colSpan = 1;
+          }
+        }
+      }
+    });
+
+    // Rodapé Normativo
+    doc.setFont('Helvetica', 'normal');
+    doc.setFontSize(7.5);
+    doc.setTextColor(150);
+    doc.text('Este documento serve exclusivamente como relatório de validação e conciliação interna de despesas de circulação.', margin, 285);
+
+    return doc;
+
+  } catch (error) {
+    console.error("[pdfGenerator] Erro ao gerar PDF de reconciliação Via Verde:", error);
+    throw error;
+  }
+};
+
+/**
  * Converte de forma adaptativa os dados processados na grelha de fecho semanal
  * para o gerador unificado de PDF, eliminando vulnerabilidades de NaN [2, 3].
  */
@@ -20424,7 +21368,7 @@ export const generateDriverPDF = (dados, empresa) => {
     iban: dados.iban || '---'
   };
 
-  // ◄ CORRIGIDO: Coalescência nula (?.) e fallbacks (|| 0) robustos para evitar NaN e omissão de créditos [2, 3]
+  // CORRIGIDO: Coalescência nula (?.) e fallbacks (|| 0) robustos para evitar NaN e omissão de créditos [2, 3]
   const modelacaoDados = {
     periodo: dados.periodo || { inicio: new Date().toISOString(), fim: new Date().toISOString() },
     tipoEntidade: 'motorista',
@@ -20447,7 +21391,7 @@ export const generateDriverPDF = (dados, empresa) => {
     }
   };
 
-  return generateStatementPDF(modelacaoDados, empresa, entidadeInfo);
+  return generateStatementPDF(modelacaoDados, empresa, entidadInforef || entidadeInfo);
 };
 --------------------------------------------------
 

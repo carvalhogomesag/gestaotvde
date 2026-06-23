@@ -9,6 +9,7 @@
  * - Preservação estrita de todos os fluxos de autenticação, Firebase e rotas existentes.
  * - [CORREÇÃO NETLIFY]: Removida a duplicação de export default acidental.
  * - [UX UNIFICADA]: Removida a margem esquerda lg:ml-64 para acomodar a Sidebar Flutuante.
+ * - [NOVO]: Rota para a gestão de Identificadores Via Verde associada a motoristas.
  */
 
 import { useEffect, useState } from 'react';
@@ -21,6 +22,7 @@ import Motoristas from './pages/Motoristas'; // Importação do componente exter
 import Veiculos from './pages/Veiculos';
 import Proprietarios from './pages/Proprietarios';
 import CartoesGestao from './pages/CartoesGestao';
+import ViaVerdeGestao from './pages/ViaVerdeGestao'; // Importação da nova página de gestão Via Verde
 import Configuracoes from './pages/Configuracoes';
 import MinhasTarefas from './pages/MinhasTarefas';
 import LogsSistema from './pages/LogsSistema'; 
@@ -297,7 +299,6 @@ function AppContent() {
       )}
       
       {/* 
-        [CORRIGIDO] A classe "lg:ml-64 ml-0" foi completamente removida.
         O ERP agora expande-se automaticamente por todo o ecrã.
       */}
       <div className="flex-1 flex flex-col min-w-0">
@@ -340,6 +341,7 @@ function AppContent() {
             <Route path="/tarefas" element={<PrivateRoute><MinhasTarefas /></PrivateRoute>} />
             <Route path="/cartoes/abastecimento" element={<PrivateRoute><CartoesGestao tipo="combustivel" /></PrivateRoute>} />
             <Route path="/cartoes/carregamento" element={<PrivateRoute><CartoesGestao tipo="eletrico" /></PrivateRoute>} />
+            <Route path="/via-verde" element={<PrivateRoute><ViaVerdeGestao /></PrivateRoute>} /> {/* Nova rota do Identificador Via Verde */}
             <Route path="/config" element={<PrivateRoute><Configuracoes /></PrivateRoute>} />
 
             {/* ROTAS RESTRITAS AO DIRETOR */}
