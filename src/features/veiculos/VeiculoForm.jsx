@@ -11,14 +11,16 @@
  * - Preservação total das ações de criação inline de Motoristas/Proprietários e Sincronização.
  * - Suporte a Regimes de Aluguer: Integral (1 Condutor) ou Partilhado por Turnos (2 Condutores).
  * - Dropdown de Marcas inteligente exibindo até as 10 marcas mais registadas na frota no topo.
- * - [NOVO] Adição de Data da Primeira Matrícula e cálculo dinâmico de tempo de circulação TVDE restante.
+ * - Adição de Data da Primeira Matrícula e cálculo dinâmico de tempo de circulação TVDE restante.
+ * - [NOVO] Exibição reativa e cronológica de identificadores Via Verde com base nos condutores ativos dos turnos A e B.
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   CreditCard, Car, Users, FileText, Eye, Trash2, 
   CheckCircle2, AlertCircle, Calendar, ShieldCheck, ClipboardCheck, History,
-  Wallet, Plus, Euro, ChevronDown, ChevronUp, Image as ImageIcon, MapPin, X, ArrowRight, Sparkles
+  Wallet, Plus, Euro, ChevronDown, ChevronUp, Image as ImageIcon, MapPin, X, ArrowRight, Sparkles,
+  Radio
 } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import FileUpload from '../../components/ui/FileUpload';
@@ -63,7 +65,7 @@ const formatDataHora = (isoString) => {
 };
 
 /**
- * [NOVO] Algoritmo de cálculo legal de tempo restante para circulação TVDE
+ * Algoritmo de cálculo legal de tempo restante para circulação TVDE
  */
 const calcularTempoRestanteTVDE = (dataPrimeiraMatricula, limiteAnos = 7) => {
   if (!dataPrimeiraMatricula) return null;
@@ -131,7 +133,7 @@ export default function VeiculoForm({
   proprietarios = [], 
   cartoes = [], 
   veiculos = [], // Array de viaturas registadas vindo do orquestrador
-  limiteAnosTVDE = 7, // [NOVO] Limite regulamentar configurável (padrão legal: 7 anos)
+  limiteAnosTVDE = 7, // Limite regulamentar configurável (padrão legal: 7 anos)
   onCancel, 
   isReadOnly = false, 
   onCriarProprietario, 
@@ -145,7 +147,7 @@ export default function VeiculoForm({
     modelo: initialData.modelo || '', 
     matricula: initialData.matricula || '', 
     ano: initialData.ano || '',
-    dataPrimeiraMatricula: initialData.dataPrimeiraMatricula || '', // [NOVO]
+    dataPrimeiraMatricula: initialData.dataPrimeiraMatricula || '', 
     proprietarioId: initialData.proprietarioId || '', 
     proprietarioNome: initialData.proprietarioNome || '', 
     // Regime de Aluguer ('integral' ou 'turnos')
@@ -184,6 +186,9 @@ export default function VeiculoForm({
   const [novoMotorista, setNovoMotorista] = useState({ nome: '', nif: '', telemovel: '' });
   const [modalFinanceiroAberto, setModalFinanceiroAberto] = useState(false);
 
+  // [NOVO] Estado para escutar aparelhos de Via Verde ativos no sistema
+  const [aparelhosAtivos, setAparelhosAtivos] = useState([]);
+
   // Estados de abertura para os novos sub-modais de UX
   const [modalIdentificacaoAberto, setModalIdentificacaoAberto] = useState(false);
   const [modalAtribuicoesAberto, setModalAtribuicoesAberto] = useState(false);
@@ -214,6 +219,16 @@ export default function VeiculoForm({
       return () => unsubscribe();
     }
   }, [initialData.id]);
+
+  // [NOVO] Sincronização de todos os transponders Via Verde em uso na posse de motoristas
+  useEffect(() => {
+    const q = query(collection(db, "viaverde_aparelhos"), where("estado", "==", "Em Uso"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setAparelhosAtivos(list);
+    });
+    return () => unsubscribe();
+  }, []);
 
   // ALGORITMO DEDUPICADO PARA ATÉ 10 SUGESTÕES
   const sugeridas = useMemo(() => {
@@ -252,7 +267,7 @@ export default function VeiculoForm({
     );
   }, [sugeridas, popularesFiltradas]);
 
-  // [NOVO] Cálculo em tempo real do tempo regulamentar restante
+  // Cálculo em tempo real do tempo regulamentar restante
   const tempoRestanteTVDE = useMemo(() => {
     return calcularTempoRestanteTVDE(formData.dataPrimeiraMatricula, limiteAnosTVDE);
   }, [formData.dataPrimeiraMatricula, limiteAnosTVDE]);
@@ -278,6 +293,12 @@ export default function VeiculoForm({
       tipoAluguer: tipo,
       ...(tipo === 'integral' ? { motoristaId2: '', motoristaNome2: '' } : {})
     }));
+  };
+
+  // [NOVO] Cruza o ID do motorista escalado com o stock ativo de identificadores Via Verde
+  const obterViaVerdeDoMotorista = (motoristaId) => {
+    if (!motoristaId) return null;
+    return aparelhosAtivos.find(a => a.motoristaId === motoristaId);
   };
 
   const handleAddMovimento = async () => {
@@ -538,7 +559,7 @@ export default function VeiculoForm({
               <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                 <div><label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Matrícula *</label><input required readOnly={isReadOnly} placeholder="AA-00-AA" className={`${inputClass} uppercase font-bold text-center tracking-widest`} value={formData.matricula} onChange={handleMatriculaChange} /></div>
                 
-                {/* [Dropdown Inteligente para Marcas - Expandido para 10] */}
+                {/* Dropdown Inteligente para Marcas */}
                 <div>
                   <label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Marca</label>
                   {isReadOnly ? (
@@ -578,7 +599,7 @@ export default function VeiculoForm({
                 <div><label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Ano</label><input type="number" readOnly={isReadOnly} className={inputClass} value={formData.ano} onChange={(e) => setFormData({...formData, ano: e.target.value})} /></div>
               </div>
 
-              {/* [NOVO] Seletor de Data da Primeira Matrícula & Cálculo do Tempo Restante */}
+              {/* Seletor de Data da Primeira Matrícula & Cálculo do Tempo Restante */}
               <div className="grid grid-cols-1 gap-3 pt-2">
                 <div>
                   <DatePicker 
@@ -681,7 +702,7 @@ export default function VeiculoForm({
                 )}
               </div>
 
-              {/* [DINÂMICO] Secção dos Condutores baseada no Regime */}
+              {/* Secção dos Condutores baseada no Regime */}
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/60 space-y-3">
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
                   {formData.tipoAluguer === 'integral' ? 'Condutor Associado' : 'Condutores por Turno (Partilhado)'}
@@ -690,7 +711,7 @@ export default function VeiculoForm({
                 {formData.tipoAluguer === 'integral' ? (
                   /* Regime Integral: Apenas 1 condutor habitual */
                   <div className="space-y-2">
-                    <label className="block text-xs font-bold text-slate-505 uppercase tracking-wider">Motorista Habitual (24h)</label>
+                    <label className="block text-xs font-bold text-slate-550 uppercase tracking-wider">Motorista Habitual (24h)</label>
                     {!isReadOnly && !initialData.id && (
                       <div className="flex rounded-lg border border-slate-200 overflow-hidden bg-slate-50 p-1 gap-1 w-fit">
                         <button type="button" onClick={() => setModoMotorista('existente')} className={`px-3 py-1 text-xs font-bold rounded transition-colors ${modoMotorista === 'existente' ? 'bg-white text-tvde-primary shadow-sm' : 'text-slate-400'}`}>Existente</button>
@@ -698,10 +719,28 @@ export default function VeiculoForm({
                       </div>
                     )}
                     {modoMotorista === 'existente' ? (
-                      <select disabled={isReadOnly} className={inputClass} value={formData.motoristaId} onChange={(e) => { const m = motoristas.find(m => m.id === e.target.value); setFormData({...formData, motoristaId: e.target.value, motoristaNome: m?.nome || ''}); }}>
-                        <option value="">Disponível</option>
-                        {motoristas.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
-                      </select>
+                      <div className="space-y-2">
+                        <select disabled={isReadOnly} className={inputClass} value={formData.motoristaId} onChange={(e) => { const m = motoristas.find(m => m.id === e.target.value); setFormData({...formData, motoristaId: e.target.value, motoristaNome: m?.nome || ''}); }}>
+                          <option value="">Disponível</option>
+                          {motoristas.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
+                        </select>
+                        
+                        {/* [NOVO] Visualização Via Verde do Condutor Único */}
+                        {(() => {
+                          const vv = obterViaVerdeDoMotorista(formData.motoristaId);
+                          return vv ? (
+                            <div className="p-2 bg-emerald-50 rounded-xl border border-emerald-100 flex items-center gap-2 text-emerald-800 text-[11px] animate-in fade-in duration-200">
+                              <Radio size={13} className="text-emerald-600 animate-pulse shrink-0" />
+                              <span>Via Verde Ativa: <strong className="font-mono">{vv.numeroAparelho}</strong> ({vv.id})</span>
+                            </div>
+                          ) : formData.motoristaId ? (
+                            <div className="p-2 bg-slate-100/50 rounded-xl border border-slate-200/50 flex items-center gap-2 text-slate-400 text-[11px] animate-in fade-in duration-200">
+                              <Radio size={13} className="text-slate-300 shrink-0" />
+                              <span className="italic font-medium">Sem identificador Via Verde pessoal associado</span>
+                            </div>
+                          ) : null;
+                        })()}
+                      </div>
                     ) : (
                       <div className="space-y-2 bg-blue-50 border border-blue-100 rounded-xl p-3">
                         <input placeholder="Nome completo *" required className="w-full p-2 border border-slate-200 rounded-lg text-sm bg-white" value={novoMotorista.nome} onChange={(e) => setNovoMotorista({ ...novoMotorista, nome: e.target.value })} />
@@ -725,10 +764,28 @@ export default function VeiculoForm({
                         </div>
                       )}
                       {modoMotorista === 'existente' ? (
-                        <select disabled={isReadOnly} className={inputClass} value={formData.motoristaId} onChange={(e) => { const m = motoristas.find(m => m.id === e.target.value); setFormData({...formData, motoristaId: e.target.value, motoristaNome: m?.nome || ''}); }}>
-                          <option value="">Disponível</option>
-                          {motoristas.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
-                        </select>
+                        <div className="space-y-1.5">
+                          <select disabled={isReadOnly} className={inputClass} value={formData.motoristaId} onChange={(e) => { const m = motoristas.find(m => m.id === e.target.value); setFormData({...formData, motoristaId: e.target.value, motoristaNome: m?.nome || ''}); }}>
+                            <option value="">Disponível</option>
+                            {motoristas.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
+                          </select>
+
+                          {/* [NOVO] Visualização Via Verde Turno A */}
+                          {(() => {
+                            const vv = obterViaVerdeDoMotorista(formData.motoristaId);
+                            return vv ? (
+                              <div className="p-2 bg-emerald-50 rounded-xl border border-emerald-100 flex items-center gap-2 text-emerald-850 text-[10px] animate-in fade-in duration-200">
+                                <Radio size={12} className="text-emerald-600 animate-pulse shrink-0" />
+                                <span>Via Verde Turno A: <strong className="font-mono">{vv.numeroAparelho}</strong></span>
+                              </div>
+                            ) : formData.motoristaId ? (
+                              <div className="p-2 bg-slate-100/50 rounded-xl border border-slate-200/50 flex items-center gap-2 text-slate-400 text-[10px] animate-in fade-in duration-200">
+                                <Radio size={12} className="text-slate-300 shrink-0" />
+                                <span className="italic font-medium">Sem Via Verde associada</span>
+                              </div>
+                            ) : null;
+                          })()}
+                        </div>
                       ) : (
                         <div className="space-y-2 bg-blue-50 border border-blue-100 rounded-xl p-3">
                           <input placeholder="Nome completo *" required className="w-full p-2 border border-slate-200 rounded-lg text-sm bg-white" value={novoMotorista.nome} onChange={(e) => setNovoMotorista({ ...novoMotorista, nome: e.target.value })} />
@@ -743,10 +800,28 @@ export default function VeiculoForm({
                     {/* Turno Noturno (B) */}
                     <div className="space-y-2">
                       <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Motorista Noturno — Turno B</label>
-                      <select disabled={isReadOnly} className={inputClass} value={formData.motoristaId2 || ''} onChange={(e) => { const m = motoristas.find(m => m.id === e.target.value); setFormData({...formData, motoristaId2: e.target.value, motoristaNome2: m?.nome || ''}); }}>
-                        <option value="">Disponível</option>
-                        {motoristas.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
-                      </select>
+                      <div className="space-y-1.5">
+                        <select disabled={isReadOnly} className={inputClass} value={formData.motoristaId2 || ''} onChange={(e) => { const m = motoristas.find(m => m.id === e.target.value); setFormData({...formData, motoristaId2: e.target.value, motoristaNome2: m?.nome || ''}); }}>
+                          <option value="">Disponível</option>
+                          {motoristas.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
+                        </select>
+
+                        {/* [NOVO] Visualização Via Verde Turno B */}
+                        {(() => {
+                          const vv = obterViaVerdeDoMotorista(formData.motoristaId2);
+                          return vv ? (
+                            <div className="p-2 bg-emerald-50 rounded-xl border border-emerald-100 flex items-center gap-2 text-emerald-855 text-[10px] animate-in fade-in duration-200">
+                              <Radio size={12} className="text-emerald-600 animate-pulse shrink-0" />
+                              <span>Via Verde Turno B: <strong className="font-mono">{vv.numeroAparelho}</strong></span>
+                            </div>
+                          ) : formData.motoristaId2 ? (
+                            <div className="p-2 bg-slate-100/50 rounded-xl border border-slate-200/50 flex items-center gap-2 text-slate-400 text-[10px] animate-in fade-in duration-200">
+                              <Radio size={12} className="text-slate-300 shrink-0" />
+                              <span className="italic font-medium">Sem Via Verde associada</span>
+                            </div>
+                          ) : null;
+                        })()}
+                      </div>
                     </div>
                   </div>
                 )}

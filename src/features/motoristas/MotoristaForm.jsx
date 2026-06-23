@@ -9,7 +9,8 @@
  * - Remoção definitiva e purga da Conta Corrente órfã e do useEffect setMovimentos.
  * - Compactação extrema de paddings, margins, gaps e inputs para evitar scroll no desktop.
  * - Preservação estrita das integrações do Firestore, IA Vision, alertas e conformidade regulamentar.
- * - [NOVO] Histórico formatado com Data e Hora detalhadas em Português (PT-PT).
+ * - Histórico formatado com Data e Hora detalhadas em Português (PT-PT).
+ * - [NOVO] Visualização dinâmica e reativa em tempo real do identificador Via Verde associado ao motorista.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -21,7 +22,8 @@ import {
   CheckSquare, Square, Camera, Eye, Trash2, 
   CheckCircle2, AlertCircle, History, Wallet, Plus, Minus, 
   Euro, ChevronDown, ChevronUp, FileCheck, Image as ImageIcon, Info,
-  MessageSquare, Share2, Send, Sparkles, ShieldCheck, AlertTriangle, ArrowRight, X, Car
+  MessageSquare, Share2, Send, Sparkles, ShieldCheck, AlertTriangle, ArrowRight, X, Car,
+  Radio
 } from 'lucide-react';
 import { db } from '../../firebase';
 import { doc, updateDoc, addDoc, collection, query, where, onSnapshot, deleteDoc } from 'firebase/firestore';
@@ -175,6 +177,9 @@ export default function MotoristaForm({
   // Novo estado para controlar dinamicamente a exibição das categorias de cartões
   const [tipoCartaoAtribuido, setTipoCartaoAtribuido] = useState('');
 
+  // [NOVO] Estado para guardar o identificador Via Verde ativo do motorista
+  const [viaVerdeAtiva, setViaVerdeAtiva] = useState(null);
+
   // TRAVA DE SEGURANÇA OPERACIONAL: Filtra motoristas que já têm outro cartão deste tipo
   const cartoesAbastecimentoOcupados = motoristas
     .filter(m => m.id !== initialData.id && m.cartaoAbastecimentoId)
@@ -223,6 +228,34 @@ export default function MotoristaForm({
     const top = (window.screen.height / 2) - (height / 2);
     window.open(url, 'Visualização', `width=${width},height=${height},top=${top},left=${left},menubar=no,status=no`);
   };
+
+  // [NOVO] Sincronização em tempo real do identificador Via Verde deste motorista
+  useEffect(() => {
+    const motoristaId = initialData.id || formData.id;
+    if (!motoristaId) {
+      setViaVerdeAtiva(null);
+      return;
+    }
+    const q = query(
+      collection(db, "viaverde_aparelhos"),
+      where("motoristaId", "==", motoristaId),
+      where("estado", "==", "Em Uso")
+    );
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      if (!snapshot.empty) {
+        const docSnap = snapshot.docs[0];
+        const dados = docSnap.data();
+        setViaVerdeAtiva({
+          id: docSnap.id,
+          numeroAparelho: dados.numeroAparelho,
+          dataAtribuicao: dados.dataAtribuicao
+        });
+      } else {
+        setViaVerdeAtiva(null);
+      }
+    });
+    return () => unsubscribe();
+  }, [initialData.id, formData.id]);
 
   useEffect(() => {
     if (!initialData || Object.keys(initialData).length === 0) return;
@@ -449,6 +482,17 @@ export default function MotoristaForm({
     onSubmit(dadosLimposParaGuardar, enviarLink);
   };
 
+  // [NOVO] Helper para o reenvio seguro do link de Onboarding via WhatsApp
+  const handleEnviarLinkExistente = (tipo) => {
+    const motoristaId = initialData.id || formData.id;
+    if (!motoristaId) return;
+    const urlOnboarding = `${window.location.origin}/onboarding/${motoristaId}`;
+    const textoMsg = `Olá ${formData.nome}, por favor finalize o seu registo digital de motorista TVDE acedendo ao seguinte link seguro: ${urlOnboarding}`;
+    const cleanPhone = formData.telemovel.replace(/\s+/g, '');
+    const urlWhatsapp = `https://api.whatsapp.com/send?phone=351${cleanPhone}&text=${encodeURIComponent(textoMsg)}`;
+    window.open(urlWhatsapp, '_blank');
+  };
+
   return (
     <form onSubmit={(e) => e.preventDefault()} className="space-y-1 max-h-[75vh] overflow-y-auto pr-3.5 custom-scrollbar">
 
@@ -612,7 +656,7 @@ export default function MotoristaForm({
         )}
       </div>
 
-      {/* [ATUALIZADO] SEÇÃO DO HISTÓRICO DE EDIÇÕES COM DATA E HORA COMPLETAS (PT-PT) */}
+      {/* SEÇÃO DO HISTÓRICO DE EDIÇÕES COM DATA E HORA COMPLETAS (PT-PT) */}
       {initialData.historico && initialData.historico.length > 0 && (
         <CollapsibleSection title="Histórico de Edições" icon={History} iconColor="text-slate-400" defaultOpen={false}>
           <div className="space-y-1.5 text-left">
@@ -793,30 +837,58 @@ export default function MotoristaForm({
             
             <div className="space-y-4 overflow-y-auto pr-2 custom-scrollbar">
               
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Veículo Atribuído</label>
-                <select 
-                  disabled={isReadOnly}
-                  className="w-full p-2.5 border border-slate-200 rounded-lg bg-white text-xs outline-none focus:ring-2 focus:ring-tvde-primary/20 text-slate-700 font-medium"
-                  value={formData.veiculoId || ''}
-                  onChange={(e) => {
-                    const v = veiculos.find(veic => veic.id === e.target.value);
-                    setFormData({
-                      ...formData, 
-                      veiculoId: e.target.value, 
-                      veiculoMatricula: v ? v.matricula : '',
-                      veiculoMarca: v ? v.marca : '',      
-                      veiculoModelo: v ? v.modelo : ''     
-                    });
-                  }}
-                >
-                  <option value="">Nenhum Veículo Atribuído (Em Stock)</option>
-                  {veiculos.map(v => (
-                    <option key={v.id} value={v.id}>
-                      {v.matricula} — {v.marca} {v.modelo}
-                    </option>
-                  ))}
-                </select>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Veículo Atribuído</label>
+                  <select 
+                    disabled={isReadOnly}
+                    className="w-full p-2.5 border border-slate-200 rounded-lg bg-white text-xs outline-none focus:ring-2 focus:ring-tvde-primary/20 text-slate-700 font-medium"
+                    value={formData.veiculoId || ''}
+                    onChange={(e) => {
+                      const v = veiculos.find(veic => veic.id === e.target.value);
+                      setFormData({
+                        ...formData, 
+                        veiculoId: e.target.value, 
+                        veiculoMatricula: v ? v.matricula : '',
+                        veiculoMarca: v ? v.marca : '',      
+                        veiculoModelo: v ? v.modelo : ''     
+                      });
+                    }}
+                  >
+                    <option value="">Nenhum Veículo Atribuído (Em Stock)</option>
+                    {veiculos.map(v => (
+                      <option key={v.id} value={v.id}>
+                        {v.matricula} — {v.marca} {v.modelo}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* [NOVO] Visualização de Identificador Via Verde Ativo do Motorista */}
+                <div className="pt-1">
+                  {viaVerdeAtiva ? (
+                    <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100 flex items-center gap-2.5 text-emerald-800 animate-in fade-in duration-200">
+                      <div className="p-2 bg-emerald-100 text-emerald-600 rounded-lg shrink-0">
+                        <Radio size={16} className="animate-pulse" />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-wider text-emerald-700">Identificador Via Verde Ativo</p>
+                        <p className="text-xs font-black font-mono">{viaVerdeAtiva.numeroAparelho} ({viaVerdeAtiva.id})</p>
+                        <p className="text-[9px] text-emerald-600 font-bold">Entregue em: {formatDataHora(viaVerdeAtiva.dataAtribuicao)}</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/50 flex items-center gap-2.5 text-slate-500 animate-in fade-in duration-200">
+                      <div className="p-2 bg-slate-100 text-slate-400 rounded-lg shrink-0">
+                        <Radio size={16} />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Identificador Via Verde</p>
+                        <p className="text-xs italic font-semibold">Sem nenhum aparelho atribuído a este motorista.</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div>
