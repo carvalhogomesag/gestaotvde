@@ -6,27 +6,29 @@
  * Atualizado com:
  * - Filtros integrados, mini-dashboard analítico (KPIs) compacto.
  * - Sincronização bidirecional em tempo real do Firestore.
- * - [NOVO] Injeção de Título e Botão "Novo Motorista" via React Portal diretamente no Header.
+ * - Injeção de Título e Botão "Novo Motorista" via React Portal diretamente no Header.
+ * - [NOVO] Passagem de propriedade 'veiculos' para a listagem para permitir integridade de dados e limpeza de cache.
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { createPortal } from 'react-dom'; // Importado para suporte a Portais dinâmicos no Header
-import { useLocation } from 'react-router-dom';
-import { Plus, Search, Loader2, Users, UserCheck, AlertCircle } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { 
+  Plus, Users, UserCheck, AlertCircle, Loader2, Lock
+} from 'lucide-react';
+import { db } from '../firebase';
+import { 
+  collection, getDocs, addDoc, query, 
+  doc, deleteDoc, updateDoc, arrayUnion, onSnapshot, writeBatch 
+} from 'firebase/firestore';
+import { useAuth } from '../context/AuthContext';
+import { generateNextCode } from '../utils/idGenerator';
+import { logAcaoGlobal } from '../utils/logger';
 import Button from '../components/ui/Button';
 import Modal from '../components/ui/Modal';
 import JustificacaoModal from '../components/ui/JustificacaoModal';
 import TicketModal from '../components/ui/TicketModal';
 import MotoristasList from '../features/motoristas/MotoristasList';
 import MotoristaForm from '../features/motoristas/MotoristaForm';
-import { db } from '../firebase';
-import { useAuth } from '../context/AuthContext';
-import { generateNextCode } from '../utils/idGenerator';
-import { logAcaoGlobal } from '../utils/logger';
-import { 
-  collection, addDoc, getDocs, query, 
-  doc, deleteDoc, updateDoc, arrayUnion, onSnapshot, writeBatch 
-} from 'firebase/firestore';
 
 /**
  * Função Auxiliar: Formata o nome em Title Case para exibição 
@@ -61,9 +63,6 @@ const isProfileIncomplete = (m) => {
 
 export default function Motoristas() {
   const { userData } = useAuth();
-  const location = useLocation();
-  
-  // Estado didático de montagem para garantir integridade do Portal React
   const [mounted, setMounted] = useState(false);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -80,13 +79,11 @@ export default function Motoristas() {
   const [tempDados, setTempDados] = useState(null);
   const [lastSavedItem, setLastSavedItem] = useState(null);
 
-  // Ativa a montagem segura do portal no mount inicial do componente
   useEffect(() => {
     setMounted(true);
     return () => setMounted(false);
   }, []);
 
-  // useCallback para evitar que handleEditClick seja recriada
   const handleEditClick = useCallback((motorista, viewOnly = false) => {
     setEditingId(motorista.id);
     setIsViewOnly(viewOnly);
@@ -111,8 +108,7 @@ export default function Motoristas() {
       setMotoristas(lista);
       setLoading(false);
 
-      // Deep linking via URL ?id=
-      const params = new URLSearchParams(location.search);
+      const params = new URLSearchParams(window.location.search);
       const targetId = params.get('id');
       if (targetId && !editingId) {
         const motoristaTarget = lista.find(m => m.id === targetId);
@@ -120,12 +116,10 @@ export default function Motoristas() {
       }
     });
 
-    // Subscrever lista de veículos para atribuição
     const unsubscribeVeiculos = onSnapshot(query(collection(db, "veiculos")), (snapshot) => {
       setVeiculos(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
-    // Subscrever lista de cartões para atribuição
     const unsubscribeCartoes = onSnapshot(query(collection(db, "cartoes")), (snapshot) => {
       setCartoes(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
     });
@@ -139,13 +133,8 @@ export default function Motoristas() {
       unsubscribeVeiculos();
       unsubscribeCartoes();
     };
-  }, [location.search, editingId, handleEditClick]);
+  }, [editingId, handleEditClick]);
 
-  /**
-   * ATUALIZAÇÃO BIDIRECIONAL (BATCH)
-   * Garante que quando um motorista recebe um veículo ou cartão, 
-   * a base de dados vai ao respetivo veículo/cartão e escreve que agora pertence a este motorista.
-   */
   const syncRelacoesMotorista = async (motoristaId, motoristaNome, novosDados, antigosDados = null) => {
     const batch = writeBatch(db);
     const nomeMudou = antigosDados && antigosDados.nome !== motoristaNome;
@@ -192,14 +181,12 @@ export default function Motoristas() {
 
     if (antigoVeiculoId !== novoVeiculoId) {
       if (antigoVeiculoId) {
-        // Remove a atribuição do veículo antigo
         const antigoRef = doc(db, "veiculos", antigoVeiculoId);
         batch.update(antigoRef, { motoristaId: "", motoristaNome: "" });
       }
       if (novoVeiculoId) {
-        // Atribui o veículo novo ao motorista
         const novoRef = doc(db, "veiculos", novoVeiculoId);
-        batch.update(novoRef, { motoristaId: "", motoristaNome: "" }); // Limpa o anterior do veículo se houver
+        batch.update(novoRef, { motoristaId: "", motoristaNome: "" }); 
         batch.update(novoRef, { motoristaId, motoristaNome });
       }
     } else if (novoVeiculoId && nomeMudou) {
@@ -210,7 +197,6 @@ export default function Motoristas() {
     await batch.commit();
   };
 
-  // Recalcula reativamente a cada update do onSnapshot
   const motoristaEmEdicao = motoristas.find(m => m.id === editingId) || null;
 
   const handleCriarProprietario = async (dadosMinimos) => {
@@ -253,7 +239,6 @@ export default function Motoristas() {
           historico: []
         });
 
-        // Sincronizar bidirecionalmente Veículos e Cartões
         await syncRelacoesMotorista(docRef.id, dados.nome, dados);
 
         await logAcaoGlobal(userData?.nome, "Criação", "Motoristas", dados.nome, docRef.id);
@@ -291,7 +276,6 @@ export default function Motoristas() {
         })
       });
 
-      // Sincronizar bidirecionalmente Veículos e Cartões
       await syncRelacoesMotorista(editingId, tempDados.nome, tempDados, motoristaEmEdicao);
 
       await logAcaoGlobal(userData?.nome, "Edição", "Motoristas", dadosLimpos.nome, editingId);
@@ -353,7 +337,6 @@ export default function Motoristas() {
     setTempDados(null);
   };
 
-  // Cálculos dinâmicos e atómicos para os mini-cards analíticos
   const totalCount = motoristas.length;
   const pendingDocsCount = motoristas.filter(isProfileIncomplete).length;
   const activeCount = motoristas.filter(m => m.status === 'Ativo' && !isProfileIncomplete(m)).length;
@@ -361,15 +344,9 @@ export default function Motoristas() {
 
   return (
     <div className="space-y-4">
-      
-      {/* 
-        [ATUALIZADO] PORTAL DINÂMICO DE CABEÇALHO:
-        Injeta o título e o botão de ação principal diretamente no cabeçalho global do topo (Header.jsx)
-        quando a página de motoristas é montada, poupando imenso espaço vertical!
-      */}
       {mounted && document.getElementById('header-dynamic-slot') && createPortal(
         <div className="flex items-center gap-3 animate-in fade-in duration-200">
-          <div className="h-4 w-[1.5px] bg-slate-200 hidden lg:block select-none" /> {/* Separador discreto de barra */}
+          <div className="h-4 w-[1.5px] bg-slate-200 hidden lg:block select-none" />
           <h2 className="text-xs font-black text-slate-800 uppercase tracking-wider hidden sm:block select-none">Motoristas</h2>
           <Button 
             onClick={() => { setEditingId(null); setIsModalOpen(true); }}
@@ -381,12 +358,11 @@ export default function Motoristas() {
         document.getElementById('header-dynamic-slot')
       )}
 
-      {/* Subtítulo Discreto e compacto que fica no topo da página de conteúdo */}
       <p className="text-slate-500 text-xs font-medium select-none -mt-1 pb-1">
         Gestão de condutores e fluxo de trabalho.
       </p>
 
-      {/* DASHBOARD DE KPIs ANALÍTICO E SUPER COMPACTO */}
+      {/* DASHBOARD DE KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 select-none">
         <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex items-center gap-3">
           <div className="p-2 bg-slate-50 text-slate-400 rounded-lg shrink-0">
@@ -400,7 +376,7 @@ export default function Motoristas() {
 
         <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex items-center gap-3">
           <div className="p-2 bg-emerald-50 text-emerald-500 rounded-lg shrink-0">
-            <UserCheck size={16} />
+            <Users size={16} />
           </div>
           <div>
             <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Ativos</p>
@@ -410,7 +386,7 @@ export default function Motoristas() {
 
         <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex items-center gap-3">
           <div className="p-2 bg-slate-50 text-slate-400 rounded-lg shrink-0">
-            <UserCheck size={16} className="opacity-40" />
+            <Users size={16} className="opacity-40" />
           </div>
           <div>
             <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Inativos</p>
@@ -438,6 +414,7 @@ export default function Motoristas() {
         <div className="w-full overflow-x-auto rounded-2xl border border-slate-100 shadow-sm bg-white">
           <MotoristasList 
             motoristas={motoristas} 
+            veiculos={veiculos} // [NOVO] Passagem explícita de viaturas ativas para cruzamento dinâmico
             onEdit={handleEditClick} 
             onDelete={handleDelete} 
           />
