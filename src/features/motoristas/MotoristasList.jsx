@@ -7,26 +7,27 @@
  * - Interruptor de estado (Ativo/Inativo) com trava de segurança para pendentes.
  * - Auto-corretor em segundo plano para manter conformidade de estado no Firestore.
  * - Filtros rápidos no cabeçalho integrados.
- * - [NOVO] Layout atualizado: Contactos sob o nome do motorista; nova coluna para Veículo Atribuído.
+ * - Layout atualizado: Contactos sob o nome do motorista; nova coluna para Veículo Atribuído.
+ * - [NOVO] Referência cruzada reativa com a coleção 'veiculos' para evitar visualização de viaturas excluídas (dados órfãos).
  */
 
 import React, { useState, useEffect } from 'react';
 import { 
   Edit, Trash2, User, FileText, CreditCard, 
   ShieldAlert, BadgeCheck, Home, Eye, AlertCircle, 
-  Sparkles, Car, Wallet // Importações de Car e Wallet adicionadas
+  Sparkles, Car, Wallet 
 } from 'lucide-react';
 import { db } from '../../firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { logAcaoGlobal } from '../../utils/logger';
 import { useAuth } from '../../context/AuthContext';
 
-export default function MotoristasList({ motoristas, onEdit, onDelete }) {
+export default function MotoristasList({ motoristas, veiculos = [], onEdit, onDelete }) {
   const { userData } = useAuth();
 
   // ESTADOS LOCAIS PARA OS FILTROS DE CADA COLUNA
-  const [filterPesquisaGlobal, setFilterPesquisaGlobal] = useState(''); // Substitui filterNome e filterContacto
-  const [filterVeiculo, setFilterVeiculo] = useState(''); // Novo filtro para a coluna de veículos
+  const [filterPesquisaGlobal, setFilterPesquisaGlobal] = useState(''); 
+  const [filterVeiculo, setFilterVeiculo] = useState(''); 
   const [filterStatus, setFilterStatus] = useState('todos');
   const [filterDocs, setFilterDocs] = useState('todos');
 
@@ -114,12 +115,18 @@ export default function MotoristasList({ motoristas, onEdit, onDelete }) {
         (m.telemovel || '').toLowerCase().includes(queryGlobal) ||
         (m.nif || '').toLowerCase().includes(queryGlobal);
 
+      // [NOVO] Cruzamos o veículo espelho com a lista ativa para garantir integridade na pesquisa
+      const vInfo = (veiculos && veiculos.length > 0)
+        ? veiculos.find(v => v.id === m.veiculoId)
+        : (m.veiculoId ? { matricula: m.veiculoMatricula, marca: m.veiculoMarca, modelo: m.veiculoModelo } : null);
+
       // 2. Filtragem por Veículo Atribuído (Matrícula ou Marca/Modelo)
       const queryVeiculo = filterVeiculo.toLowerCase();
-      const matchesVeiculo = 
-        (m.veiculoMatricula || '').toLowerCase().includes(queryVeiculo) ||
-        (m.veiculoMarca || '').toLowerCase().includes(queryVeiculo) ||
-        (m.veiculoModelo || '').toLowerCase().includes(queryVeiculo);
+      const matchesVeiculo = vInfo ? (
+        (vInfo.matricula || '').toLowerCase().includes(queryVeiculo) ||
+        (vInfo.marca || '').toLowerCase().includes(queryVeiculo) ||
+        (vInfo.modelo || '').toLowerCase().includes(queryVeiculo)
+      ) : queryVeiculo === '';
 
       // 3. Filtragem por Status
       const matchesStatus = filterStatus === 'todos' || effectiveStatus === filterStatus;
@@ -206,6 +213,11 @@ export default function MotoristasList({ motoristas, onEdit, onDelete }) {
             const aiReview = needsAIValidation(m);
             const isDriverActive = m.status === 'Ativo' && !incomplete;
             
+            // [NOVO] Algoritmo de referência cruzada reativa para desativar dados fantasmas
+            const mostrarVeiculo = (veiculos && veiculos.length > 0)
+              ? veiculos.find(v => v.id === m.veiculoId)
+              : (m.veiculoId ? { id: m.veiculoId, matricula: m.veiculoMatricula, marca: m.veiculoMarca, modelo: m.veiculoModelo } : null);
+
             return (
               <tr key={m.id} className="hover:bg-slate-50/50 transition-colors">
                 
@@ -226,7 +238,6 @@ export default function MotoristasList({ motoristas, onEdit, onDelete }) {
                         </span>
                         <p className="font-bold text-slate-800">{m.nome}</p>
                       </div>
-                      {/* O ID Sistema foi substituído pelos contactos aqui */}
                       <p className="text-[11px] text-slate-500 font-medium">
                         {m.telemovel || 'S/Tlf'} <span className="text-slate-300 mx-1">•</span> NIF: <span className="font-mono">{m.nif || 'S/NIF'}</span>
                       </p>
@@ -234,25 +245,24 @@ export default function MotoristasList({ motoristas, onEdit, onDelete }) {
                   </div>
                 </td>
                 
-                {/* COLUNA 2: Veículo Atribuído (Nova Posição) */}
+                {/* COLUNA 2: Veículo Atribuído (Reativo e Imune a Exclusões) */}
                 <td className="p-4 text-sm">
-                  {m.veiculoId ? (
-                    <div className="flex items-center gap-2">
+                  {mostrarVeiculo && (veiculos.length === 0 || veiculos.some(v => v.id === m.veiculoId)) ? (
+                    <div className="flex items-center gap-2 animate-in fade-in duration-200">
                       <div className="w-7 h-7 bg-blue-50 rounded-lg flex items-center justify-center text-tvde-primary shadow-sm border border-blue-100 shrink-0">
                         <Car size={14} />
                       </div>
                       <div className="flex flex-col">
-                        {/* Matrícula em formato realçado */}
                         <span className="font-black text-slate-800 text-xs font-mono tracking-widest uppercase">
-                          {m.veiculoMatricula || 'S/MAT'}
+                          {mostrarVeiculo.matricula || 'S/MAT'}
                         </span>
                         <span className="text-[10px] text-slate-400 font-bold truncate max-w-[120px]">
-                          {m.veiculoMarca || 'Veículo'} {m.veiculoModelo || ''}
+                          {mostrarVeiculo.marca || 'Veículo'} {mostrarVeiculo.modelo || ''}
                         </span>
                       </div>
                     </div>
                   ) : (
-                    <div className="flex items-center gap-2 text-slate-400 italic text-xs">
+                    <div className="flex items-center gap-2 text-slate-400 italic text-xs animate-in fade-in duration-200">
                       <Car size={14} className="opacity-50" />
                       Sem veículo atribuído
                     </div>
