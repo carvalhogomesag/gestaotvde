@@ -7,7 +7,9 @@
  * servindo como a "verdade absoluta" para a imputação de portagens atrasadas.
  *
  * Otimizado com:
- * - [NOVA UX]: Substituído input datetime-local por campos divididos de Data e Hora com Atalhos Rápidos.
+ * - [UX RESOLVIDO]: Compactação total do cabeçalho dinâmico para eliminar overlaps e quebras de linha.
+ * - Título principal e descrição detalhada movidos para o topo da área de conteúdo (Padrão Fecho Semanal).
+ * - [NOVO]: Cruzamento reativo em tempo real com a coleção 'veiculos' para exibir a viatura real associada ao motorista (Turno A ou Turno B).
  */
 
 import React, { useState, useEffect } from 'react';
@@ -23,6 +25,7 @@ import {
   runTransaction, updateDoc, addDoc 
 } from 'firebase/firestore';
 import { useAuth } from '../context/AuthContext';
+import Button from '../components/ui/Button';
 
 export default function ViaVerdeGestao() {
   const { userData } = useAuth();
@@ -30,6 +33,7 @@ export default function ViaVerdeGestao() {
   // Estados principais de sincronização
   const [aparelhos, setAparelhos] = useState([]);
   const [motoristas, setMotoristas] = useState([]);
+  const [veiculos, setVeiculos] = useState([]); // [NOVO] Coleção de viaturas em tempo real
   const [loading, setLoading] = useState(true);
   const [headerSlot, setHeaderSlot] = useState(null);
 
@@ -47,11 +51,11 @@ export default function ViaVerdeGestao() {
   const [novoAparelhoNumero, setNovoAparelhoNumero] = useState('');
   const [selectedMotoristaId, setSelectedMotoristaId] = useState('');
   
-  // [NOVO] Estados divididos para Atribuição
+  // Estados divididos para Atribuição
   const [dataAtribuicao, setDataAtribuicao] = useState('');
   const [horaAtribuicao, setHoraAtribuicao] = useState('');
 
-  // [NOVO] Estados divididos para Devolução
+  // Estados divididos para Devolução
   const [dataDevolucao, setDataDevolucao] = useState('');
   const [horaDevolucao, setHoraDevolucao] = useState('');
 
@@ -99,6 +103,15 @@ export default function ViaVerdeGestao() {
     return () => unsubscribe();
   }, []);
 
+  // [NOVO] Escuta os veículos ativos em tempo real para cruzamento de matrícula
+  useEffect(() => {
+    const q = query(collection(db, "veiculos"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setVeiculos(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+    return () => unsubscribe();
+  }, []);
+
   // Utilitário para formatar a data/hora para o padrão PT-PT exigido por auditoria
   const formatarDataPT = (dataString) => {
     if (!dataString) return '-';
@@ -112,14 +125,14 @@ export default function ViaVerdeGestao() {
     return `${dia}/${mes}/${ano} às ${horas}:${minutos}`;
   };
 
-  // [NOVO] Helper para obter a data local atual em Portugal (formato YYYY-MM-DD)
+  // Helper para obter a data local atual em Portugal (formato YYYY-MM-DD)
   const obterDataLocal = () => {
     const agora = new Date();
     const tzOffset = agora.getTimezoneOffset() * 60000;
     return (new Date(agora - tzOffset)).toISOString().split('T')[0];
   };
 
-  // [NOVO] Helper para obter a hora local atual em Portugal (formato HH:MM)
+  // Helper para obter a hora local atual em Portugal (formato HH:MM)
   const obterHoraLocal = () => {
     const agora = new Date();
     const horas = String(agora.getHours()).padStart(2, '0');
@@ -127,7 +140,7 @@ export default function ViaVerdeGestao() {
     return `${horas}:${minutos}`;
   };
 
-  // [NOVO] Presets para o formulário de Atribuição
+  // Presets para o formulário de Atribuição
   const aplicarPresetAtribuicao = (preset) => {
     const hoje = obterDataLocal();
     if (preset === 'agora') {
@@ -142,7 +155,7 @@ export default function ViaVerdeGestao() {
     }
   };
 
-  // [NOVO] Presets para o formulário de Devolução
+  // Presets para o formulário de Devolução
   const aplicarPresetDevolucao = (preset) => {
     const hoje = obterDataLocal();
     if (preset === 'agora') {
@@ -273,7 +286,6 @@ export default function ViaVerdeGestao() {
 
       const aparelhoRef = doc(db, "viaverde_aparelhos", selectedAparelho.id);
       
-      // Reconstituição em ISOString única para o Firestore
       const dataHoraCombinada = new Date(`${dataAtribuicao}T${horaAtribuicao}`).toISOString();
 
       const novaMovimentacao = {
@@ -329,7 +341,6 @@ export default function ViaVerdeGestao() {
       return;
     }
 
-    // Reconstituição e validação cronológica
     const dataInicioAtiva = new Date(selectedAparelho.dataAtribuicao);
     const dataFimProposta = new Date(`${dataDevolucao}T${horaDevolucao}`);
 
@@ -469,29 +480,35 @@ export default function ViaVerdeGestao() {
 
   return (
     <div className="space-y-6">
+      {/* 
+        [PORTAL DINÂMICO DE CABEÇALHO ULTRA COMPACTO]:
+        Garante que o título flutua na barra superior com perfeita harmonia e sem overlaps.
+      */}
       {headerSlot && createPortal(
-        <div className="flex items-center justify-between w-full">
-          <div className="flex flex-col">
-            <h1 className="text-xl font-black text-slate-800 flex items-center gap-2">
-              <Radio className="text-tvde-primary" size={24} />
-              Identificadores Via Verde
-            </h1>
-            <p className="text-xs text-slate-500 font-medium">Gestão e atribuição temporal de aparelhos a motoristas</p>
-          </div>
-          <button
-            onClick={() => {
-              setNovoAparelhoNumero('');
-              setJustificacao('');
-              setShowFormModal(true);
-            }}
-            className="bg-tvde-primary hover:bg-blue-600 text-white font-bold py-1.5 px-4 rounded-xl text-sm transition-all shadow-md flex items-center gap-2 cursor-pointer"
+        <div className="flex items-center gap-3 animate-in fade-in duration-200">
+          <div className="h-4 w-[1.5px] bg-slate-200 hidden lg:block select-none" />
+          <h2 className="text-xs font-black text-slate-800 uppercase tracking-wider hidden sm:flex items-center gap-1.5 select-none">
+            <Radio className="text-tvde-primary shrink-0" size={14} /> 
+            Via Verde
+          </h2>
+          <Button
+            onClick={() => { setEditingId(null); setIsModalOpen(true); }}
+            className="text-[10px] font-black uppercase py-1 px-2.5 h-8 gap-1 shadow-sm shrink-0"
           >
-            <Plus size={16} />
-            Registar Aparelho
-          </button>
+            <Plus size={12} /> Registar Aparelho
+          </Button>
         </div>,
         headerSlot
       )}
+
+      {/* Título da página movido para o topo do conteúdo interno (Padrão de UX do Fecho Semanal) */}
+      <header className="select-none">
+        <h1 className="text-xl sm:text-2xl font-bold text-slate-800 flex items-center gap-2.5">
+          <Radio className="text-tvde-primary animate-pulse" size={24} />
+          Gestão de Identificadores Via Verde
+        </h1>
+        <p className="text-slate-500 text-xs sm:text-sm">Controle e atribuição temporal de aparelhos diretamente a motoristas (Verdade Absoluta).</p>
+      </header>
 
       {/* MINI-DASHBOARD DE MÉTRICAS */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
@@ -581,7 +598,13 @@ export default function ViaVerdeGestao() {
               <tbody className="divide-y divide-slate-100">
                 {aparelhosFiltrados.map((aparelho) => {
                   const motoristaVinculado = motoristas.find(m => m.id === aparelho.motoristaId);
-                  const matriculaViatura = motoristaVinculado?.matricula || motoristaVinculado?.veiculo || "-";
+                  
+                  // [NOVO] Cruzamento dinâmico em tempo real com a coleção 'veiculos' para obter a viatura vinculada ao motorista (Turno A ou Turno B)
+                  const veiculoVinculado = motoristaVinculado 
+                    ? veiculos.find(v => v.motoristaId === motoristaVinculado.id || v.motoristaId2 === motoristaVinculado.id)
+                    : null;
+
+                  const matriculaViatura = veiculoVinculado ? veiculoVinculado.matricula : "-";
 
                   return (
                     <tr key={aparelho.id} className="hover:bg-slate-50/40 transition-colors text-slate-700">
@@ -698,7 +721,7 @@ export default function ViaVerdeGestao() {
       </div>
 
       {/* ========================================================= */}
-      {/* MODAL 1: REGISTO DE APARELHO (NOVO)                      */}
+      {/* MODAL 1: REGISTO DE APARELHO                             */}
       {/* ========================================================= */}
       {showFormModal && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
@@ -770,7 +793,7 @@ export default function ViaVerdeGestao() {
       )}
 
       {/* ========================================================= */}
-      {/* MODAL 2: ATRIBUIÇÃO A MOTORISTA (UX MELHORADA)            */}
+      {/* MODAL 2: ATRIBUIÇÃO A MOTORISTA                           */}
       {/* ========================================================= */}
       {showAtribuicaoModal && selectedAparelho && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
@@ -811,7 +834,6 @@ export default function ViaVerdeGestao() {
                 </select>
               </div>
 
-              {/* [NOVO]: Campo dividido de data/hora de entrega com atalhos de presets */}
               <div>
                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Atalhos Rápidos de Horário</label>
                 <div className="flex flex-wrap gap-1.5 mb-2.5">
@@ -903,7 +925,7 @@ export default function ViaVerdeGestao() {
       )}
 
       {/* ========================================================= */}
-      {/* MODAL 3: DEVOLUÇÃO / RECEÇÃO FÍSICA (UX MELHORADA)        */}
+      {/* MODAL 3: DEVOLUÇÃO / RECEÇÃO FÍSICA                       */}
       {/* ========================================================= */}
       {showDevolucaoModal && selectedAparelho && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
@@ -937,7 +959,6 @@ export default function ViaVerdeGestao() {
                 </div>
               </div>
 
-              {/* [NOVO]: Campo dividido de data/hora de fim com atalhos de presets */}
               <div>
                 <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Atalhos Rápidos de Horário</label>
                 <div className="flex flex-wrap gap-1.5 mb-2.5">
