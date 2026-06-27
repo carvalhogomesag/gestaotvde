@@ -1,5 +1,13 @@
+/**
+ * CartoesGestao.jsx
+ * Localização: src/pages/CartoesGestao.jsx
+ *
+ * Ecrã de gestão unificada de cartões de abastecimento (Combustível) e carregamento (Elétrico).
+ * [ATUALIZADO]: Removido o botão e toda a lógica de sementeira em lote de teste para garantir a integridade dos dados de produção.
+ */
+
 import React, { useState, useEffect } from 'react';
-import { Plus, CreditCard, ShieldCheck, Trash2, Eye, Edit, Database } from 'lucide-react';
+import { Plus, ShieldCheck, Trash2, Edit } from 'lucide-react';
 import Button from '../components/ui/Button';
 import Modal from '../components/ui/Modal';
 import JustificacaoModal from '../components/ui/JustificacaoModal';
@@ -12,22 +20,6 @@ import {
   collection, getDocs, query, where, 
   doc, deleteDoc, updateDoc, arrayUnion, setDoc, writeBatch 
 } from 'firebase/firestore';
-
-// Lista de cartões de abastecimento (Combustível) identificados na imagem
-const CARTOES_COMBUSTIVEL = [
-  "0C1062", "OC001", "OC0010", "OC0013", "OC0019", "OC0020", "OC003", "OC004", "OC007", "OC1001",
-  "OC1004", "OC1011", "OC1023", "OC1025", "OC1026", "OC1027", "OC1032", "OC1034", "OC1037", "OC1040",
-  "OC1042", "OC1047", "OC1053", "OC1056", "OC1064", "OC1065", "OC1066", "OC107", "OC109", "OC122"
-];
-
-// Lista de cartões de carregamento (Elétrico) identificados na imagem
-const CARTOES_ELETRICOS = [
-  "OCE002", "OCE005", "OCE006", "OCE010", "OCE0100", "OCE011", "OCE013", "OCE014", "OCE015", "OCE017",
-  "OCE018", "OCE023", "OCE025", "OCE026", "OCE028", "OCE029", "OCE032", "OCE036", "OCE039", "OCE042",
-  "OCE043", "OCE045", "OCE046", "OCE047", "OCE049", "OCE052", "OCE056", "OCE059", "OCE061", "OCE065",
-  "OCE068", "OCE072", "OCE074", "OCE075", "OCE076", "OCE077", "OCE079", "OCE081", "OCE083", "OCE084",
-  "OCE088", "OCE089", "OCE090", "OCE091", "OCE095", "OCE096", "OCE097", "OCE098", "OCE099"
-];
 
 /**
  * Função Auxiliar: Formata o nome em Title Case para exibição 
@@ -56,16 +48,14 @@ export default function CartoesGestao({ tipo }) {
   const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
   
   const [cartoes, setCartoes] = useState([]);
-  const [motoristas, setMotoristas] = useState([]); // Mudança de Veículos para Motoristas [1]
+  const [motoristas, setMotoristas] = useState([]); 
   const [funcionarios, setFuncionarios] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editingCartao, setEditingCartao] = useState(null);
   const [tempDados, setTempDados] = useState(null);
   const [lastSavedItem, setLastSavedItem] = useState(null);
-  const [isImporting, setIsImporting] = useState(false);
 
-  // 'tipo' vem da prop da rota: "combustivel" ou "eletrico" (lowercase, sem acento)
-  // É usado directamente — sem normalização — para coincidir com o Firestore
+  // 'tipo' vem da prop da rota: "combustivel" ou "eletrico"
 
   const fetchData = async () => {
     setLoading(true);
@@ -73,7 +63,7 @@ export default function CartoesGestao({ tipo }) {
       const q = query(collection(db, "cartoes"), where("tipo", "==", tipo));
       const [snapC, snapM, snapU] = await Promise.all([
         getDocs(q),
-        getDocs(collection(db, "motoristas")), // Carregar motoristas [1]
+        getDocs(collection(db, "motoristas")), 
         getDocs(collection(db, "usuarios"))
       ]);
 
@@ -89,7 +79,7 @@ export default function CartoesGestao({ tipo }) {
 
   useEffect(() => { fetchData(); }, [tipo]);
 
-  // Sincroniza bidirecionalmente as relações no motorista quando edita um cartão [1]
+  // Sincroniza as relações no motorista quando edita um cartão
   const syncMotoristaParaCartao = async (cardId, cardNumero, cardTipo, novosDados, antigosDados = null) => {
     const batch = writeBatch(db);
 
@@ -113,83 +103,20 @@ export default function CartoesGestao({ tipo }) {
     await batch.commit();
   };
 
-  // Executa a sementeira inteligente em lote de acordo com o tipo atual do ecrã
-  const handleSementeiraLote = async () => {
-    const cardsToSeed = tipo === 'combustivel' ? CARTOES_COMBUSTIVEL : CARTOES_ELETRICOS;
-    const fornecedorPadrao = tipo === 'combustivel' ? 'Galp' : 'Prio';
-    const tipoLabel = tipo === 'combustivel' ? 'Abastecimento (Combustível)' : 'Carregamento (Elétrico)';
-
-    const confirmacao = window.confirm(
-      `Deseja iniciar a sementeira de ${cardsToSeed.length} cartões de ${tipoLabel}?\n\n` +
-      `Nota: Cartões que já se encontrem registados não sofrerão alterações.`
-    );
-
-    if (!confirmacao) return;
-
-    setIsImporting(true);
-    try {
-      const batch = writeBatch(db);
-      
-      // Mapeia identificadores locais existentes na memória para poupar leituras adicionais
-      const existentesIDs = cartoes.map(c => c.id.toLowerCase().trim());
-      let novosAdicionadosCount = 0;
-
-      cardsToSeed.forEach((nomeCartao) => {
-        const nomeLimpo = nomeCartao.trim();
-        
-        if (!existentesIDs.includes(nomeLimpo.toLowerCase())) {
-          // O nome do cartão é usado diretamente como o ID do documento
-          const docRef = doc(db, "cartoes", nomeLimpo);
-          
-          batch.set(docRef, {
-            numero: nomeLimpo,               
-            numeroCartao: nomeLimpo,         
-            fornecedor: fornecedorPadrao,
-            tipo: tipo,
-            plafond: 100,                    
-            pin: "0000",                     
-            PIN: "0000",                     
-            estado: "Disponível",
-            historico: [],
-            dataCriacao: new Date().toISOString(),
-            criadoPor: "Sistema (Sementeira)"
-          });
-          novosAdicionadosCount++;
-        }
-      });
-
-      if (novosAdicionadosCount > 0) {
-        await batch.commit();
-        await logAcaoGlobal(userData?.nome || "Sistema", "Sementeira", "Cartões", `Sementeira em lote de ${novosAdicionadosCount} cartões de ${tipo}`, "lote");
-        alert(`Sementeira concluída! Foram criados ${novosAdicionadosCount} cartões com sucesso.`);
-        fetchData();
-      } else {
-        alert("Sementeira ignorada. Todos os cartões indicados já existem na base de dados.");
-      }
-    } catch (error) {
-      console.error("Erro na sementeira em lote:", error);
-      alert("Ocorreu um erro ao registar os cartões em lote.");
-    } finally {
-      setIsImporting(false);
-    }
-  };
-
   const handleSave = async (dados) => {
     if (editingCartao) {
       setTempDados(dados);
       setIsJustifyModalOpen(true);
     } else {
       try {
-        // Garantir que usamos o número do cartão (nome) inserido como o ID do documento
         const cardId = (dados.numeroCartao || dados.numero || '').trim();
         if (!cardId) {
-          alert("O número do cartão (Nome) é obrigatório.");
+          alert("O número do cartão é obrigatório.");
           return;
         }
 
         const docRef = doc(db, "cartoes", cardId);
         
-        // Salvaguarda manual: Verificar se já existe documento com este ID
         const duplicado = cartoes.some(c => c.id.toLowerCase() === cardId.toLowerCase());
         if (duplicado) {
           alert(`O cartão "${cardId}" já se encontra registado.`);
@@ -208,7 +135,6 @@ export default function CartoesGestao({ tipo }) {
 
         await setDoc(docRef, payload);
 
-        // Sincronizar o motorista novo [1]
         await syncMotoristaParaCartao(cardId, cardId, tipo, dados);
 
         await logAcaoGlobal(userData?.nome, "Criação", "Cartões", `${dados.fornecedor} (${cardId})`, cardId);
@@ -243,7 +169,6 @@ export default function CartoesGestao({ tipo }) {
         historico: arrayUnion(novoLog)
       });
 
-      // Sincronizar motorista alterado [1]
       await syncMotoristaParaCartao(cardId, cardId, tipo, tempDados, editingCartao);
 
       await logAcaoGlobal(userData?.nome, "Edição", "Cartões", tempDados.fornecedor, editingCartao.id);
@@ -298,12 +223,6 @@ export default function CartoesGestao({ tipo }) {
         </div>
         
         <div className="flex gap-3">
-          {/* Botão de Sementeira Contextualizado */}
-          <Button onClick={handleSementeiraLote} disabled={isImporting || loading}>
-            <Database size={20} className="isImporting ? 'animate-spin' : ''" />
-            {isImporting ? 'A Importar...' : 'Sementeira em Lote'}
-          </Button>
-
           <Button onClick={() => { setEditingCartao(null); setIsModalOpen(true); }}>
             <Plus size={20} /> Novo Cartão
           </Button>
@@ -321,7 +240,6 @@ export default function CartoesGestao({ tipo }) {
                   <th className="py-4 px-6">Fornecedor</th>
                   <th className="py-4 px-6">PIN</th>
                   <th className="py-4 px-6">Plafond Semanal</th>
-                  {/* Cabeçalho de Motorista */}
                   <th className="py-4 px-6">Motorista Associado</th>
                   <th className="py-4 px-6 text-right">Ações</th>
                 </tr>
@@ -329,19 +247,16 @@ export default function CartoesGestao({ tipo }) {
               <tbody className="divide-y divide-slate-100 text-sm text-slate-700 font-medium">
                 {cartoes.map(c => (
                   <tr key={c.id} className="hover:bg-slate-50/50 transition-all group">
-                    {/* Número do Cartão */}
                     <td className="py-4 px-6 font-mono font-bold text-slate-900">
                       {c.numeroCartao || c.numero}
                     </td>
 
-                    {/* Fornecedor */}
                     <td className="py-4 px-6">
                       <span className="text-xs font-black text-tvde-primary uppercase tracking-widest">
                         {c.fornecedor}
                       </span>
                     </td>
 
-                    {/* Código PIN */}
                     <td className="py-4 px-6">
                       <div className="inline-flex items-center gap-1.5 bg-slate-50 border border-slate-100 px-3 py-1 rounded-xl">
                         <ShieldCheck size={14} className="text-slate-400" />
@@ -351,14 +266,12 @@ export default function CartoesGestao({ tipo }) {
                       </div>
                     </td>
 
-                    {/* Plafond Semanal */}
                     <td className="py-4 px-6">
                       <span className="font-bold text-tvde-accent">
                         {c.plafond} €
                       </span>
                     </td>
 
-                    {/* Motorista Associado na listagem de Cartões */}
                     <td className="py-4 px-6">
                       <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${
                         c.motoristaNome 
@@ -370,7 +283,6 @@ export default function CartoesGestao({ tipo }) {
                       </span>
                     </td>
 
-                    {/* Ações */}
                     <td className="py-4 px-6 text-right">
                       <div className="flex gap-2 justify-end opacity-0 group-hover:opacity-100 transition-all">
                         <button 
