@@ -7,7 +7,9 @@
  * - Filtros integrados, mini-dashboard analítico (KPIs) compacto.
  * - Sincronização bidirecional em tempo real do Firestore.
  * - Injeção de Título e Botão "Novo Motorista" via React Portal diretamente no Header.
- * - [NOVO] Passagem de propriedade 'veiculos' para a listagem para permitir integridade de dados e limpeza de cache.
+ * - Passagem de propriedade 'veiculos' para a listagem para permitir integridade de dados e limpeza de cache.
+ * - [NOVO]: Implementada limpeza atómica em lote (writeBatch) na eliminação do motorista
+ *           para desassociar automaticamente Cartões e Veículos vinculados a ele.
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -318,14 +320,53 @@ export default function Motoristas() {
     }
   };
 
+  /**
+   * [ATUALIZADO] ELIMINAÇÃO DE MOTORISTA COM LIMPEZA ATÓMICA DE RELAÇÕES (BATCH)
+   * Desassocia automaticamente veículos e cartões de consumo ativos vinculados ao motorista.
+   */
   const handleDelete = async (id) => {
-    if (window.confirm("Tem certeza que deseja eliminar este motorista?")) {
+    const motoristaAlvo = motoristas.find(m => m.id === id);
+    const nomeMotorista = motoristaAlvo?.nome || "Motorista";
+
+    if (window.confirm(`Tem a certeza que deseja eliminar o motorista ${nomeMotorista}? Esta ação é irreversível e desassociará todos os cartões e viaturas.`)) {
       try {
-        await deleteDoc(doc(db, "motoristas", id));
-        await logAcaoGlobal(userData?.nome, "Eliminação", "Motoristas", "ID: " + id, id);
+        setLoading(true);
+        const batch = writeBatch(db);
+
+        // 1. Apaga fisicamente o registo do motorista
+        const motoristaRef = doc(db, "motoristas", id);
+        batch.delete(motoristaRef);
+
+        // 2. Localiza e limpa referências em Cartões de Consumo (Abastecimento e Carregamento)
+        const cartoesVinculados = cartoes.filter(c => c.motoristaId === id);
+        cartoesVinculados.forEach(c => {
+          const cardRef = doc(db, "cartoes", c.id);
+          batch.update(cardRef, { motoristaId: "", motoristaNome: "" });
+        });
+
+        // 3. Localiza e limpa referências em Viaturas Ativas (Turno A ou Turno B)
+        const veiculosVinculados = veiculos.filter(v => v.motoristaId === id || v.motoristaId2 === id);
+        veiculosVinculados.forEach(v => {
+          const veicRef = doc(db, "veiculos", v.id);
+          if (v.motoristaId === id) {
+            batch.update(veicRef, { motoristaId: "", motoristaNome: "" });
+          }
+          if (v.motoristaId2 === id) {
+            batch.update(veicRef, { motoristaId2: "", motoristaNome2: "" });
+          }
+        });
+
+        // Executa todas as atualizações em lote isolado no Firestore
+        await batch.commit();
+
+        await logAcaoGlobal(userData?.nome || 'Sistema', "Eliminação", "Motoristas", `Registo e relações de ${nomeMotorista} removidos.`, id);
+        
+        alert(`Registo de ${nomeMotorista} e respetivas vinculações removidos com sucesso.`);
       } catch (error) {
-        console.error("Erro ao eliminar:", error);
-        alert("Não foi possível eliminar o registo.");
+        console.error("Erro ao eliminar motorista e limpar relações de cartões/veículos:", error);
+        alert("Não foi possível eliminar o registo. Por favor, tente novamente.");
+      } finally {
+        setLoading(false);
       }
     }
   };
@@ -414,7 +455,7 @@ export default function Motoristas() {
         <div className="w-full overflow-x-auto rounded-2xl border border-slate-100 shadow-sm bg-white">
           <MotoristasList 
             motoristas={motoristas} 
-            veiculos={veiculos} // [NOVO] Passagem explícita de viaturas ativas para cruzamento dinâmico
+            veiculos={veiculos} 
             onEdit={handleEditClick} 
             onDelete={handleDelete} 
           />
