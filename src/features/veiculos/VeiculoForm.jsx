@@ -4,11 +4,12 @@
  *
  * Formulário de edição e criação de viaturas.
  * Refatorado de forma limpa com sub-modais importados fisicamente para melhor gestão.
+ * Corrigido: Adicionado ícone ArrowRight nos imports de lucide-react para evitar erros de compilação.
  */
 
 import React, { useState, useEffect } from 'react';
 import { 
-  CreditCard, Car, Users, FileText, History, Wallet, Euro, ChevronDown, ChevronUp 
+  CreditCard, Car, Users, FileText, History, Wallet, Euro, ChevronDown, ChevronUp, ArrowRight 
 } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import { db } from '../../firebase';
@@ -162,7 +163,7 @@ export default function VeiculoForm({
   const cartoesAtribuidos = cartoes.filter(c => c.veiculoId === initialData.id);
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-1 max-h-[75vh] overflow-y-auto pr-3.5 custom-scrollbar text-left">
+    <form onSubmit={handleSubmit} className="space-y-1 max-h-[75vh] overflow-y-auto pr-3.5 custom-scrollbar text-left font-sans">
       
       {/* GRELHA DE BOTÕES TÁTEIS */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 my-3">
@@ -241,7 +242,7 @@ export default function VeiculoForm({
       {/* SEÇÃO DO HISTÓRICO DE EDIÇÕES */}
       {initialData.historico && initialData.historico.length > 0 && (
         <CollapsibleSection title="Histórico de Edições" icon={History} iconColor="text-slate-400" defaultOpen={false}>
-          <div className="space-y-1.5 text-left">
+          <div className="space-y-1.5 text-left font-sans">
             {[...initialData.historico].reverse().map((log, index) => (
               <div key={index} className="flex gap-3 p-2.5 bg-slate-50 rounded-xl border border-slate-100 text-[10px]">
                 <div className="flex-1">
