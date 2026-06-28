@@ -4,15 +4,16 @@
  *
  * Componente modular autónomo para geração e descarga do PDF de Contrato 
  * de Prestação de Serviços TVDE baseado na minuta e parâmetros financeiros reais.
- * Otimizado com quebras de página estritas, parágrafos enumerados e exclusão 
- * inteligente de rubricas na página final de assinaturas.
+ * Otimizado com:
+ * - Pesquisa inteligente de caução em dupla camada (Ativa ou Histórica/Liquidada).
+ * - Quebras de página estritas, parágrafos enumerados e exclusão inteligente de rubricas na assinatura.
  */
 
 import React, { useState, useEffect } from 'react';
 import { jsPDF } from 'jspdf';
 import { db } from '../../firebase';
 import { doc, getDoc } from 'firebase/firestore';
-import { getConfiguracaoFinanceira, getCaucaoAtiva } from '../../services/financeiroService';
+import { getConfiguracaoFinanceira, getCaucaoAtiva, getHistoricoCaucoes } from '../../services/financeiroService';
 import { FileCheck, Loader2, AlertCircle, Euro, MapPin, Calendar, Sparkles } from 'lucide-react';
 import Button from '../../components/ui/Button';
 
@@ -62,8 +63,16 @@ export default function ContratoGerador({ motorista }) {
         // 2. Procurar Configuração da Taxa de Gestão [2]
         const configFin = await getConfiguracaoFinanceira(db, motoristaId);
 
-        // 3. Procurar Caução Ativa [2]
-        const caucaoAtiva = await getCaucaoAtiva(db, motoristaId);
+        // 3. Procurar Caução (Camada 1: Ativa [2] | Camada 2: Mais recente do Histórico [2])
+        let caucaoReal = await getCaucaoAtiva(db, motoristaId); [2]
+        if (!caucaoReal) {
+          const historico = await getHistoricoCaucoes(db, motoristaId); [2]
+          if (historico && historico.length > 0) {
+            // Ordenar por data de criação decrescente para apanhar a mais recente (como as liquidadas)
+            historico.sort((a, b) => new Date(b.criadoEm || 0) - new Date(a.criadoEm || 0));
+            caucaoReal = historico[0];
+          }
+        }
 
         // Atualizar os parâmetros editáveis com dados reais do Firestore
         setParams(prev => {
@@ -78,8 +87,8 @@ export default function ContratoGerador({ motorista }) {
           }
 
           let caucaoStr = '200.00';
-          if (caucaoAtiva) {
-            caucaoStr = `${Number(caucaoAtiva.valorTotal ?? 0).toFixed(2)}`;
+          if (caucaoReal) {
+            caucaoStr = `${Number(caucaoReal.valorTotal ?? 0).toFixed(2)}`;
             setIsFinSynced(true);
           }
 
@@ -181,7 +190,7 @@ export default function ContratoGerador({ motorista }) {
         : `1. Como remuneração pelos serviços de gestão prestados pelo Operador, o Prestador autoriza o desconto direto da quantia semanal de ${params.valorSemanal} € no seu extrato de rendimentos semanal.`;
       writeText(redaçãoTaxa, false, 2, 'normal', 9);
       
-      const clasula3_2 = `2. O Prestador declara ter conhecimento de que, ao ultrapassar o limite de volume de faturação anual previsto no artigo 53.º do Código do IVA, passará a estar enquadrado no regime normal de IVA. Nessa condição, o Prestador obriga-se a aplicar a taxa de 6% de IVA aos valores faturados ao Operador (referentes à prestação de serviços de transporte), sendo o referido montante de IVA adicionado ao valor base da sua fatura/recibo, de forma a que o Prestador proceda à respetiva liquidação e entrega do imposto ao Estado na sua Declaração Periódica de IVA (trimestral ou mensal).`;
+      const clasula3_2 = `2. O Prestador declara ter conhecimento de que, ao ultrapassar o limite de volume de faturação anual previsto no artigo 53.º do Código do IVA, passará a estar enquadrado no regime normal de IVA. Nessa condição, o Prestador obriga-se a aplicar a taxa de 6% de IVA aos valores faturados ao Operador (referentes à prestação de serviços de transporte), sendo o referido montante de IVA adicionado ao valor base da sua fatura/recibo, de forma a que o Prestador proceda à respectiva liquidação e entrega do imposto ao Estado na sua Declaração Periódica de IVA (trimestral ou mensal).`;
       writeText(clasula3_2, false, 2, 'normal', 9);
 
       const clasula3_3 = `3. O Operador disponibilizará ao Prestador o saldo líquido da sua atividade, após a dedução das taxas de gestão, comissões das plataformas, encargos com combustíveis, portagens e outros custos devidos pelo Prestador.`;
@@ -200,7 +209,7 @@ export default function ContratoGerador({ motorista }) {
       docPdf.addPage();
       y = 25;
 
-      // CLÁUSULA 5 (Início no topo da Página 2)
+      // CLÁUSULA 5
       writeText("CLÁUSULA 5.ª (Seguros, Transponder e Cartões)", true, 4, 'bold', 9.5);
       writeText("1. O Operador fornece ao Prestador o transponder de Via Verde e o cartão de abastecimento/carregamento para uso exclusivo na viatura afeta a este contrato.", false, 2, 'normal', 9);
       writeText("2. O Prestador é responsável pela utilização correta destes meios. A perda, dano ou utilização indevida implica a responsabilidade do Prestador pelo custo de reposição.", false, 2, 'normal', 9);
@@ -229,7 +238,7 @@ export default function ContratoGerador({ motorista }) {
       docPdf.addPage();
       y = 25;
 
-      // CLÁUSULA 9 + ASSINATURAS (Início no topo da Última Página)
+      // CLÁUSULA 9 + ASSINATURAS
       writeText("CLÁUSULA 9.ª (Foro)", true, 4, 'bold', 9.5);
       writeText("1. Para a resolução de quaisquer litígios emergentes deste contrato, as partes elegem o foro da Comarca do Porto.", false, 2, 'normal', 9);
 
@@ -259,7 +268,7 @@ export default function ContratoGerador({ motorista }) {
       for (let i = 1; i <= totalPages; i++) {
         docPdf.setPage(i);
         
-        // Desenha Cabeçalho Uniforme em todas as páginas
+        // Desenha Cabeçalho Uniforme
         docPdf.setFont('Helvetica', 'bold');
         docPdf.setFontSize(8);
         docPdf.setTextColor(150, 150, 150);
@@ -267,27 +276,27 @@ export default function ContratoGerador({ motorista }) {
         docPdf.setDrawColor(230, 230, 230);
         docPdf.line(margin, 17, pageWidth - margin, 17);
 
-        // Desenha Linha Divisória de Rodapé em todas as páginas
+        // Desenha Linha Divisória de Rodapé
         docPdf.setFont('Helvetica', 'normal');
         docPdf.setFontSize(8);
         docPdf.setTextColor(150, 150, 150);
         docPdf.setDrawColor(230, 230, 230);
         docPdf.line(margin, pageHeight - 15, pageWidth - margin, pageHeight - 15);
         
-        // Tratamento Condicional Inteligente do Rodapé
+        // Tratamento Condicional do Rodapé
         if (i < totalPages) {
           // Páginas Intermédias: Desenha a linha de rubricas
           docPdf.text("Rubricas: Operador _________  |  Prestador _________", margin, pageHeight - 10);
         } else {
-          // Última Página (Assinatura): OMITIR rubricas e desenhar indicador limpo
+          // Última Página: OMITIR rubricas
           docPdf.text("Página de Assinaturas (Fim do Documento)", margin, pageHeight - 10);
         }
         
-        // Numeração de Página Unificada "Página X de Y"
+        // Numeração de Página
         docPdf.text(`Página ${i} de ${totalPages}`, pageWidth - margin - 22, pageHeight - 10);
       }
 
-      // Descarrega o ficheiro finalizado
+      // Descarrega o PDF
       docPdf.save(`Contrato_TVDE_${(motorista.nome || 'Motorista').replace(/\s+/g, '_')}.pdf`);
     } catch (error) {
       console.error("Erro ao gerar o PDF:", error);
