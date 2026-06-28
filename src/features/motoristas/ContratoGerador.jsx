@@ -4,6 +4,8 @@
  *
  * Componente modular autónomo para geração e descarga do PDF de Contrato 
  * de Prestação de Serviços TVDE baseado na minuta e parâmetros financeiros reais.
+ * Otimizado com quebras de página estritas, parágrafos enumerados e exclusão 
+ * inteligente de rubricas na página final de assinaturas.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -118,31 +120,9 @@ export default function ContratoGerador({ motorista }) {
 
       const addPageIfNeeded = (neededHeight) => {
         if (y + neededHeight > pageHeight - margin - 15) {
-          drawFooter();
           docPdf.addPage();
           y = 25;
-          drawHeader();
         }
-      };
-
-      const drawHeader = () => {
-        docPdf.setFont('Helvetica', 'bold');
-        docPdf.setFontSize(8);
-        docPdf.setTextColor(150, 150, 150);
-        docPdf.text("CONTRATO DE PRESTAÇÃO DE SERVIÇOS — TVDE", margin, 15);
-        docPdf.setDrawColor(230, 230, 230);
-        docPdf.line(margin, 17, pageWidth - margin, 17);
-      };
-
-      const drawFooter = () => {
-        docPdf.setFont('Helvetica', 'normal');
-        docPdf.setFontSize(8);
-        docPdf.setTextColor(150, 150, 150);
-        docPdf.setDrawColor(230, 230, 230);
-        docPdf.line(margin, pageHeight - 15, pageWidth - margin, pageHeight - 15);
-        docPdf.text("Rubricas: Operador _________  |  Prestador _________", margin, pageHeight - 10);
-        const pageNum = docPdf.internal.getCurrentPageInfo().pageNumber;
-        docPdf.text(`Página ${pageNum}`, pageWidth - margin - 15, pageHeight - 10);
       };
 
       const writeText = (text, isTitle = false, spacingBefore = 2, fontStyle = 'normal', fontSize = 10, align = 'left') => {
@@ -167,15 +147,12 @@ export default function ContratoGerador({ motorista }) {
         });
       };
 
-      // Inicia a renderização
-      drawHeader();
-
       // Título Principal
       writeText("CONTRATO DE PRESTAÇÃO DE SERVIÇOS DE GESTÃO TVDE", true, 5, 'bold', 13, 'center');
       y += 4;
 
       // Introdução de Partes
-      writeText("ENTRE:", true, 4, 'bold', 10);
+      writeText("ENTRE AS PARTES:", true, 4, 'bold', 10);
       
       const moradaOperador = `${operador.rua || ''}, ${operador.numero || ''} ${operador.complemento ? ', ' + operador.complemento : ''}, ${operador.codigoPostal || ''} ${operador.cidade || ''}`;
       const outorgante1 = `1.º Outorgante (Operador): ${operador.nomeEmpresa || '[Empresa]'}, NIF ${operador.nif || '[NIF]'}, com sede em ${moradaOperador || '[Morada]'}, representada por ${operador.representante || '[Gerente]'}, na qualidade de Gerente, doravante designado como "Operador".`;
@@ -188,62 +165,78 @@ export default function ContratoGerador({ motorista }) {
       y += 3;
       writeText("Considerando a autonomia das partes e as respetivas declarações de vontade, é celebrado o presente contrato de prestação de serviços, nos termos das cláusulas seguintes:", false, 2, 'normal', 9.5);
 
-      // Cláusulas
+      // CLÁUSULA 1
       writeText("CLÁUSULA 1.ª (Objeto)", true, 4, 'bold', 9.5);
-      writeText("O presente contrato tem por objeto a prestação de serviços, pelo Prestador ao Operador, de condutor de transportes de passageiros em veículo descaracterizado, designadamente na atividade de TVDE (no âmbito da Lei n.º 45/2018, de 10 de agosto, e Declaração de Retificação de 10 de agosto), transferes e passeios turísticos em automóvel.", false, 2, 'normal', 9);
+      writeText("1. O presente contrato tem por objeto a prestação de serviços, pelo Prestador ao Operador, de condutor de transportes de passageiros em veículo descaracterizado, designadamente na atividade de TVDE (no âmbito da Lei n.º 45/2018, de 10 de agosto, e Declaração de Retificação de 10 de agosto), transferes e passeios turísticos em automóvel.", false, 2, 'normal', 9);
 
+      // CLÁUSULA 2
       writeText("CLÁUSULA 2.ª (Autonomia e Independência)", true, 4, 'bold', 9.5);
-      writeText("O Prestador exercerá a sua atividade de forma autónoma e independente, sem subordinação hierárquica, sendo a presente relação de natureza puramente civil, regida pelo artigo 1154.º e seguintes do Código Civil.", false, 2, 'normal', 9);
+      writeText("1. O Prestador exercerá a sua atividade de forma autónoma e independente, sem subordinação hierárquica, sendo a presente relação de natureza puramente civil, regida pelo artigo 1154.º e seguintes do Código Civil.", false, 2, 'normal', 9);
 
+      // CLÁUSULA 3
       writeText("CLÁUSULA 3.ª (Contrapartida e Enquadramento Fiscal)", true, 4, 'bold', 9.5);
-      
-      // Ajuste de Redação com Base no Tipo de Taxa (Percentagem ou Fixo)
       const isPercentagem = params.valorSemanal.includes('%');
       const redaçãoTaxa = isPercentagem
-        ? `Como remuneração pelos serviços de gestão prestados pelo Operador, o Prestador autoriza o desconto direto da quantia correspondente a ${params.valorSemanal} de taxa de gestão sobre a sua receita bruta semanal.`
-        : `Como remuneração pelos serviços de gestão prestados pelo Operador, o Prestador autoriza o desconto direto da quantia semanal de ${params.valorSemanal} € no seu extrato de rendimentos semanal.`;
-
+        ? `1. Como remuneração pelos serviços de gestão prestados pelo Operador, o Prestador autoriza o desconto direto da quantia semanal de ${params.valorSemanal} de taxa de gestão sobre a sua receita bruta semanal.`
+        : `1. Como remuneração pelos serviços de gestão prestados pelo Operador, o Prestador autoriza o desconto direto da quantia semanal de ${params.valorSemanal} € no seu extrato de rendimentos semanal.`;
       writeText(redaçãoTaxa, false, 2, 'normal', 9);
       
-      const clasula3_2 = `O Prestador declara ter conhecimento de que, ao ultrapassar o limite de volume de faturação anual previsto no artigo 53.º do Código do IVA, passará a estar enquadrado no regime normal de IVA. Nessa condição, o Prestador obriga-se a aplicar a taxa de 6% de IVA aos valores faturados ao Operador (referentes à prestação de serviços de transporte), sendo o referido montante de IVA adicionado ao valor base da sua fatura/recibo, de forma a que o Prestador proceda à respetiva liquidação e entrega do imposto ao Estado na sua Declaração Periódica de IVA (trimestral ou mensal).`;
+      const clasula3_2 = `2. O Prestador declara ter conhecimento de que, ao ultrapassar o limite de volume de faturação anual previsto no artigo 53.º do Código do IVA, passará a estar enquadrado no regime normal de IVA. Nessa condição, o Prestador obriga-se a aplicar a taxa de 6% de IVA aos valores faturados ao Operador (referentes à prestação de serviços de transporte), sendo o referido montante de IVA adicionado ao valor base da sua fatura/recibo, de forma a que o Prestador proceda à respetiva liquidação e entrega do imposto ao Estado na sua Declaração Periódica de IVA (trimestral ou mensal).`;
       writeText(clasula3_2, false, 2, 'normal', 9);
 
-      const clasula3_3 = `O Operador disponibilizará ao Prestador o saldo líquido da sua atividade, após a dedução das taxas de gestão, comissões das plataformas, encargos com combustíveis, portagens e outros custos devidos pelo Prestador.`;
+      const clasula3_3 = `3. O Operador disponibilizará ao Prestador o saldo líquido da sua atividade, após a dedução das taxas de gestão, comissões das plataformas, encargos com combustíveis, portagens e outros custos devidos pelo Prestador.`;
       writeText(clasula3_3, false, 2, 'normal', 9);
 
+      // CLÁUSULA 4
       writeText("CLÁUSULA 4.ª (Caução de Garantia)", true, 4, 'bold', 9.5);
-      const clasula4_1 = `O Prestador entrega a quantia de ${params.valorCaucao} € a título de caução, para garantia de danos na viatura, pagamento de franquias, multas ou valores em dívida.`;
+      const clasula4_1 = `1. O Prestador entrega a quantia de ${params.valorCaucao} € a título de caução, para garantia de danos na viatura, pagamento de franquias, multas ou valores em dívida.`;
       writeText(clasula4_1, false, 2, 'normal', 9);
-      writeText("Esta caução poderá ser utilizada pelo Operador para compensar unilateralmente quaisquer créditos que detenha sobre o Prestador.", false, 2, 'normal', 9);
-      writeText("A caução será devolvida ao Prestador no prazo de 30 dias após o termo do contrato, após verificação da inexistência de dívidas ou danos.", false, 2, 'normal', 9);
+      writeText("2. Esta caução poderá ser utilizada pelo Operador para compensar unilateralmente quaisquer créditos que detenha sobre o Prestador.", false, 2, 'normal', 9);
+      writeText("3. A caução será devolvida ao Prestador no prazo de 30 dias após o termo do contrato, após verificação da inexistência de dívidas ou danos.", false, 2, 'normal', 9);
 
+      // ==========================================
+      // [QUEBRA DE PÁGINA FORÇADA 1]
+      // ==========================================
+      docPdf.addPage();
+      y = 25;
+
+      // CLÁUSULA 5 (Início no topo da Página 2)
       writeText("CLÁUSULA 5.ª (Seguros, Transponder e Cartões)", true, 4, 'bold', 9.5);
-      writeText("O Operador fornece ao Prestador o transponder de Via Verde e o cartão de abastecimento/carregamento para uso exclusivo na viatura afeta a este contrato.", false, 2, 'normal', 9);
-      writeText("O Prestador é responsável pela utilização correta destes meios. A perda, dano ou utilização indevida implica a responsabilidade do Prestador pelo custo de reposição.", false, 2, 'normal', 9);
-      writeText("O Operador é o tomador do seguro da viatura. Em caso de sinistro por culpa do Prestador, este obriga-se a pagar o valor da franquia de seguro no prazo de 48 horas após notificação do Operador.", false, 2, 'normal', 9);
+      writeText("1. O Operador fornece ao Prestador o transponder de Via Verde e o cartão de abastecimento/carregamento para uso exclusivo na viatura afeta a este contrato.", false, 2, 'normal', 9);
+      writeText("2. O Prestador é responsável pela utilização correta destes meios. A perda, dano ou utilização indevida implica a responsabilidade do Prestador pelo custo de reposição.", false, 2, 'normal', 9);
+      writeText("3. O Operador é o tomador do seguro da viatura. Em caso de sinistro por culpa do Prestador, este obriga-se a pagar o valor da franquia de seguro no prazo de 48 horas após notificação do Operador.", false, 2, 'normal', 9);
 
+      // CLÁUSULA 6
       writeText("CLÁUSULA 6.ª (Responsabilidade pela Viatura e Custos)", true, 4, 'bold', 9.5);
-      writeText("O Prestador assume a responsabilidade pelos custos de combustível/energia, portagens e coimas resultantes da sua condução.", false, 2, 'normal', 9);
-      writeText("A manutenção preventiva e corretiva da viatura (revisões programadas, pneus, óleo, desgaste natural) é da exclusiva responsabilidade e encargo do Operador. O Prestador obriga-se a colaborar na entrega da viatura nas oficinas designadas pelo Operador sempre que solicitado.", false, 2, 'normal', 9);
-      writeText("Quaisquer danos, avarias ou degradações causados por mau uso, negligência, imperícia ou condução inadequada do Prestador, serão da sua exclusiva responsabilidade financeira. O Operador terá o direito de imputar ao Prestador o custo total da reparação, utilizando a caução para o efeito.", false, 2, 'normal', 9);
-      writeText("O Prestador responde por danos causados à viatura ou a terceiros pelo uso da viatura fora do âmbito TVDE/Transferes/Passeios ou por condutores não autorizados.", false, 2, 'normal', 9);
+      writeText("1. O Prestador assume a responsabilidade pelos custos de combustível/energia, portagens e coimas resultantes da sua condução.", false, 2, 'normal', 9);
+      writeText("2. A manutenção preventiva e corretiva da viatura (revisões programadas, pneus, óleo, desgaste natural) é da exclusiva responsabilidade e encargo do Operador. O Prestador obriga-se a colaborar na entrega da viatura nas oficinas designadas pelo Operador sempre que solicitado.", false, 2, 'normal', 9);
+      writeText("3. Quaisquer danos, avarias ou degradações causados por mau uso, negligência, imperícia ou condução inadequada do Prestador, serão da sua exclusiva responsabilidade financeira. O Operador terá o direito de imputar ao Prestador o custo total da reparação, utilizando a caução para o efeito.", false, 2, 'normal', 9);
+      writeText("4. O Prestador responde por danos causados à viatura ou a terceiros pelo uso da viatura fora do âmbito TVDE/Transferes/Passeios ou por condutores não autorizados.", false, 2, 'normal', 9);
 
+      // CLÁUSULA 7
       writeText("CLÁUSULA 7.ª (Confidencialidade)", true, 4, 'bold', 9.5);
-      writeText("O Prestador obriga-se a manter estrita confidencialidade sobre dados e documentos obtidos no âmbito deste contrato, sob pena de responsabilidade civil e indemnização.", false, 2, 'normal', 9);
+      writeText("1. O Prestador obriga-se a manter estrita confidencialidade sobre dados e documentos obtidos no âmbito deste contrato, sob pena de responsabilidade civil e indemnização.", false, 2, 'normal', 9);
 
+      // CLÁUSULA 8
       writeText("CLÁUSULA 8.ª (Duração, Período Mínimo e Denúncia)", true, 4, 'bold', 9.5);
-      writeText("O presente contrato tem a duração de 12 meses, renovável por iguais períodos.", false, 2, 'normal', 9);
-      writeText("É estipulado um período mínimo de permanência de 15 (quinze) dias. A desistência antes deste prazo constitui incumprimento contratual, autorizando o Operador a reter a totalidade da caução como compensação pelos prejuízos de imobilização do ativo.", false, 2, 'normal', 9);
-      writeText("Após o período mínimo, qualquer das partes pode denunciar o contrato mediante comunicação escrita, com a antecedência mínima de 15 (quinze) dias.", false, 2, 'normal', 9);
+      writeText("1. O presente contrato tem a duração de 12 meses, renovável por iguais períodos.", false, 2, 'normal', 9);
+      writeText("2. É estipulado um período mínimo de permanência de 15 (quinze) dias. A desistência antes deste prazo constitui incumprimento contratual, autorizando o Operador a reter a totalidade da caução como compensação pelos prejuízos de imobilização do ativo.", false, 2, 'normal', 9);
+      writeText("3. Após o período mínimo, qualquer das partes pode denunciar o contrato mediante comunicação escrita, com a antecedência mínima de 15 (quinze) dias.", false, 2, 'normal', 9);
 
+      // ==========================================
+      // [QUEBRA DE PÁGINA FORÇADA 2]
+      // ==========================================
+      docPdf.addPage();
+      y = 25;
+
+      // CLÁUSULA 9 + ASSINATURAS (Início no topo da Última Página)
       writeText("CLÁUSULA 9.ª (Foro)", true, 4, 'bold', 9.5);
-      writeText("Para a resolução de quaisquer litígios emergentes deste contrato, as partes elegem o foro da Comarca do Porto.", false, 2, 'normal', 9);
+      writeText("1. Para a resolução de quaisquer litígios emergentes deste contrato, as partes elegem o foro da Comarca do Porto.", false, 2, 'normal', 9);
 
-      y += 6;
+      y += 8;
       writeText(`${params.local}, ${params.dataContrato}`, false, 3, 'normal', 9.5);
 
-      y += 10;
-      addPageIfNeeded(30);
+      y += 18;
       
       const startSignaturesY = y;
       docPdf.setFont('Helvetica', 'bold');
@@ -259,8 +252,42 @@ export default function ContratoGerador({ motorista }) {
       docPdf.text("_______________________________________", pageWidth / 2 + 5, startSignaturesY + 12);
       docPdf.text("(Assinatura)", pageWidth / 2 + 5, startSignaturesY + 16);
 
-      drawFooter();
+      // ==========================================
+      // SEGUNDA PASSAGEM: DESENHO DE CABEÇALHOS E RODAPÉS
+      // ==========================================
+      const totalPages = docPdf.internal.getNumberOfPages();
+      for (let i = 1; i <= totalPages; i++) {
+        docPdf.setPage(i);
+        
+        // Desenha Cabeçalho Uniforme em todas as páginas
+        docPdf.setFont('Helvetica', 'bold');
+        docPdf.setFontSize(8);
+        docPdf.setTextColor(150, 150, 150);
+        docPdf.text("CONTRATO DE PRESTAÇÃO DE SERVIÇOS — TVDE", margin, 15);
+        docPdf.setDrawColor(230, 230, 230);
+        docPdf.line(margin, 17, pageWidth - margin, 17);
 
+        // Desenha Linha Divisória de Rodapé em todas as páginas
+        docPdf.setFont('Helvetica', 'normal');
+        docPdf.setFontSize(8);
+        docPdf.setTextColor(150, 150, 150);
+        docPdf.setDrawColor(230, 230, 230);
+        docPdf.line(margin, pageHeight - 15, pageWidth - margin, pageHeight - 15);
+        
+        // Tratamento Condicional Inteligente do Rodapé
+        if (i < totalPages) {
+          // Páginas Intermédias: Desenha a linha de rubricas
+          docPdf.text("Rubricas: Operador _________  |  Prestador _________", margin, pageHeight - 10);
+        } else {
+          // Última Página (Assinatura): OMITIR rubricas e desenhar indicador limpo
+          docPdf.text("Página de Assinaturas (Fim do Documento)", margin, pageHeight - 10);
+        }
+        
+        // Numeração de Página Unificada "Página X de Y"
+        docPdf.text(`Página ${i} de ${totalPages}`, pageWidth - margin - 22, pageHeight - 10);
+      }
+
+      // Descarrega o ficheiro finalizado
       docPdf.save(`Contrato_TVDE_${(motorista.nome || 'Motorista').replace(/\s+/g, '_')}.pdf`);
     } catch (error) {
       console.error("Erro ao gerar o PDF:", error);
