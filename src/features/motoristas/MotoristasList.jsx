@@ -7,28 +7,35 @@
  * - Interruptor de estado (Ativo/Inativo) com trava de segurança para pendentes.
  * - Auto-corretor em segundo plano para manter conformidade de estado no Firestore.
  * - Filtros rápidos no cabeçalho integrados.
- * - Layout atualizado: Contactos sob o nome do motorista; nova coluna para Veículo Atribuído.
+ * - Layout atualizado: Contactos sob o nome do motorista; Coluna consolidada de Atribuições (Carro, Cartão e Via Verde).
  * - [ATUALIZADO]: Referência cruzada estrita baseada na soberania do documento de veículo (Firestore)
- *                 para eliminar de vez desfasamentos de cache ou duplicados visuais.
+ *                 e ligação de cartões/Via Verde para eliminar desfasamentos de cache.
  */
 
 import React, { useState, useEffect } from 'react';
 import { 
   Edit, Trash2, User, FileText, CreditCard, 
   ShieldAlert, BadgeCheck, Home, Eye, AlertCircle, 
-  Sparkles, Car, Wallet 
+  Sparkles, Car, Wallet, Radio 
 } from 'lucide-react';
 import { db } from '../../firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { logAcaoGlobal } from '../../utils/logger';
 import { useAuth } from '../../context/AuthContext';
 
-export default function MotoristasList({ motoristas, veiculos = [], onEdit, onDelete }) {
+export default function MotoristasList({ 
+  motoristas, 
+  veiculos = [], 
+  cartoes = [], 
+  viaVerdes = [], 
+  onEdit, 
+  onDelete 
+}) {
   const { userData } = useAuth();
 
   // ESTADOS LOCAIS PARA OS FILTROS DE CADA COLUNA
   const [filterPesquisaGlobal, setFilterPesquisaGlobal] = useState(''); 
-  const [filterVeiculo, setFilterVeiculo] = useState(''); 
+  const [filterAtribuicoes, setFilterAtribuicoes] = useState(''); 
   const [filterStatus, setFilterStatus] = useState('todos');
   const [filterDocs, setFilterDocs] = useState('todos');
 
@@ -108,7 +115,7 @@ export default function MotoristasList({ motoristas, veiculos = [], onEdit, onDe
       const incomplete = isProfileIncomplete(m);
       const effectiveStatus = incomplete ? 'Inativo' : (m.status || 'Inativo');
 
-      // 1. Filtragem por Motorista (Nome, Código, Tlf, NIF) - Agrupado
+      // 1. Filtragem por Motorista (Nome, Código, Tlf, NIF)
       const queryGlobal = filterPesquisaGlobal.toLowerCase();
       const matchesMotorista = 
         (m.nome || '').toLowerCase().includes(queryGlobal) ||
@@ -116,16 +123,34 @@ export default function MotoristasList({ motoristas, veiculos = [], onEdit, onDe
         (m.telemovel || '').toLowerCase().includes(queryGlobal) ||
         (m.nif || '').toLowerCase().includes(queryGlobal);
 
-      // [ATUALIZADO] O filtro do ecrã passa a pesquisar pelo veículo real associado na tabela de viaturas do Firestore
+      // Resolvedores de Atribuições para a filtragem
       const vInfo = veiculos.find(v => v.motoristaId === m.id || v.motoristaId2 === m.id);
+      const cartaoInfo = cartoes?.find(c => c.motoristaId === m.id || c.motoristaId2 === m.id || m.cartaoId === c.id) || 
+                         (m.cartaoNumero ? { numero: m.cartaoNumero, tipo: m.cartaoTipo || 'Combustível' } : null) ||
+                         (m.cartao ? { numero: m.cartao, tipo: 'Combustível/Elétrico' } : null);
+      const vvInfo = viaVerdes?.find(vv => vv.motoristaId === m.id || vv.motoristaId2 === m.id || m.viaVerdeId === vv.id) ||
+                     (m.viaVerdeNumero ? { transponder: m.viaVerdeNumero } : null) ||
+                     (m.viaVerde ? { transponder: m.viaVerde } : null) ||
+                     (m.transponder ? { transponder: m.transponder } : null);
 
-      // 2. Filtragem por Veículo Atribuído (Matrícula ou Marca/Modelo)
-      const queryVeiculo = filterVeiculo.toLowerCase();
-      const matchesVeiculo = vInfo ? (
-        (vInfo.matricula || '').toLowerCase().includes(queryVeiculo) ||
-        (vInfo.marca || '').toLowerCase().includes(queryVeiculo) ||
-        (vInfo.modelo || '').toLowerCase().includes(queryVeiculo)
-      ) : queryVeiculo === '';
+      // 2. Filtragem Avançada na Coluna de Atribuições (Veículo, Cartão ou Via Verde)
+      const queryAtrib = filterAtribuicoes.toLowerCase();
+      const matchesAtribuicoes = !queryAtrib || (
+        (vInfo && (
+          (vInfo.matricula || '').toLowerCase().includes(queryAtrib) ||
+          (vInfo.marca || '').toLowerCase().includes(queryAtrib) ||
+          (vInfo.modelo || '').toLowerCase().includes(queryAtrib)
+        )) ||
+        (cartaoInfo && (
+          (cartaoInfo.numero || '').toLowerCase().includes(queryAtrib) ||
+          (cartaoInfo.nome || '').toLowerCase().includes(queryAtrib) ||
+          (cartaoInfo.tipo || '').toLowerCase().includes(queryAtrib)
+        )) ||
+        (vvInfo && (
+          (vvInfo.transponder || '').toLowerCase().includes(queryAtrib) ||
+          (vvInfo.numero || '').toLowerCase().includes(queryAtrib)
+        ))
+      );
 
       // 3. Filtragem por Status
       const matchesStatus = filterStatus === 'todos' || effectiveStatus === filterStatus;
@@ -140,17 +165,17 @@ export default function MotoristasList({ motoristas, veiculos = [], onEdit, onDe
         matchesDocs = needsAIValidation(m);
       }
 
-      return matchesMotorista && matchesVeiculo && matchesStatus && matchesDocs;
+      return matchesMotorista && matchesAtribuicoes && matchesStatus && matchesDocs;
     });
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-x-auto w-full custom-scrollbar">
-      <table className="w-full text-left border-collapse min-w-[850px]">
+      <table className="w-full text-left border-collapse min-w-[900px]">
         <thead>
           {/* Cabeçalho de Títulos Principal */}
           <tr className="bg-slate-50 border-b border-slate-100">
             <th className="p-4 font-semibold text-slate-600 text-sm">Motorista / Contacto</th>
-            <th className="p-4 font-semibold text-slate-600 text-sm">Veículo Atribuído</th>
+            <th className="p-4 font-semibold text-slate-600 text-sm">Atribuições</th>
             <th className="p-4 font-semibold text-slate-600 text-sm">Status</th>
             <th className="p-4 font-semibold text-slate-600 text-sm">Documentos</th>
             <th className="p-4 font-semibold text-slate-600 text-sm text-right">Ações</th>
@@ -168,13 +193,13 @@ export default function MotoristasList({ motoristas, veiculos = [], onEdit, onDe
                 className="w-full p-1.5 border border-slate-200 rounded-lg text-[11px] outline-none focus:ring-1 focus:ring-tvde-primary text-slate-700 bg-white font-medium"
               />
             </td>
-            {/* Filtro: Veículo */}
+            {/* Filtro: Atribuições */}
             <td className="px-4 py-2">
               <input 
                 type="text" 
-                placeholder="🔍 Matrícula, marca..." 
-                value={filterVeiculo} 
-                onChange={(e) => setFilterVeiculo(e.target.value)}
+                placeholder="🔍 Carro, cartão ou VV..." 
+                value={filterAtribuicoes} 
+                onChange={(e) => setFilterAtribuicoes(e.target.value)}
                 className="w-full p-1.5 border border-slate-200 rounded-lg text-[11px] outline-none focus:ring-1 focus:ring-tvde-primary text-slate-700 bg-white font-medium"
               />
             </td>
@@ -212,9 +237,19 @@ export default function MotoristasList({ motoristas, veiculos = [], onEdit, onDe
             const aiReview = needsAIValidation(m);
             const isDriverActive = m.status === 'Ativo' && !incomplete;
             
-            // [ATUALIZADO] A listagem agora consulta os veículos reais em tempo real
-            // Se o motorista não constar no documento do carro no Firestore, a viatura é tratada como vazia
+            // 1. Procurar Veículo Real (Soberania do Veículo no Firestore)
             const mostrarVeiculo = veiculos.find(v => v.motoristaId === m.id || v.motoristaId2 === m.id);
+
+            // 2. Procurar Cartão Associado
+            const mostrarCartao = cartoes?.find(c => c.motoristaId === m.id || c.motoristaId2 === m.id || m.cartaoId === c.id) || 
+                                 (m.cartaoNumero ? { numero: m.cartaoNumero, tipo: m.cartaoTipo || 'Combustível' } : null) ||
+                                 (m.cartao ? { numero: m.cartao, tipo: 'Combustível/Elétrico' } : null);
+
+            // 3. Procurar Via Verde Associada
+            const mostrarViaVerde = viaVerdes?.find(vv => vv.motoristaId === m.id || vv.motoristaId2 === m.id || m.viaVerdeId === vv.id) ||
+                                    (m.viaVerdeNumero ? { transponder: m.viaVerdeNumero } : null) ||
+                                    (m.viaVerde ? { transponder: m.viaVerde } : null) ||
+                                    (m.transponder ? { transponder: m.transponder } : null);
 
             return (
               <tr key={m.id} className="hover:bg-slate-50/50 transition-colors">
@@ -243,28 +278,77 @@ export default function MotoristasList({ motoristas, veiculos = [], onEdit, onDe
                   </div>
                 </td>
                 
-                {/* COLUNA 2: Veículo Atribuído (Reativo e Imune a desfasamentos de cache) */}
-                <td className="p-4 text-sm">
-                  {mostrarVeiculo ? (
-                    <div className="flex items-center gap-2 animate-in fade-in duration-200">
-                      <div className="w-7 h-7 bg-blue-50 rounded-lg flex items-center justify-center text-tvde-primary shadow-sm border border-blue-100 shrink-0">
-                        <Car size={14} />
+                {/* COLUNA 2: Atribuições Consolidadas (Veículo, Cartão e Via Verde) */}
+                <td className="p-4 text-sm min-w-[200px]">
+                  <div className="flex flex-col gap-1.5">
+                    
+                    {/* Linha 1: Veículo */}
+                    {mostrarVeiculo ? (
+                      <div className="flex items-center gap-2 animate-in fade-in duration-200">
+                        <div className="w-5.5 h-5.5 bg-blue-50 rounded flex items-center justify-center text-tvde-primary border border-blue-100 shrink-0" title="Veículo Atribuído">
+                          <Car size={11} />
+                        </div>
+                        <div className="flex flex-col leading-none">
+                          <span className="font-black text-slate-800 text-[11px] font-mono tracking-wider uppercase">
+                            {mostrarVeiculo.matricula || 'S/MAT'}
+                          </span>
+                          <span className="text-[9px] text-slate-400 font-bold truncate max-w-[140px]">
+                            {mostrarVeiculo.marca || 'Viatura'} {mostrarVeiculo.modelo || ''}
+                          </span>
+                        </div>
                       </div>
-                      <div className="flex flex-col">
-                        <span className="font-black text-slate-800 text-xs font-mono tracking-widest uppercase">
-                          {mostrarVeiculo.matricula || 'S/MAT'}
-                        </span>
-                        <span className="text-[10px] text-slate-400 font-bold truncate max-w-[120px]">
-                          {mostrarVeiculo.marca || 'Veículo'} {mostrarVeiculo.modelo || ''}
-                        </span>
+                    ) : (
+                      <div className="flex items-center gap-2 text-slate-400 italic text-[10px] opacity-70">
+                        <Car size={11} className="opacity-50 shrink-0" />
+                        <span>Sem veículo</span>
                       </div>
-                    </div>
-                  ) : (
-                    <div className="flex items-center gap-2 text-slate-400 italic text-xs animate-in fade-in duration-200">
-                      <Car size={14} className="opacity-50" />
-                      Sem veículo atribuído
-                    </div>
-                  )}
+                    )}
+
+                    {/* Linha 2: Cartão */}
+                    {mostrarCartao ? (
+                      <div className="flex items-center gap-2 animate-in fade-in duration-200 border-t border-slate-100/60 pt-1">
+                        <div className="w-5.5 h-5.5 bg-emerald-50 rounded flex items-center justify-center text-emerald-600 border border-emerald-100 shrink-0" title="Cartão Ativo">
+                          <CreditCard size={11} />
+                        </div>
+                        <div className="flex flex-col leading-none">
+                          <span className="font-bold text-slate-700 text-[11px] truncate max-w-[140px]">
+                            {mostrarCartao.numero || mostrarCartao.nome || 'Cartão Ativo'}
+                          </span>
+                          <span className="text-[9px] text-emerald-600 font-extrabold uppercase tracking-wider">
+                            {mostrarCartao.tipo || 'Frota'}
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 text-slate-400 italic text-[10px] opacity-70 border-t border-slate-100/60 pt-1">
+                        <CreditCard size={11} className="opacity-50 shrink-0" />
+                        <span>Sem cartão</span>
+                      </div>
+                    )}
+
+                    {/* Linha 3: Via Verde */}
+                    {mostrarViaVerde ? (
+                      <div className="flex items-center gap-2 animate-in fade-in duration-200 border-t border-slate-100/60 pt-1">
+                        <div className="w-5.5 h-5.5 bg-teal-50 rounded flex items-center justify-center text-teal-600 border border-teal-100 shrink-0" title="Identificador Via Verde">
+                          <Radio size={11} />
+                        </div>
+                        <div className="flex flex-col leading-none">
+                          <span className="font-mono font-bold text-slate-700 text-[11px]">
+                            {mostrarViaVerde.transponder || mostrarViaVerde.numero || 'Ativo'}
+                          </span>
+                          <span className="text-[9px] text-teal-600 font-extrabold uppercase tracking-wider">
+                            Via Verde
+                          </span>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex items-center gap-2 text-slate-400 italic text-[10px] opacity-70 border-t border-slate-100/60 pt-1">
+                        <Radio size={11} className="opacity-50 shrink-0" />
+                        <span>Sem Via Verde</span>
+                      </div>
+                    )}
+
+                  </div>
                 </td>
                 
                 {/* COLUNA 3: Status Interativo */}

@@ -380,6 +380,7 @@ export default {
  * - Preservação estrita de todos os fluxos de autenticação, Firebase e rotas existentes.
  * - [CORREÇÃO NETLIFY]: Removida a duplicação de export default acidental.
  * - [UX UNIFICADA]: Removida a margem esquerda lg:ml-64 para acomodar a Sidebar Flutuante.
+ * - [NOVO]: Rota para a gestão de Identificadores Via Verde associada a motoristas.
  */
 
 import { useEffect, useState } from 'react';
@@ -392,6 +393,7 @@ import Motoristas from './pages/Motoristas'; // Importação do componente exter
 import Veiculos from './pages/Veiculos';
 import Proprietarios from './pages/Proprietarios';
 import CartoesGestao from './pages/CartoesGestao';
+import ViaVerdeGestao from './pages/ViaVerdeGestao'; // Importação da nova página de gestão Via Verde
 import Configuracoes from './pages/Configuracoes';
 import MinhasTarefas from './pages/MinhasTarefas';
 import LogsSistema from './pages/LogsSistema'; 
@@ -668,7 +670,6 @@ function AppContent() {
       )}
       
       {/* 
-        [CORRIGIDO] A classe "lg:ml-64 ml-0" foi completamente removida.
         O ERP agora expande-se automaticamente por todo o ecrã.
       */}
       <div className="flex-1 flex flex-col min-w-0">
@@ -711,6 +712,7 @@ function AppContent() {
             <Route path="/tarefas" element={<PrivateRoute><MinhasTarefas /></PrivateRoute>} />
             <Route path="/cartoes/abastecimento" element={<PrivateRoute><CartoesGestao tipo="combustivel" /></PrivateRoute>} />
             <Route path="/cartoes/carregamento" element={<PrivateRoute><CartoesGestao tipo="eletrico" /></PrivateRoute>} />
+            <Route path="/via-verde" element={<PrivateRoute><ViaVerdeGestao /></PrivateRoute>} /> {/* Nova rota do Identificador Via Verde */}
             <Route path="/config" element={<PrivateRoute><Configuracoes /></PrivateRoute>} />
 
             {/* ROTAS RESTRITAS AO DIRETOR */}
@@ -1118,11 +1120,12 @@ export default function Header({ setSidebarAberta }) {
  *
  * Menu lateral administrativo flutuante e auto-retrátil.
  * Otimizado com:
- * - [NOVO] Ocultação total por defeito em Desktop.
- * - [NOVO] Deteção de passagem do rato (hover) para deslizar e abrir automaticamente.
- * - [NOVO] Gatilho de borda invisível na margem esquerda para ativação tátil.
+ * - Ocultação total por defeito em Desktop.
+ * - Deteção de passagem do rato (hover) para deslizar e abrir automaticamente.
+ * - Gatilho de borda invisível na margem esquerda para ativação tátil.
  * - Secção "Administração" simplificada (Registos/Serviços).
  * - Responsividade fluida com preservação de comportamento em ecrãs móveis (Mobile).
+ * - [NOVO] Adicionado suporte ao ecrã de gestão de aparelhos Via Verde associados a motoristas.
  */
 
 import React, { useState, useRef, useEffect } from 'react';
@@ -1132,7 +1135,7 @@ import {
   Settings, LogOut, CreditCard, ChevronDown, ChevronUp,
   Fuel, Zap, ClipboardList, Inbox, ShieldAlert, Users2,
   Sparkles, UserPlus, X, BookOpen, Sliders,
-  Briefcase, Gift, FileText, GraduationCap
+  Briefcase, Gift, FileText, GraduationCap, Radio
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 
@@ -1182,8 +1185,8 @@ export default function Sidebar({ aberta, setAberta }) {
   // Mapeamento que identifica se a rota de configuração de serviços está ativa
   const isServicosActive = location.pathname === '/config/servicos';
 
-  // Mapeamento que identifica se algum sub-registo está ativo
-  const isRegistrosActive = ['/motoristas', '/veiculos', '/proprietarios', '/cartoes'].some(path => 
+  // Mapeamento que identifica se algum sub-registo está ativo (incluindo via-verde)
+  const isRegistrosActive = ['/motoristas', '/veiculos', '/proprietarios', '/cartoes', '/via-verde'].some(path => 
     location.pathname.includes(path)
   );
 
@@ -1336,6 +1339,7 @@ export default function Sidebar({ aberta, setAberta }) {
                   <SubMenuItem icon={UserCheck} label="Motoristas" to="/motoristas" active={location.pathname === '/motoristas'} />
                   <SubMenuItem icon={Car} label="Veículos" to="/veiculos" active={location.pathname === '/veiculos'} />
                   <SubMenuItem icon={Users} label="Proprietários" to="/proprietarios" active={location.pathname === '/proprietarios'} />
+                  <SubMenuItem icon={Radio} label="Via Verde" to="/via-verde" active={location.pathname === '/via-verde'} />
 
                   {/* Sub-menu Cartões */}
                   <div className="space-y-0.5 pt-0.5" ref={cartoesRef}>
@@ -1361,7 +1365,7 @@ export default function Sidebar({ aberta, setAberta }) {
               )}
             </div>
 
-            {/* NOVO LINK ÚNICO: Serviços */}
+            {/* LINK ÚNICO: Serviços */}
             <div className="pt-1">
               <MenuItem 
                 icon={Briefcase} 
@@ -6541,7 +6545,9 @@ export default function TaxaGestaoTab({
  * - Remoção definitiva e purga da Conta Corrente órfã e do useEffect setMovimentos.
  * - Compactação extrema de paddings, margins, gaps e inputs para evitar scroll no desktop.
  * - Preservação estrita das integrações do Firestore, IA Vision, alertas e conformidade regulamentar.
- * - [NOVO] Histórico formatado com Data e Hora detalhadas em Português (PT-PT).
+ * - Histórico formatado com Data e Hora detalhadas em Português (PT-PT).
+ * - Visualização dinâmica e reativa em tempo real do identificador Via Verde associado ao motorista.
+ * - [NOVO]: Trava de segurança no dropdown de frotas para ocultar viaturas 24h ocupadas ou turnos partilhados preenchidos.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -6553,7 +6559,8 @@ import {
   CheckSquare, Square, Camera, Eye, Trash2, 
   CheckCircle2, AlertCircle, History, Wallet, Plus, Minus, 
   Euro, ChevronDown, ChevronUp, FileCheck, Image as ImageIcon, Info,
-  MessageSquare, Share2, Send, Sparkles, ShieldCheck, AlertTriangle, ArrowRight, X, Car
+  MessageSquare, Share2, Send, Sparkles, ShieldCheck, AlertTriangle, ArrowRight, X, Car,
+  Radio
 } from 'lucide-react';
 import { db } from '../../firebase';
 import { doc, updateDoc, addDoc, collection, query, where, onSnapshot, deleteDoc } from 'firebase/firestore';
@@ -6604,7 +6611,7 @@ const formatPostalCode = (val) => {
 };
 
 /**
- * [NOVO] Função Auxiliar didática para formatar data e hora em PT-PT
+ * Função Auxiliar didática para formatar data e hora em PT-PT
  */
 const formatDataHora = (isoString) => {
   if (!isoString) return '';
@@ -6707,6 +6714,9 @@ export default function MotoristaForm({
   // Novo estado para controlar dinamicamente a exibição das categorias de cartões
   const [tipoCartaoAtribuido, setTipoCartaoAtribuido] = useState('');
 
+  // Estado para guardar o identificador Via Verde ativo do motorista
+  const [viaVerdeAtiva, setViaVerdeAtiva] = useState(null);
+
   // TRAVA DE SEGURANÇA OPERACIONAL: Filtra motoristas que já têm outro cartão deste tipo
   const cartoesAbastecimentoOcupados = motoristas
     .filter(m => m.id !== initialData.id && m.cartaoAbastecimentoId)
@@ -6727,6 +6737,28 @@ export default function MotoristaForm({
     const isEletrico = card.tipo === 'eletrico';
     const isOcupadoPorOutro = cartoesCarregamentoOcupados.includes(card.id);
     return isEletrico && !isOcupadoPorOutro;
+  });
+
+  // [NOVO] TRAVA DE SEGURANÇA: Filtra viaturas com base nas vagas disponíveis nos regimes de aluguer
+  const veiculosDisponiveis = veiculos.filter(v => {
+    const currentMotoristaId = initialData.id || formData.id;
+
+    // A. Permitir sempre a viatura atualmente associada ao motorista corrente (evita auto-bloqueio)
+    if (v.id === formData.veiculoId || v.motoristaId === currentMotoristaId || v.motoristaId2 === currentMotoristaId) {
+      return true;
+    }
+
+    // B. Regime Integral (24h): Indisponível se já tiver condutor
+    if (v.tipoAluguer === 'integral' || !v.tipoAluguer) {
+      return !v.motoristaId;
+    }
+
+    // C. Regime Partilhado por Turnos: Indisponível se ambos os turnos A e B estiverem ocupados
+    if (v.tipoAluguer === 'turnos') {
+      return !v.motoristaId || !v.motoristaId2;
+    }
+
+    return true;
   });
 
   // Vínculo do campo IBAN ao seu respetivo documento de origem para auditoria visual
@@ -6755,6 +6787,34 @@ export default function MotoristaForm({
     const top = (window.screen.height / 2) - (height / 2);
     window.open(url, 'Visualização', `width=${width},height=${height},top=${top},left=${left},menubar=no,status=no`);
   };
+
+  // Sincronização em tempo real do identificador Via Verde deste motorista
+  useEffect(() => {
+    const motoristaId = initialData.id || formData.id;
+    if (!motoristaId) {
+      setViaVerdeAtiva(null);
+      return;
+    }
+    const q = query(
+      collection(db, "viaverde_aparelhos"),
+      where("motoristaId", "==", motoristaId),
+      where("estado", "==", "Em Uso")
+    );
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      if (!snapshot.empty) {
+        const docSnap = snapshot.docs[0];
+        const dados = docSnap.data();
+        setViaVerdeAtiva({
+          id: docSnap.id,
+          numeroAparelho: dados.numeroAparelho,
+          dataAtribuicao: dados.dataAtribuicao
+        });
+      } else {
+        setViaVerdeAtiva(null);
+      }
+    });
+    return () => unsubscribe();
+  }, [initialData.id, formData.id]);
 
   useEffect(() => {
     if (!initialData || Object.keys(initialData).length === 0) return;
@@ -6981,6 +7041,16 @@ export default function MotoristaForm({
     onSubmit(dadosLimposParaGuardar, enviarLink);
   };
 
+  const handleEnviarLinkExistente = (tipo) => {
+    const motoristaId = initialData.id || formData.id;
+    if (!motoristaId) return;
+    const urlOnboarding = `${window.location.origin}/onboarding/${motoristaId}`;
+    const textoMsg = `Olá ${formData.nome}, por favor finalize o seu registo digital de motorista TVDE acedendo ao seguinte link seguro: ${urlOnboarding}`;
+    const cleanPhone = formData.telemovel.replace(/\s+/g, '');
+    const urlWhatsapp = `https://api.whatsapp.com/send?phone=351${cleanPhone}&text=${encodeURIComponent(textoMsg)}`;
+    window.open(urlWhatsapp, '_blank');
+  };
+
   return (
     <form onSubmit={(e) => e.preventDefault()} className="space-y-1 max-h-[75vh] overflow-y-auto pr-3.5 custom-scrollbar">
 
@@ -7144,7 +7214,7 @@ export default function MotoristaForm({
         )}
       </div>
 
-      {/* [ATUALIZADO] SEÇÃO DO HISTÓRICO DE EDIÇÕES COM DATA E HORA COMPLETAS (PT-PT) */}
+      {/* SEÇÃO DO HISTÓRICO DE EDIÇÕES COM DATA E HORA COMPLETAS (PT-PT) */}
       {initialData.historico && initialData.historico.length > 0 && (
         <CollapsibleSection title="Histórico de Edições" icon={History} iconColor="text-slate-400" defaultOpen={false}>
           <div className="space-y-1.5 text-left">
@@ -7325,30 +7395,59 @@ export default function MotoristaForm({
             
             <div className="space-y-4 overflow-y-auto pr-2 custom-scrollbar">
               
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">Veículo Atribuído</label>
-                <select 
-                  disabled={isReadOnly}
-                  className="w-full p-2.5 border border-slate-200 rounded-lg bg-white text-xs outline-none focus:ring-2 focus:ring-tvde-primary/20 text-slate-700 font-medium"
-                  value={formData.veiculoId || ''}
-                  onChange={(e) => {
-                    const v = veiculos.find(veic => veic.id === e.target.value);
-                    setFormData({
-                      ...formData, 
-                      veiculoId: e.target.value, 
-                      veiculoMatricula: v ? v.matricula : '',
-                      veiculoMarca: v ? v.marca : '',      
-                      veiculoModelo: v ? v.modelo : ''     
-                    });
-                  }}
-                >
-                  <option value="">Nenhum Veículo Atribuído (Em Stock)</option>
-                  {veiculos.map(v => (
-                    <option key={v.id} value={v.id}>
-                      {v.matricula} — {v.marca} {v.modelo}
-                    </option>
-                  ))}
-                </select>
+              <div className="space-y-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Veículo Atribuído</label>
+                  <select 
+                    disabled={isReadOnly}
+                    className="w-full p-2.5 border border-slate-200 rounded-lg bg-white text-xs outline-none focus:ring-2 focus:ring-tvde-primary/20 text-slate-700 font-medium"
+                    value={formData.veiculoId || ''}
+                    onChange={(e) => {
+                      const v = veiculos.find(veic => veic.id === e.target.value);
+                      setFormData({
+                        ...formData, 
+                        veiculoId: e.target.value, 
+                        veiculoMatricula: v ? v.matricula : '',
+                        veiculoMarca: v ? v.marca : '',      
+                        veiculoModelo: v ? v.modelo : ''     
+                      });
+                    }}
+                  >
+                    <option value="">Nenhum Veículo Atribuído (Em Stock)</option>
+                    {/* [ATUALIZADO] Renderiza estritamente as viaturas que estão realmente disponíveis para este motorista */}
+                    {veiculosDisponiveis.map(v => (
+                      <option key={v.id} value={v.id}>
+                        {v.matricula} — {v.marca} {v.modelo}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* [NOVO] Visualização de Identificador Via Verde Ativo do Motorista */}
+                <div className="pt-1">
+                  {viaVerdeAtiva ? (
+                    <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100 flex items-center gap-2.5 text-emerald-800 animate-in fade-in duration-200">
+                      <div className="p-2 bg-emerald-100 text-emerald-600 rounded-lg shrink-0">
+                        <Radio size={16} className="animate-pulse" />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-wider text-emerald-700">Identificador Via Verde Ativo</p>
+                        <p className="text-xs font-black font-mono">{viaVerdeAtiva.numeroAparelho} ({viaVerdeAtiva.id})</p>
+                        <p className="text-[9px] text-emerald-600 font-bold">Entregue em: {formatDataHora(viaVerdeAtiva.dataAtribuicao)}</p>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-200/50 flex items-center gap-2.5 text-slate-500 animate-in fade-in duration-200">
+                      <div className="p-2 bg-slate-100 text-slate-400 rounded-lg shrink-0">
+                        <Radio size={16} />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-black uppercase tracking-wider text-slate-400">Identificador Via Verde</p>
+                        <p className="text-xs italic font-semibold">Sem nenhum aparelho atribuído a este motorista.</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div>
@@ -7461,26 +7560,28 @@ export default function MotoristaForm({
  * - Interruptor de estado (Ativo/Inativo) com trava de segurança para pendentes.
  * - Auto-corretor em segundo plano para manter conformidade de estado no Firestore.
  * - Filtros rápidos no cabeçalho integrados.
- * - [NOVO] Layout atualizado: Contactos sob o nome do motorista; nova coluna para Veículo Atribuído.
+ * - Layout atualizado: Contactos sob o nome do motorista; nova coluna para Veículo Atribuído.
+ * - [ATUALIZADO]: Referência cruzada estrita baseada na soberania do documento de veículo (Firestore)
+ *                 para eliminar de vez desfasamentos de cache ou duplicados visuais.
  */
 
 import React, { useState, useEffect } from 'react';
 import { 
   Edit, Trash2, User, FileText, CreditCard, 
   ShieldAlert, BadgeCheck, Home, Eye, AlertCircle, 
-  Sparkles, Car, Wallet // Importações de Car e Wallet adicionadas
+  Sparkles, Car, Wallet 
 } from 'lucide-react';
 import { db } from '../../firebase';
 import { doc, updateDoc } from 'firebase/firestore';
 import { logAcaoGlobal } from '../../utils/logger';
 import { useAuth } from '../../context/AuthContext';
 
-export default function MotoristasList({ motoristas, onEdit, onDelete }) {
+export default function MotoristasList({ motoristas, veiculos = [], onEdit, onDelete }) {
   const { userData } = useAuth();
 
   // ESTADOS LOCAIS PARA OS FILTROS DE CADA COLUNA
-  const [filterPesquisaGlobal, setFilterPesquisaGlobal] = useState(''); // Substitui filterNome e filterContacto
-  const [filterVeiculo, setFilterVeiculo] = useState(''); // Novo filtro para a coluna de veículos
+  const [filterPesquisaGlobal, setFilterPesquisaGlobal] = useState(''); 
+  const [filterVeiculo, setFilterVeiculo] = useState(''); 
   const [filterStatus, setFilterStatus] = useState('todos');
   const [filterDocs, setFilterDocs] = useState('todos');
 
@@ -7568,12 +7669,16 @@ export default function MotoristasList({ motoristas, onEdit, onDelete }) {
         (m.telemovel || '').toLowerCase().includes(queryGlobal) ||
         (m.nif || '').toLowerCase().includes(queryGlobal);
 
+      // [ATUALIZADO] O filtro do ecrã passa a pesquisar pelo veículo real associado na tabela de viaturas do Firestore
+      const vInfo = veiculos.find(v => v.motoristaId === m.id || v.motoristaId2 === m.id);
+
       // 2. Filtragem por Veículo Atribuído (Matrícula ou Marca/Modelo)
       const queryVeiculo = filterVeiculo.toLowerCase();
-      const matchesVeiculo = 
-        (m.veiculoMatricula || '').toLowerCase().includes(queryVeiculo) ||
-        (m.veiculoMarca || '').toLowerCase().includes(queryVeiculo) ||
-        (m.veiculoModelo || '').toLowerCase().includes(queryVeiculo);
+      const matchesVeiculo = vInfo ? (
+        (vInfo.matricula || '').toLowerCase().includes(queryVeiculo) ||
+        (vInfo.marca || '').toLowerCase().includes(queryVeiculo) ||
+        (vInfo.modelo || '').toLowerCase().includes(queryVeiculo)
+      ) : queryVeiculo === '';
 
       // 3. Filtragem por Status
       const matchesStatus = filterStatus === 'todos' || effectiveStatus === filterStatus;
@@ -7660,6 +7765,10 @@ export default function MotoristasList({ motoristas, onEdit, onDelete }) {
             const aiReview = needsAIValidation(m);
             const isDriverActive = m.status === 'Ativo' && !incomplete;
             
+            // [ATUALIZADO] A listagem agora consulta os veículos reais em tempo real
+            // Se o motorista não constar no documento do carro no Firestore, a viatura é tratada como vazia
+            const mostrarVeiculo = veiculos.find(v => v.motoristaId === m.id || v.motoristaId2 === m.id);
+
             return (
               <tr key={m.id} className="hover:bg-slate-50/50 transition-colors">
                 
@@ -7680,7 +7789,6 @@ export default function MotoristasList({ motoristas, onEdit, onDelete }) {
                         </span>
                         <p className="font-bold text-slate-800">{m.nome}</p>
                       </div>
-                      {/* O ID Sistema foi substituído pelos contactos aqui */}
                       <p className="text-[11px] text-slate-500 font-medium">
                         {m.telemovel || 'S/Tlf'} <span className="text-slate-300 mx-1">•</span> NIF: <span className="font-mono">{m.nif || 'S/NIF'}</span>
                       </p>
@@ -7688,25 +7796,24 @@ export default function MotoristasList({ motoristas, onEdit, onDelete }) {
                   </div>
                 </td>
                 
-                {/* COLUNA 2: Veículo Atribuído (Nova Posição) */}
+                {/* COLUNA 2: Veículo Atribuído (Reativo e Imune a desfasamentos de cache) */}
                 <td className="p-4 text-sm">
-                  {m.veiculoId ? (
-                    <div className="flex items-center gap-2">
+                  {mostrarVeiculo ? (
+                    <div className="flex items-center gap-2 animate-in fade-in duration-200">
                       <div className="w-7 h-7 bg-blue-50 rounded-lg flex items-center justify-center text-tvde-primary shadow-sm border border-blue-100 shrink-0">
                         <Car size={14} />
                       </div>
                       <div className="flex flex-col">
-                        {/* Matrícula em formato realçado */}
                         <span className="font-black text-slate-800 text-xs font-mono tracking-widest uppercase">
-                          {m.veiculoMatricula || 'S/MAT'}
+                          {mostrarVeiculo.matricula || 'S/MAT'}
                         </span>
                         <span className="text-[10px] text-slate-400 font-bold truncate max-w-[120px]">
-                          {m.veiculoMarca || 'Veículo'} {m.veiculoModelo || ''}
+                          {mostrarVeiculo.marca || 'Veículo'} {mostrarVeiculo.modelo || ''}
                         </span>
                       </div>
                     </div>
                   ) : (
-                    <div className="flex items-center gap-2 text-slate-400 italic text-xs">
+                    <div className="flex items-center gap-2 text-slate-400 italic text-xs animate-in fade-in duration-200">
                       <Car size={14} className="opacity-50" />
                       Sem veículo atribuído
                     </div>
@@ -8797,14 +8904,16 @@ export default function UsuarioForm({ onSubmit, onCancel, initialData = {} }) {
  * - Preservação total das ações de criação inline de Motoristas/Proprietários e Sincronização.
  * - Suporte a Regimes de Aluguer: Integral (1 Condutor) ou Partilhado por Turnos (2 Condutores).
  * - Dropdown de Marcas inteligente exibindo até as 10 marcas mais registadas na frota no topo.
- * - [NOVO] Adição de Data da Primeira Matrícula e cálculo dinâmico de tempo de circulação TVDE restante.
+ * - Adição de Data da Primeira Matrícula e cálculo dinâmico de tempo de circulação TVDE restante.
+ * - [NOVO] Exibição reativa e cronológica de identificadores Via Verde com base nos condutores ativos dos turnos A e B.
  */
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { 
   CreditCard, Car, Users, FileText, Eye, Trash2, 
   CheckCircle2, AlertCircle, Calendar, ShieldCheck, ClipboardCheck, History,
-  Wallet, Plus, Euro, ChevronDown, ChevronUp, Image as ImageIcon, MapPin, X, ArrowRight, Sparkles
+  Wallet, Plus, Euro, ChevronDown, ChevronUp, Image as ImageIcon, MapPin, X, ArrowRight, Sparkles,
+  Radio
 } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import FileUpload from '../../components/ui/FileUpload';
@@ -8849,7 +8958,7 @@ const formatDataHora = (isoString) => {
 };
 
 /**
- * [NOVO] Algoritmo de cálculo legal de tempo restante para circulação TVDE
+ * Algoritmo de cálculo legal de tempo restante para circulação TVDE
  */
 const calcularTempoRestanteTVDE = (dataPrimeiraMatricula, limiteAnos = 7) => {
   if (!dataPrimeiraMatricula) return null;
@@ -8917,7 +9026,7 @@ export default function VeiculoForm({
   proprietarios = [], 
   cartoes = [], 
   veiculos = [], // Array de viaturas registadas vindo do orquestrador
-  limiteAnosTVDE = 7, // [NOVO] Limite regulamentar configurável (padrão legal: 7 anos)
+  limiteAnosTVDE = 7, // Limite regulamentar configurável (padrão legal: 7 anos)
   onCancel, 
   isReadOnly = false, 
   onCriarProprietario, 
@@ -8931,7 +9040,7 @@ export default function VeiculoForm({
     modelo: initialData.modelo || '', 
     matricula: initialData.matricula || '', 
     ano: initialData.ano || '',
-    dataPrimeiraMatricula: initialData.dataPrimeiraMatricula || '', // [NOVO]
+    dataPrimeiraMatricula: initialData.dataPrimeiraMatricula || '', 
     proprietarioId: initialData.proprietarioId || '', 
     proprietarioNome: initialData.proprietarioNome || '', 
     // Regime de Aluguer ('integral' ou 'turnos')
@@ -8970,6 +9079,9 @@ export default function VeiculoForm({
   const [novoMotorista, setNovoMotorista] = useState({ nome: '', nif: '', telemovel: '' });
   const [modalFinanceiroAberto, setModalFinanceiroAberto] = useState(false);
 
+  // [NOVO] Estado para escutar aparelhos de Via Verde ativos no sistema
+  const [aparelhosAtivos, setAparelhosAtivos] = useState([]);
+
   // Estados de abertura para os novos sub-modais de UX
   const [modalIdentificacaoAberto, setModalIdentificacaoAberto] = useState(false);
   const [modalAtribuicoesAberto, setModalAtribuicoesAberto] = useState(false);
@@ -9000,6 +9112,16 @@ export default function VeiculoForm({
       return () => unsubscribe();
     }
   }, [initialData.id]);
+
+  // [NOVO] Sincronização de todos os transponders Via Verde em uso na posse de motoristas
+  useEffect(() => {
+    const q = query(collection(db, "viaverde_aparelhos"), where("estado", "==", "Em Uso"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setAparelhosAtivos(list);
+    });
+    return () => unsubscribe();
+  }, []);
 
   // ALGORITMO DEDUPICADO PARA ATÉ 10 SUGESTÕES
   const sugeridas = useMemo(() => {
@@ -9038,7 +9160,7 @@ export default function VeiculoForm({
     );
   }, [sugeridas, popularesFiltradas]);
 
-  // [NOVO] Cálculo em tempo real do tempo regulamentar restante
+  // Cálculo em tempo real do tempo regulamentar restante
   const tempoRestanteTVDE = useMemo(() => {
     return calcularTempoRestanteTVDE(formData.dataPrimeiraMatricula, limiteAnosTVDE);
   }, [formData.dataPrimeiraMatricula, limiteAnosTVDE]);
@@ -9064,6 +9186,12 @@ export default function VeiculoForm({
       tipoAluguer: tipo,
       ...(tipo === 'integral' ? { motoristaId2: '', motoristaNome2: '' } : {})
     }));
+  };
+
+  // [NOVO] Cruza o ID do motorista escalado com o stock ativo de identificadores Via Verde
+  const obterViaVerdeDoMotorista = (motoristaId) => {
+    if (!motoristaId) return null;
+    return aparelhosAtivos.find(a => a.motoristaId === motoristaId);
   };
 
   const handleAddMovimento = async () => {
@@ -9324,7 +9452,7 @@ export default function VeiculoForm({
               <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
                 <div><label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Matrícula *</label><input required readOnly={isReadOnly} placeholder="AA-00-AA" className={`${inputClass} uppercase font-bold text-center tracking-widest`} value={formData.matricula} onChange={handleMatriculaChange} /></div>
                 
-                {/* [Dropdown Inteligente para Marcas - Expandido para 10] */}
+                {/* Dropdown Inteligente para Marcas */}
                 <div>
                   <label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Marca</label>
                   {isReadOnly ? (
@@ -9364,7 +9492,7 @@ export default function VeiculoForm({
                 <div><label className="block text-[9px] font-black text-slate-400 uppercase mb-0.5 ml-1">Ano</label><input type="number" readOnly={isReadOnly} className={inputClass} value={formData.ano} onChange={(e) => setFormData({...formData, ano: e.target.value})} /></div>
               </div>
 
-              {/* [NOVO] Seletor de Data da Primeira Matrícula & Cálculo do Tempo Restante */}
+              {/* Seletor de Data da Primeira Matrícula & Cálculo do Tempo Restante */}
               <div className="grid grid-cols-1 gap-3 pt-2">
                 <div>
                   <DatePicker 
@@ -9467,7 +9595,7 @@ export default function VeiculoForm({
                 )}
               </div>
 
-              {/* [DINÂMICO] Secção dos Condutores baseada no Regime */}
+              {/* Secção dos Condutores baseada no Regime */}
               <div className="bg-slate-50 p-4 rounded-xl border border-slate-200/60 space-y-3">
                 <label className="block text-xs font-bold text-slate-700 uppercase tracking-wider">
                   {formData.tipoAluguer === 'integral' ? 'Condutor Associado' : 'Condutores por Turno (Partilhado)'}
@@ -9476,7 +9604,7 @@ export default function VeiculoForm({
                 {formData.tipoAluguer === 'integral' ? (
                   /* Regime Integral: Apenas 1 condutor habitual */
                   <div className="space-y-2">
-                    <label className="block text-xs font-bold text-slate-505 uppercase tracking-wider">Motorista Habitual (24h)</label>
+                    <label className="block text-xs font-bold text-slate-550 uppercase tracking-wider">Motorista Habitual (24h)</label>
                     {!isReadOnly && !initialData.id && (
                       <div className="flex rounded-lg border border-slate-200 overflow-hidden bg-slate-50 p-1 gap-1 w-fit">
                         <button type="button" onClick={() => setModoMotorista('existente')} className={`px-3 py-1 text-xs font-bold rounded transition-colors ${modoMotorista === 'existente' ? 'bg-white text-tvde-primary shadow-sm' : 'text-slate-400'}`}>Existente</button>
@@ -9484,10 +9612,28 @@ export default function VeiculoForm({
                       </div>
                     )}
                     {modoMotorista === 'existente' ? (
-                      <select disabled={isReadOnly} className={inputClass} value={formData.motoristaId} onChange={(e) => { const m = motoristas.find(m => m.id === e.target.value); setFormData({...formData, motoristaId: e.target.value, motoristaNome: m?.nome || ''}); }}>
-                        <option value="">Disponível</option>
-                        {motoristas.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
-                      </select>
+                      <div className="space-y-2">
+                        <select disabled={isReadOnly} className={inputClass} value={formData.motoristaId} onChange={(e) => { const m = motoristas.find(m => m.id === e.target.value); setFormData({...formData, motoristaId: e.target.value, motoristaNome: m?.nome || ''}); }}>
+                          <option value="">Disponível</option>
+                          {motoristas.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
+                        </select>
+                        
+                        {/* [NOVO] Visualização Via Verde do Condutor Único */}
+                        {(() => {
+                          const vv = obterViaVerdeDoMotorista(formData.motoristaId);
+                          return vv ? (
+                            <div className="p-2 bg-emerald-50 rounded-xl border border-emerald-100 flex items-center gap-2 text-emerald-800 text-[11px] animate-in fade-in duration-200">
+                              <Radio size={13} className="text-emerald-600 animate-pulse shrink-0" />
+                              <span>Via Verde Ativa: <strong className="font-mono">{vv.numeroAparelho}</strong> ({vv.id})</span>
+                            </div>
+                          ) : formData.motoristaId ? (
+                            <div className="p-2 bg-slate-100/50 rounded-xl border border-slate-200/50 flex items-center gap-2 text-slate-400 text-[11px] animate-in fade-in duration-200">
+                              <Radio size={13} className="text-slate-300 shrink-0" />
+                              <span className="italic font-medium">Sem identificador Via Verde pessoal associado</span>
+                            </div>
+                          ) : null;
+                        })()}
+                      </div>
                     ) : (
                       <div className="space-y-2 bg-blue-50 border border-blue-100 rounded-xl p-3">
                         <input placeholder="Nome completo *" required className="w-full p-2 border border-slate-200 rounded-lg text-sm bg-white" value={novoMotorista.nome} onChange={(e) => setNovoMotorista({ ...novoMotorista, nome: e.target.value })} />
@@ -9511,10 +9657,28 @@ export default function VeiculoForm({
                         </div>
                       )}
                       {modoMotorista === 'existente' ? (
-                        <select disabled={isReadOnly} className={inputClass} value={formData.motoristaId} onChange={(e) => { const m = motoristas.find(m => m.id === e.target.value); setFormData({...formData, motoristaId: e.target.value, motoristaNome: m?.nome || ''}); }}>
-                          <option value="">Disponível</option>
-                          {motoristas.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
-                        </select>
+                        <div className="space-y-1.5">
+                          <select disabled={isReadOnly} className={inputClass} value={formData.motoristaId} onChange={(e) => { const m = motoristas.find(m => m.id === e.target.value); setFormData({...formData, motoristaId: e.target.value, motoristaNome: m?.nome || ''}); }}>
+                            <option value="">Disponível</option>
+                            {motoristas.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
+                          </select>
+
+                          {/* [NOVO] Visualização Via Verde Turno A */}
+                          {(() => {
+                            const vv = obterViaVerdeDoMotorista(formData.motoristaId);
+                            return vv ? (
+                              <div className="p-2 bg-emerald-50 rounded-xl border border-emerald-100 flex items-center gap-2 text-emerald-850 text-[10px] animate-in fade-in duration-200">
+                                <Radio size={12} className="text-emerald-600 animate-pulse shrink-0" />
+                                <span>Via Verde Turno A: <strong className="font-mono">{vv.numeroAparelho}</strong></span>
+                              </div>
+                            ) : formData.motoristaId ? (
+                              <div className="p-2 bg-slate-100/50 rounded-xl border border-slate-200/50 flex items-center gap-2 text-slate-400 text-[10px] animate-in fade-in duration-200">
+                                <Radio size={12} className="text-slate-300 shrink-0" />
+                                <span className="italic font-medium">Sem Via Verde associada</span>
+                              </div>
+                            ) : null;
+                          })()}
+                        </div>
                       ) : (
                         <div className="space-y-2 bg-blue-50 border border-blue-100 rounded-xl p-3">
                           <input placeholder="Nome completo *" required className="w-full p-2 border border-slate-200 rounded-lg text-sm bg-white" value={novoMotorista.nome} onChange={(e) => setNovoMotorista({ ...novoMotorista, nome: e.target.value })} />
@@ -9529,10 +9693,28 @@ export default function VeiculoForm({
                     {/* Turno Noturno (B) */}
                     <div className="space-y-2">
                       <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider">Motorista Noturno — Turno B</label>
-                      <select disabled={isReadOnly} className={inputClass} value={formData.motoristaId2 || ''} onChange={(e) => { const m = motoristas.find(m => m.id === e.target.value); setFormData({...formData, motoristaId2: e.target.value, motoristaNome2: m?.nome || ''}); }}>
-                        <option value="">Disponível</option>
-                        {motoristas.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
-                      </select>
+                      <div className="space-y-1.5">
+                        <select disabled={isReadOnly} className={inputClass} value={formData.motoristaId2 || ''} onChange={(e) => { const m = motoristas.find(m => m.id === e.target.value); setFormData({...formData, motoristaId2: e.target.value, motoristaNome2: m?.nome || ''}); }}>
+                          <option value="">Disponível</option>
+                          {motoristas.map(m => <option key={m.id} value={m.id}>{m.nome}</option>)}
+                        </select>
+
+                        {/* [NOVO] Visualização Via Verde Turno B */}
+                        {(() => {
+                          const vv = obterViaVerdeDoMotorista(formData.motoristaId2);
+                          return vv ? (
+                            <div className="p-2 bg-emerald-50 rounded-xl border border-emerald-100 flex items-center gap-2 text-emerald-855 text-[10px] animate-in fade-in duration-200">
+                              <Radio size={12} className="text-emerald-600 animate-pulse shrink-0" />
+                              <span>Via Verde Turno B: <strong className="font-mono">{vv.numeroAparelho}</strong></span>
+                            </div>
+                          ) : formData.motoristaId2 ? (
+                            <div className="p-2 bg-slate-100/50 rounded-xl border border-slate-200/50 flex items-center gap-2 text-slate-400 text-[10px] animate-in fade-in duration-200">
+                              <Radio size={12} className="text-slate-300 shrink-0" />
+                              <span className="italic font-medium">Sem Via Verde associada</span>
+                            </div>
+                          ) : null;
+                        })()}
+                      </div>
                     </div>
                   </div>
                 )}
@@ -10794,8 +10976,16 @@ export default function Blog() {
 
 ### ARQUIVO: src\pages\CartoesGestao.jsx ###
 --------------------------------------------------
+/**
+ * CartoesGestao.jsx
+ * Localização: src/pages/CartoesGestao.jsx
+ *
+ * Ecrã de gestão unificada de cartões de abastecimento (Combustível) e carregamento (Elétrico).
+ * [ATUALIZADO]: Removido o botão e toda a lógica de sementeira em lote de teste para garantir a integridade dos dados de produção.
+ */
+
 import React, { useState, useEffect } from 'react';
-import { Plus, CreditCard, ShieldCheck, Trash2, Eye, Edit, Database } from 'lucide-react';
+import { Plus, ShieldCheck, Trash2, Edit } from 'lucide-react';
 import Button from '../components/ui/Button';
 import Modal from '../components/ui/Modal';
 import JustificacaoModal from '../components/ui/JustificacaoModal';
@@ -10808,22 +10998,6 @@ import {
   collection, getDocs, query, where, 
   doc, deleteDoc, updateDoc, arrayUnion, setDoc, writeBatch 
 } from 'firebase/firestore';
-
-// Lista de cartões de abastecimento (Combustível) identificados na imagem
-const CARTOES_COMBUSTIVEL = [
-  "0C1062", "OC001", "OC0010", "OC0013", "OC0019", "OC0020", "OC003", "OC004", "OC007", "OC1001",
-  "OC1004", "OC1011", "OC1023", "OC1025", "OC1026", "OC1027", "OC1032", "OC1034", "OC1037", "OC1040",
-  "OC1042", "OC1047", "OC1053", "OC1056", "OC1064", "OC1065", "OC1066", "OC107", "OC109", "OC122"
-];
-
-// Lista de cartões de carregamento (Elétrico) identificados na imagem
-const CARTOES_ELETRICOS = [
-  "OCE002", "OCE005", "OCE006", "OCE010", "OCE0100", "OCE011", "OCE013", "OCE014", "OCE015", "OCE017",
-  "OCE018", "OCE023", "OCE025", "OCE026", "OCE028", "OCE029", "OCE032", "OCE036", "OCE039", "OCE042",
-  "OCE043", "OCE045", "OCE046", "OCE047", "OCE049", "OCE052", "OCE056", "OCE059", "OCE061", "OCE065",
-  "OCE068", "OCE072", "OCE074", "OCE075", "OCE076", "OCE077", "OCE079", "OCE081", "OCE083", "OCE084",
-  "OCE088", "OCE089", "OCE090", "OCE091", "OCE095", "OCE096", "OCE097", "OCE098", "OCE099"
-];
 
 /**
  * Função Auxiliar: Formata o nome em Title Case para exibição 
@@ -10852,16 +11026,14 @@ export default function CartoesGestao({ tipo }) {
   const [isTicketModalOpen, setIsTicketModalOpen] = useState(false);
   
   const [cartoes, setCartoes] = useState([]);
-  const [motoristas, setMotoristas] = useState([]); // Mudança de Veículos para Motoristas [1]
+  const [motoristas, setMotoristas] = useState([]); 
   const [funcionarios, setFuncionarios] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editingCartao, setEditingCartao] = useState(null);
   const [tempDados, setTempDados] = useState(null);
   const [lastSavedItem, setLastSavedItem] = useState(null);
-  const [isImporting, setIsImporting] = useState(false);
 
-  // 'tipo' vem da prop da rota: "combustivel" ou "eletrico" (lowercase, sem acento)
-  // É usado directamente — sem normalização — para coincidir com o Firestore
+  // 'tipo' vem da prop da rota: "combustivel" ou "eletrico"
 
   const fetchData = async () => {
     setLoading(true);
@@ -10869,7 +11041,7 @@ export default function CartoesGestao({ tipo }) {
       const q = query(collection(db, "cartoes"), where("tipo", "==", tipo));
       const [snapC, snapM, snapU] = await Promise.all([
         getDocs(q),
-        getDocs(collection(db, "motoristas")), // Carregar motoristas [1]
+        getDocs(collection(db, "motoristas")), 
         getDocs(collection(db, "usuarios"))
       ]);
 
@@ -10885,7 +11057,7 @@ export default function CartoesGestao({ tipo }) {
 
   useEffect(() => { fetchData(); }, [tipo]);
 
-  // Sincroniza bidirecionalmente as relações no motorista quando edita um cartão [1]
+  // Sincroniza as relações no motorista quando edita um cartão
   const syncMotoristaParaCartao = async (cardId, cardNumero, cardTipo, novosDados, antigosDados = null) => {
     const batch = writeBatch(db);
 
@@ -10909,83 +11081,20 @@ export default function CartoesGestao({ tipo }) {
     await batch.commit();
   };
 
-  // Executa a sementeira inteligente em lote de acordo com o tipo atual do ecrã
-  const handleSementeiraLote = async () => {
-    const cardsToSeed = tipo === 'combustivel' ? CARTOES_COMBUSTIVEL : CARTOES_ELETRICOS;
-    const fornecedorPadrao = tipo === 'combustivel' ? 'Galp' : 'Prio';
-    const tipoLabel = tipo === 'combustivel' ? 'Abastecimento (Combustível)' : 'Carregamento (Elétrico)';
-
-    const confirmacao = window.confirm(
-      `Deseja iniciar a sementeira de ${cardsToSeed.length} cartões de ${tipoLabel}?\n\n` +
-      `Nota: Cartões que já se encontrem registados não sofrerão alterações.`
-    );
-
-    if (!confirmacao) return;
-
-    setIsImporting(true);
-    try {
-      const batch = writeBatch(db);
-      
-      // Mapeia identificadores locais existentes na memória para poupar leituras adicionais
-      const existentesIDs = cartoes.map(c => c.id.toLowerCase().trim());
-      let novosAdicionadosCount = 0;
-
-      cardsToSeed.forEach((nomeCartao) => {
-        const nomeLimpo = nomeCartao.trim();
-        
-        if (!existentesIDs.includes(nomeLimpo.toLowerCase())) {
-          // O nome do cartão é usado diretamente como o ID do documento
-          const docRef = doc(db, "cartoes", nomeLimpo);
-          
-          batch.set(docRef, {
-            numero: nomeLimpo,               
-            numeroCartao: nomeLimpo,         
-            fornecedor: fornecedorPadrao,
-            tipo: tipo,
-            plafond: 100,                    
-            pin: "0000",                     
-            PIN: "0000",                     
-            estado: "Disponível",
-            historico: [],
-            dataCriacao: new Date().toISOString(),
-            criadoPor: "Sistema (Sementeira)"
-          });
-          novosAdicionadosCount++;
-        }
-      });
-
-      if (novosAdicionadosCount > 0) {
-        await batch.commit();
-        await logAcaoGlobal(userData?.nome || "Sistema", "Sementeira", "Cartões", `Sementeira em lote de ${novosAdicionadosCount} cartões de ${tipo}`, "lote");
-        alert(`Sementeira concluída! Foram criados ${novosAdicionadosCount} cartões com sucesso.`);
-        fetchData();
-      } else {
-        alert("Sementeira ignorada. Todos os cartões indicados já existem na base de dados.");
-      }
-    } catch (error) {
-      console.error("Erro na sementeira em lote:", error);
-      alert("Ocorreu um erro ao registar os cartões em lote.");
-    } finally {
-      setIsImporting(false);
-    }
-  };
-
   const handleSave = async (dados) => {
     if (editingCartao) {
       setTempDados(dados);
       setIsJustifyModalOpen(true);
     } else {
       try {
-        // Garantir que usamos o número do cartão (nome) inserido como o ID do documento
         const cardId = (dados.numeroCartao || dados.numero || '').trim();
         if (!cardId) {
-          alert("O número do cartão (Nome) é obrigatório.");
+          alert("O número do cartão é obrigatório.");
           return;
         }
 
         const docRef = doc(db, "cartoes", cardId);
         
-        // Salvaguarda manual: Verificar se já existe documento com este ID
         const duplicado = cartoes.some(c => c.id.toLowerCase() === cardId.toLowerCase());
         if (duplicado) {
           alert(`O cartão "${cardId}" já se encontra registado.`);
@@ -11004,7 +11113,6 @@ export default function CartoesGestao({ tipo }) {
 
         await setDoc(docRef, payload);
 
-        // Sincronizar o motorista novo [1]
         await syncMotoristaParaCartao(cardId, cardId, tipo, dados);
 
         await logAcaoGlobal(userData?.nome, "Criação", "Cartões", `${dados.fornecedor} (${cardId})`, cardId);
@@ -11039,7 +11147,6 @@ export default function CartoesGestao({ tipo }) {
         historico: arrayUnion(novoLog)
       });
 
-      // Sincronizar motorista alterado [1]
       await syncMotoristaParaCartao(cardId, cardId, tipo, tempDados, editingCartao);
 
       await logAcaoGlobal(userData?.nome, "Edição", "Cartões", tempDados.fornecedor, editingCartao.id);
@@ -11094,12 +11201,6 @@ export default function CartoesGestao({ tipo }) {
         </div>
         
         <div className="flex gap-3">
-          {/* Botão de Sementeira Contextualizado */}
-          <Button onClick={handleSementeiraLote} disabled={isImporting || loading}>
-            <Database size={20} className="isImporting ? 'animate-spin' : ''" />
-            {isImporting ? 'A Importar...' : 'Sementeira em Lote'}
-          </Button>
-
           <Button onClick={() => { setEditingCartao(null); setIsModalOpen(true); }}>
             <Plus size={20} /> Novo Cartão
           </Button>
@@ -11117,7 +11218,6 @@ export default function CartoesGestao({ tipo }) {
                   <th className="py-4 px-6">Fornecedor</th>
                   <th className="py-4 px-6">PIN</th>
                   <th className="py-4 px-6">Plafond Semanal</th>
-                  {/* Cabeçalho de Motorista */}
                   <th className="py-4 px-6">Motorista Associado</th>
                   <th className="py-4 px-6 text-right">Ações</th>
                 </tr>
@@ -11125,19 +11225,16 @@ export default function CartoesGestao({ tipo }) {
               <tbody className="divide-y divide-slate-100 text-sm text-slate-700 font-medium">
                 {cartoes.map(c => (
                   <tr key={c.id} className="hover:bg-slate-50/50 transition-all group">
-                    {/* Número do Cartão */}
                     <td className="py-4 px-6 font-mono font-bold text-slate-900">
                       {c.numeroCartao || c.numero}
                     </td>
 
-                    {/* Fornecedor */}
                     <td className="py-4 px-6">
                       <span className="text-xs font-black text-tvde-primary uppercase tracking-widest">
                         {c.fornecedor}
                       </span>
                     </td>
 
-                    {/* Código PIN */}
                     <td className="py-4 px-6">
                       <div className="inline-flex items-center gap-1.5 bg-slate-50 border border-slate-100 px-3 py-1 rounded-xl">
                         <ShieldCheck size={14} className="text-slate-400" />
@@ -11147,14 +11244,12 @@ export default function CartoesGestao({ tipo }) {
                       </div>
                     </td>
 
-                    {/* Plafond Semanal */}
                     <td className="py-4 px-6">
                       <span className="font-bold text-tvde-accent">
                         {c.plafond} €
                       </span>
                     </td>
 
-                    {/* Motorista Associado na listagem de Cartões */}
                     <td className="py-4 px-6">
                       <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-semibold border ${
                         c.motoristaNome 
@@ -11166,7 +11261,6 @@ export default function CartoesGestao({ tipo }) {
                       </span>
                     </td>
 
-                    {/* Ações */}
                     <td className="py-4 px-6 text-right">
                       <div className="flex gap-2 justify-end opacity-0 group-hover:opacity-100 transition-all">
                         <button 
@@ -12820,15 +12914,14 @@ export default function EGuiaPage() {
  * Localização: src/pages/FechoSemanal.jsx
  *
  * Processador de fecho financeiro semanal (Upload de CSVs e Geração de SEPA/PDF).
- * Atualizado com suporte responsivo e integração das despesas fixas (Abastecimento e Portagens) [2].
- * [NOVO]: Leitor de ficheiros híbrido (FileReader) para processar de forma transparente ficheiros CSV e XLSX/Excel!
+ * [ATUALIZADO]: Grelha visual do Passo 2 e PDFs de Auditoria sincronizados por Identificador + Motorista com ordenação crescente.
  */
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { 
   UploadCloud, FileSpreadsheet, Calculator, 
   CheckCircle2, Download, ArrowRight, Loader2, Banknote, Fuel, Zap, FileText,
-  PlusCircle, MinusCircle, Lock
+  PlusCircle, MinusCircle, Lock, Radio
 } from 'lucide-react';
 import { db } from '../firebase';
 import { 
@@ -12853,12 +12946,13 @@ export default function FechoSemanal() {
   const [motoristasDB, setMotoristasDB] = useState([]);
   const [veiculosDB, setVeiculosDB] = useState([]);
   const [cartoesDB, setCartoesDB] = useState([]);
+  const [viaVerdeDB, setViaVerdeDB] = useState([]); // Stock de aparelhos e histórico de atribuições
   
   // Dados Processados
   const [dadosProcessados, setDadosProcessados] = useState([]);
   const [viaVerdeProcessed, setViaVerdeProcessed] = useState({}); // Estado para auditoria em lote
   
-  // Ficheiros (pode armazenar strings ou ArrayBuffers de Excel)
+  // Ficheiros (armazenar strings ou ArrayBuffers de Excel)
   const [files, setFiles] = useState({ 
     uber: null, bolt: null, viaverde: null, combustivel: null, eletrico: null 
   });
@@ -12875,14 +12969,16 @@ export default function FechoSemanal() {
     // Só carrega os dados se for admin
     if (userData?.role === 'admin') {
       const loadBaseData = async () => {
-        const [mSnap, vSnap, cSnap] = await Promise.all([
+        const [mSnap, vSnap, cSnap, vvSnap] = await Promise.all([
           getDocs(collection(db, "motoristas")),
           getDocs(collection(db, "veiculos")),
-          getDocs(collection(db, "cartoes"))
+          getDocs(collection(db, "cartoes")),
+          getDocs(collection(db, "viaverde_aparelhos"))
         ]);
         setMotoristasDB(mSnap.docs.map(d => ({ id: d.id, ...d.data() })));
         setVeiculosDB(vSnap.docs.map(d => ({ id: d.id, ...d.data() })));
         setCartoesDB(cSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+        setViaVerdeDB(vvSnap.docs.map(d => ({ id: d.id, ...d.data() })));
       };
       loadBaseData();
     }
@@ -12907,7 +13003,7 @@ export default function FechoSemanal() {
   }
 
   /**
-   * [MODIFICADO]: Leitor híbrido com suporte a leitura de binários (Excel) ou texto simples (CSV)
+   * Leitor híbrido com suporte a leitura de binários (Excel) ou texto simples (CSV)
    */
   const handleFileChange = (e, type) => {
     const file = e.target.files[0];
@@ -12920,10 +13016,8 @@ export default function FechoSemanal() {
       };
 
       if (isExcel) {
-        // Lógica de leitura de folha binária para o SheetJS converter em memória
         reader.readAsArrayBuffer(file);
       } else {
-        // Lógica padrão de leitura de texto simples
         reader.readAsText(file);
       }
     }
@@ -12931,13 +13025,16 @@ export default function FechoSemanal() {
 
   /**
    * Executa o processamento e a exportação direta do PDF de auditoria Via Verde
-   * no Passo 1, sem tocar no Firestore ou avançar o fluxo semanal.
+   * no Passo 1, cruzando em tempo real com a base de dados de aparelhos e frotas.
    */
   const exportarApenasViaVerde = () => {
     if (!files.viaverde) return;
     try {
       const viaVerdeData = parseViaVerdeCSV(files.viaverde);
-      const docPdf = generateViaVerdeValidationPDF(viaVerdeData, empresaConfig);
+      
+      // Passamos as coleções do Firestore para auditoria cronológica em lote antes de gerar o PDF
+      const docPdf = generateViaVerdeValidationPDF(viaVerdeData, empresaConfig, viaVerdeDB, veiculosDB);
+      
       docPdf.save(`Validacao_ViaVerde_Avulsa_${new Date().toISOString().split('T')[0]}.pdf`);
     } catch (error) {
       console.error("Erro ao gerar PDF de auditoria avulsa:", error);
@@ -12962,15 +13059,87 @@ export default function FechoSemanal() {
       const movSnap = await getDocs(qMov);
       const todosMovimentos = movSnap.docs.map(d => ({ id: d.id, ...d.data() }));
 
+      // Mapa para acumulação e distribuição inteligente de Portagens/Parques por Motorista
+      const distribuicaoPortagens = {};
+      motoristasDB.forEach(m => {
+        distribuicaoPortagens[m.id] = {
+          portagensAtivas: 0,
+          portagensRetroativas: 0,
+          retroativasList: [] // Detalhes individuais para justificação de lançamentos manuais
+        };
+      });
+
+      // ALGORITMO DE AUDITORIA CRONOLÓGICA DE VIA VERDE (INTERSECÇÃO DE POSSE)
+      const transacoesDetalhadas = viaVerdeData.transacoesDetalhadas || [];
+      
+      transacoesDetalhadas.forEach(tx => {
+        let motoristaResponsavelId = null;
+        let nomeMotoristaResponsavel = null;
+        let isAtiva = false;
+
+        // 1. Procurar o transponder correspondente no nosso stock
+        const dispositivo = viaVerdeDB.find(vv => 
+          vv.numeroAparelho === tx.identificador || 
+          vv.id === tx.identificador
+        );
+
+        if (dispositivo && dispositivo.historico) {
+          const txTime = new Date(tx.dataHora).getTime();
+
+          // Procurar na timeline de atribuições qual o motorista detinha o aparelho naquele instante
+          const atribuicaoCorrespondente = dispositivo.historico.find(h => {
+            if (h.tipo !== 'atribuicao') return false;
+            const start = new Date(h.dataInicio).getTime();
+            const end = h.dataFim ? new Date(h.dataFim).getTime() : null;
+            return txTime >= start && (end === null || txTime <= end);
+          });
+
+          if (atribuicaoCorrespondente) {
+            motoristaResponsavelId = atribuicaoCorrespondente.motoristaId;
+            nomeMotoristaResponsavel = atribuicaoCorrespondente.nomeMotorista;
+            isAtiva = (atribuicaoCorrespondente.dataFim === null); // Ativa se não houver data de término
+          }
+        }
+
+        // 2. FALLBACK INTELIGENTE: Se o aparelho não foi mapeado manualmente no histórico,
+        // cruza o débito com o motorista habitual associado à matrícula do carro
+        if (!motoristaResponsavelId) {
+          const veiculo = veiculosDB.find(v => v.matricula.replace(/-/g, '').toUpperCase() === tx.matricula);
+          if (veiculo) {
+            motoristaResponsavelId = veiculo.motoristaId;
+            nomeMotoristaResponsavel = veiculo.motoristaNome;
+            isAtiva = true; // Cai no fluxo regular semanal por defeito
+          }
+        }
+
+        // 3. Acumular os valores conforme a tipologia de responsabilidade
+        if (motoristaResponsavelId && distribuicaoPortagens[motoristaResponsavelId]) {
+          if (tx.tipo === 'portagem' || tx.tipo === 'parque') {
+            if (isAtiva) {
+              distribuicaoPortagens[motoristaResponsavelId].portagensAtivas += tx.valor;
+            } else {
+              distribuicaoPortagens[motoristaResponsavelId].portagensRetroativas += tx.valor;
+              distribuicaoPortagens[motoristaResponsavelId].retroativasList.push({
+                valor: tx.valor,
+                local: tx.local,
+                dataHora: tx.dataHora,
+                identificador: tx.identificador,
+                tipo: tx.tipo
+              });
+            }
+          }
+        }
+      });
+
       const consolidado = motoristasDB.map(m => {
         const u = uberData[m.nome] || { bruto: 0, liquido: 0, gorjetas: 0, portagens: 0 };
         const b = boltData[m.nome] || { bruto: 0, liquido: 0 };
         const veiculo = veiculosDB.find(v => v.motoristaId === m.id);
         
-        // Processamento adaptado para ler do novo parser estruturado (Portagens = totalCirculacao) [2]
-        const matriculaLimpa = veiculo ? veiculo.matricula.replace(/-/g, '').toUpperCase() : '';
-        const vvEstruturado = viaVerdeData[matriculaLimpa] || null;
-        const vvCustoFisico = vvEstruturado ? (vvEstruturado.totalCirculacao || 0) : 0;
+        // Extraímos as contas calculadas pelo nosso motor de intersecção temporal
+        const mPortagens = distribuicaoPortagens[m.id] || { portagensAtivas: 0, portagensRetroativas: 0, retroativasList: [] };
+        const portagemAtivaFinal = mPortagens.portagensAtivas;
+        const portagemRetroativaFinal = mPortagens.portagensRetroativas;
 
         // Processamento de Combustível / Energia via Cartões (CSV) [2]
         let totalCombustivelCSV = 0;
@@ -12989,7 +13158,7 @@ export default function FechoSemanal() {
         const movAbastecimentoDB = movsEntidade.find(mov => mov.categoria === 'abastecimento');
 
         // LÓGICA DE PRECEDÊNCIA: Lançamentos dedicados na DB sobrepõem os CSVs [2]
-        const portagemFinal = movPortagemDB ? movPortagemDB.valor : vvCustoFisico;
+        const portagemFinal = movPortagemDB ? movPortagemDB.valor : portagemAtivaFinal;
         const abastecimentoFinal = movAbastecimentoDB ? movAbastecimentoDB.valor : (totalCombustivelCSV + totalEletricoCSV);
 
         const totalCreditosManuais = movsEntidade
@@ -13005,7 +13174,9 @@ export default function FechoSemanal() {
         const custosFixos = 125.00; // Taxa operacional semanal padrão
 
         const ganhosTotais = liqPlataformas + u.portagens + totalCreditosManuais;
-        const despesasTotais = portagemFinal + abastecimentoFinal + custosFixos + totalDebitosManuais;
+        
+        // O valor retroativo é deduzido como uma despesa na semana corrente
+        const despesasTotais = portagemFinal + portagemRetroativaFinal + abastecimentoFinal + custosFixos + totalDebitosManuais;
 
         return {
           motoristaId: m.id,
@@ -13014,18 +13185,19 @@ export default function FechoSemanal() {
           uber: u,
           bolt: b,
           movimentosIds: movsEntidade.map(mov => mov.id),
+          portagensRetroativasList: mPortagens.retroativasList, // Guardamos para criar os movimentos físicos na finalização
           contaCorrente: { creditos: totalCreditosManuais, debitos: totalDebitosManuais },
-          // Consolida as despesas calculadas com base nas regras de precedência [2]
           despesas: { 
             viaVerde: portagemFinal, 
+            viaVerdeRetroativas: portagemRetroativaFinal, // Exposição clara para UI e PDF de extrato
             combustivel: abastecimentoFinal, 
-            eletrico: 0, // Consolidado sob abastecimento para compatibilidade visual do PDF
+            eletrico: 0, 
             custosFixos: custosFixos 
           },
           ajustes: 0,
           saldoFinal: ganhosTotais - despesasTotais
         };
-      }).filter(d => d.uber.bruto > 0 || d.bolt.bruto > 0 || d.contaCorrente.creditos > 0 || d.contaCorrente.debitos > 0);
+      }).filter(d => d.uber.bruto > 0 || d.bolt.bruto > 0 || d.contaCorrente.creditos > 0 || d.contaCorrente.debitos > 0 || d.despesas.viaVerdeRetroativas > 0);
 
       setDadosProcessados(consolidado);
       setStep(2);
@@ -13043,21 +13215,49 @@ export default function FechoSemanal() {
     try {
       for (const item of dadosProcessados) {
         const fechoRef = doc(collection(db, "fechos_semanais"));
+        
+        // Persiste o documento consolidado da semana do motorista
         batch.set(fechoRef, {
           ...item,
           dataFecho: new Date().toISOString(),
           processadoPor: userData.nome,
           pago: false
         });
+
+        // Atualiza movimentos manuais/IA pendentes pré-existentes como fechados
         item.movimentosIds.forEach(movId => {
           const movRef = doc(db, "movimentos_financeiros", movId);
           batch.update(movRef, { pagoNoFechoId: fechoRef.id });
         });
+
+        // CRIAÇÃO AUTOMÁTICA DE LANÇAMENTOS DE VIA VERDE RETROATIVA NO HISTÓRICO DO MOTORISTA
+        if (item.portagensRetroativasList && item.portagensRetroativasList.length > 0) {
+          item.portagensRetroativasList.forEach(pRetro => {
+            const novoMovRef = doc(collection(db, "movimentos_financeiros"));
+            const dataPassagem = new Date(pRetro.dataHora).toLocaleDateString('pt-PT');
+            
+            const descCompleta = `[VIA VERDE RETROATIVA] Débito de ${pRetro.tipo.toUpperCase()} em ${dataPassagem} - ${pRetro.local} (Aparelho: ${pRetro.identificador})`;
+
+            batch.set(novoMovRef, {
+              entidadeId: item.motoristaId,
+              tipoEntidade: "motorista",
+              tipoMovimento: "debito",
+              valor: pRetro.valor,
+              descricao: descCompleta,
+              dataLancamento: new Date().toISOString().split('T')[0],
+              pagoNoFechoId: fechoRef.id, 
+              criadoPor: "Auditoria Temporal Via Verde",
+              dataCriacao: new Date().toISOString()
+            });
+          });
+        }
       }
+      
       await batch.commit();
       await logAcaoGlobal(userData.nome, "Finalização de Fecho", "Financeiro", `Semana ${new Date().toLocaleDateString()}`, "BATCH");
       setStep(3);
     } catch (error) {
+      console.error("Erro ao finalizar lote:", error);
       alert("Erro ao finalizar semana.");
     } finally {
       setLoading(false);
@@ -13081,13 +13281,98 @@ export default function FechoSemanal() {
     a.click();
   };
 
-  // Handler de descarregamento do PDF consolidado da auditoria da Via Verde
   const handleDownloadViaVerdePDF = () => {
-    const docPdf = generateViaVerdeValidationPDF(viaVerdeProcessed, empresaConfig);
+    // Passamos o histórico Firestore para a geração finalizada de auditoria
+    const docPdf = generateViaVerdeValidationPDF(viaVerdeProcessed, empresaConfig, viaVerdeDB, veiculosDB);
     docPdf.save(`Validacao_ViaVerde_${new Date().toISOString().split('T')[0]}.pdf`);
   };
 
   const chavesViaVerde = Object.keys(viaVerdeProcessed);
+
+  // [NOVO] MEMOIZAÇÃO DE AGRUPAMENTO POR IDENTIFICADOR + MOTORISTA PARA A TABELA DO ECRÃ (PASSO 2)
+  const viaVerdeAgrupadaPorMotorista = useMemo(() => {
+    const transacoes = viaVerdeProcessed.transacoesDetalhadas || [];
+    const agrupado = {};
+
+    transacoes.forEach(t => {
+      let motoristaId = null;
+      let motoristaNome = "Não Atribuído";
+
+      // 1. Procurar transponder no stock de base de dados do ERP
+      const dispositivo = viaVerdeDB.find(vv => 
+        vv.numeroAparelho === t.identificador || 
+        vv.id === t.identificador
+      );
+
+      if (dispositivo && dispositivo.historico) {
+        const txTime = new Date(t.dataHora).getTime();
+        
+        const atribuicao = dispositivo.historico.find(h => {
+          if (h.tipo !== 'atribuicao') return false;
+          const start = new Date(h.dataInicio).getTime();
+          const end = h.dataFim ? new Date(h.dataFim).getTime() : null;
+          return txTime >= start && (end === null || txTime <= end);
+        });
+
+        if (atribuicao) {
+          motoristaId = atribuicao.motoristaId;
+          motoristaNome = atribuicao.nomeMotorista;
+        }
+      }
+
+      // 2. Fallback por matrícula
+      if (!motoristaId) {
+        const veiculo = veiculosDB.find(v => v.matricula.replace(/-/g, '').toUpperCase() === t.matricula);
+        if (veiculo) {
+          motoristaId = veiculo.motoristaId;
+          motoristaNome = veiculo.motoristaNome || "Sem Condutor";
+        }
+      }
+
+      const chaveUnica = `${t.identificador}___${motoristaNome}`;
+
+      if (!agrupado[chaveUnica]) {
+        agrupado[chaveUnica] = {
+          identificador: t.identificador,
+          motoristaNome: motoristaNome,
+          matriculaOriginal: t.matriculaOriginal,
+          portagens: 0,
+          parques: 0,
+          mensalidade: 0,
+          totalGeral: 0
+        };
+      }
+
+      if (t.tipo === 'mensalidade') {
+        agrupado[chaveUnica].mensalidade += t.valor;
+      } else if (t.tipo === 'parque') {
+        agrupado[chaveUnica].parques += t.valor;
+      } else {
+        agrupado[chaveUnica].portagens += t.valor;
+      }
+    });
+
+    // Calcula arredondamentos e totais por bloco Identificador/Motorista
+    Object.keys(agrupado).forEach(k => {
+      const item = agrupado[k];
+      item.portagens = Number(item.portagens.toFixed(2));
+      item.parques = Number(item.parques.toFixed(2));
+      item.mensalidade = Number(item.mensalidade.toFixed(2));
+      item.totalCirculacao = Number((item.portagens + item.parques).toFixed(2));
+      item.totalGeral = Number((item.totalCirculacao + item.mensalidade).toFixed(2));
+    });
+
+    const chaves = Object.keys(agrupado);
+
+    // Ordenação estritamente crescente do Identificador
+    chaves.sort((a, b) => {
+      const idA = agrupado[a].identificador;
+      const idB = agrupado[b].identificador;
+      return idA.localeCompare(idB, undefined, { numeric: true, sensitivity: 'base' });
+    });
+
+    return { chaves, dados: agrupado };
+  }, [viaVerdeProcessed, viaVerdeDB, veiculosDB]);
 
   return (
     <div className="space-y-6 sm:space-y-8 pb-20 text-left">
@@ -13104,7 +13389,6 @@ export default function FechoSemanal() {
             <UploadBox title="UBER" icon={UploadCloud} color="blue" onChange={(e) => handleFileChange(e, 'uber')} ready={!!files.uber} />
             <UploadBox title="BOLT" icon={UploadCloud} color="green" onChange={(e) => handleFileChange(e, 'bolt')} ready={!!files.bolt} />
             
-            {/* Upload da Via Verde agora renderiza o botão "Validar PDF" avulso em tempo real */}
             <UploadBox title="VIA VERDE" icon={FileSpreadsheet} color="purple" onChange={(e) => handleFileChange(e, 'viaverde')} ready={!!files.viaverde}>
               {files.viaverde && (
                 <Button 
@@ -13162,8 +13446,15 @@ export default function FechoSemanal() {
                         <MinusCircle size={12} /> {formatCurrency(d.contaCorrente.debitos)}
                       </span>
                     </td>
-                    <td className="p-5 text-center text-slate-500 font-medium">
-                      -{formatCurrency(d.despesas.combustivel + d.despesas.viaVerde + d.despesas.custosFixos)}
+                    <td className="p-5 text-center text-slate-500 font-medium space-y-1">
+                      <div>-{formatCurrency(d.despesas.combustivel + d.despesas.viaVerde + d.despesas.custosFixos)}</div>
+                      
+                      {d.despesas.viaVerdeRetroativas > 0 && (
+                        <div className="inline-flex items-center gap-1 bg-amber-50 text-amber-700 px-2 py-0.5 rounded-full text-[9px] font-black border border-amber-100">
+                          <Radio size={8} className="animate-pulse" />
+                          {formatCurrency(d.despesas.viaVerdeRetroativas)} Retroativo
+                        </div>
+                      )}
                     </td>
                     <td className="p-5 text-right">
                       <span className={`px-4 py-2 rounded-xl font-black text-sm ${d.saldoFinal >= 0 ? 'bg-slate-800 text-white' : 'bg-red-100 text-red-600'}`}>
@@ -13176,15 +13467,15 @@ export default function FechoSemanal() {
             </table>
           </div>
 
-          {/* PAINEL DE AUDITORIA DE VIA VERDE */}
-          {chavesViaVerde.length > 0 && (
+          {/* PAINEL DE AUDITORIA DE VIA VERDE (ATUALIZADO PARA EXIBIR IDENTIFICADOR + MOTORISTA NO ECRÃ COM ROWSPAN) */}
+          {viaVerdeAgrupadaPorMotorista.chaves.length > 0 && (
             <div className="bg-white p-6 sm:p-8 rounded-[2rem] sm:rounded-[2.5rem] border border-slate-200 shadow-sm text-left space-y-6">
               <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 border-b border-slate-100 pb-4">
                 <div>
                   <h3 className="text-base font-black text-slate-800 flex items-center gap-2">
                     <FileSpreadsheet className="text-purple-600" size={18} /> Auditoria Detalhada Via Verde
                   </h3>
-                  <p className="text-xs text-slate-400">Verificação estruturada de passagens, portagens e mensalidades por matrícula.</p>
+                  <p className="text-xs text-slate-400">Verificação de despesas segmentada de forma crescente por Transponder e Motoristas.</p>
                 </div>
                 <Button 
                   onClick={handleDownloadViaVerdePDF}
@@ -13195,9 +13486,11 @@ export default function FechoSemanal() {
               </div>
 
               <div className="overflow-x-auto w-full custom-scrollbar">
-                <table className="w-full text-left border-collapse text-xs min-w-[650px]">
+                <table className="w-full text-left border-collapse text-xs min-w-[750px]">
                   <thead className="bg-slate-50 border-b border-slate-100 text-[10px] font-black text-slate-400 uppercase tracking-widest">
                     <tr>
+                      <th className="p-5">Identificador</th>
+                      <th className="p-5">Motorista</th>
                       <th className="p-5">Matrícula</th>
                       <th className="p-5">Lançamento / Tipo</th>
                       <th className="p-5 text-right">Valor Unitário</th>
@@ -13206,15 +13499,21 @@ export default function FechoSemanal() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100">
-                    {chavesViaVerde.map((mat) => {
-                      const dados = viaVerdeProcessed[mat];
+                    {viaVerdeAgrupadaPorMotorista.chaves.map((chave) => {
+                      const dados = viaVerdeAgrupadaPorMotorista.dados[chave];
                       return (
-                        <React.Fragment key={mat}>
+                        <React.Fragment key={chave}>
                           {/* Sub-Linha 1: Portagem */}
                           <tr className="hover:bg-slate-50/50 font-medium">
                             <td className="p-4 font-black text-slate-800" rowSpan={3}>
+                              <span className="font-mono text-xs">{dados.identificador}</span>
+                            </td>
+                            <td className="p-4 font-bold text-blue-600" rowSpan={3}>
+                              {dados.motoristaNome}
+                            </td>
+                            <td className="p-4 font-bold text-slate-600" rowSpan={3}>
                               <span className="bg-slate-800 text-white text-[10px] font-mono font-black px-2 py-1 rounded shadow-sm">
-                                {dados.matriculaFormatada || mat}
+                                {dados.matriculaOriginal}
                               </span>
                             </td>
                             <td className="p-4 pl-6 text-slate-500">Portagens / Concessionárias</td>
@@ -13295,7 +13594,7 @@ export default function FechoSemanal() {
   );
 }
 
-// UploadBox reestruturado com suporte de elementos filhos e mapa de cores correto
+// UploadBox
 const UploadBox = ({ title, icon: Icon, color, onChange, ready, children }) => {
   const colorMap = {
     blue:   'bg-blue-50 text-blue-500 hover:border-blue-400',
@@ -15308,27 +15607,31 @@ export default function MinhasTarefas() {
  * Atualizado com:
  * - Filtros integrados, mini-dashboard analítico (KPIs) compacto.
  * - Sincronização bidirecional em tempo real do Firestore.
- * - [NOVO] Injeção de Título e Botão "Novo Motorista" via React Portal diretamente no Header.
+ * - Injeção de Título e Botão "Novo Motorista" via React Portal diretamente no Header.
+ * - Passagem de propriedade 'veiculos' para a listagem para permitir integridade de dados e limpeza de cache.
+ * - [NOVO]: Implementada limpeza atómica em lote (writeBatch) na eliminação do motorista
+ *           para desassociar automaticamente Cartões e Veículos vinculados a ele.
  */
 
 import React, { useState, useEffect, useCallback } from 'react';
-import { createPortal } from 'react-dom'; // Importado para suporte a Portais dinâmicos no Header
-import { useLocation } from 'react-router-dom';
-import { Plus, Search, Loader2, Users, UserCheck, AlertCircle } from 'lucide-react';
+import { createPortal } from 'react-dom';
+import { 
+  Plus, Users, UserCheck, AlertCircle, Loader2, Lock
+} from 'lucide-react';
+import { db } from '../firebase';
+import { 
+  collection, getDocs, addDoc, query, 
+  doc, deleteDoc, updateDoc, arrayUnion, onSnapshot, writeBatch 
+} from 'firebase/firestore';
+import { useAuth } from '../context/AuthContext';
+import { generateNextCode } from '../utils/idGenerator';
+import { logAcaoGlobal } from '../utils/logger';
 import Button from '../components/ui/Button';
 import Modal from '../components/ui/Modal';
 import JustificacaoModal from '../components/ui/JustificacaoModal';
 import TicketModal from '../components/ui/TicketModal';
 import MotoristasList from '../features/motoristas/MotoristasList';
 import MotoristaForm from '../features/motoristas/MotoristaForm';
-import { db } from '../firebase';
-import { useAuth } from '../context/AuthContext';
-import { generateNextCode } from '../utils/idGenerator';
-import { logAcaoGlobal } from '../utils/logger';
-import { 
-  collection, addDoc, getDocs, query, 
-  doc, deleteDoc, updateDoc, arrayUnion, onSnapshot, writeBatch 
-} from 'firebase/firestore';
 
 /**
  * Função Auxiliar: Formata o nome em Title Case para exibição 
@@ -15363,9 +15666,6 @@ const isProfileIncomplete = (m) => {
 
 export default function Motoristas() {
   const { userData } = useAuth();
-  const location = useLocation();
-  
-  // Estado didático de montagem para garantir integridade do Portal React
   const [mounted, setMounted] = useState(false);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -15382,13 +15682,11 @@ export default function Motoristas() {
   const [tempDados, setTempDados] = useState(null);
   const [lastSavedItem, setLastSavedItem] = useState(null);
 
-  // Ativa a montagem segura do portal no mount inicial do componente
   useEffect(() => {
     setMounted(true);
     return () => setMounted(false);
   }, []);
 
-  // useCallback para evitar que handleEditClick seja recriada
   const handleEditClick = useCallback((motorista, viewOnly = false) => {
     setEditingId(motorista.id);
     setIsViewOnly(viewOnly);
@@ -15413,8 +15711,7 @@ export default function Motoristas() {
       setMotoristas(lista);
       setLoading(false);
 
-      // Deep linking via URL ?id=
-      const params = new URLSearchParams(location.search);
+      const params = new URLSearchParams(window.location.search);
       const targetId = params.get('id');
       if (targetId && !editingId) {
         const motoristaTarget = lista.find(m => m.id === targetId);
@@ -15422,12 +15719,10 @@ export default function Motoristas() {
       }
     });
 
-    // Subscrever lista de veículos para atribuição
     const unsubscribeVeiculos = onSnapshot(query(collection(db, "veiculos")), (snapshot) => {
       setVeiculos(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
-    // Subscrever lista de cartões para atribuição
     const unsubscribeCartoes = onSnapshot(query(collection(db, "cartoes")), (snapshot) => {
       setCartoes(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
     });
@@ -15441,13 +15736,8 @@ export default function Motoristas() {
       unsubscribeVeiculos();
       unsubscribeCartoes();
     };
-  }, [location.search, editingId, handleEditClick]);
+  }, [editingId, handleEditClick]);
 
-  /**
-   * ATUALIZAÇÃO BIDIRECIONAL (BATCH)
-   * Garante que quando um motorista recebe um veículo ou cartão, 
-   * a base de dados vai ao respetivo veículo/cartão e escreve que agora pertence a este motorista.
-   */
   const syncRelacoesMotorista = async (motoristaId, motoristaNome, novosDados, antigosDados = null) => {
     const batch = writeBatch(db);
     const nomeMudou = antigosDados && antigosDados.nome !== motoristaNome;
@@ -15494,14 +15784,12 @@ export default function Motoristas() {
 
     if (antigoVeiculoId !== novoVeiculoId) {
       if (antigoVeiculoId) {
-        // Remove a atribuição do veículo antigo
         const antigoRef = doc(db, "veiculos", antigoVeiculoId);
         batch.update(antigoRef, { motoristaId: "", motoristaNome: "" });
       }
       if (novoVeiculoId) {
-        // Atribui o veículo novo ao motorista
         const novoRef = doc(db, "veiculos", novoVeiculoId);
-        batch.update(novoRef, { motoristaId: "", motoristaNome: "" }); // Limpa o anterior do veículo se houver
+        batch.update(novoRef, { motoristaId: "", motoristaNome: "" }); 
         batch.update(novoRef, { motoristaId, motoristaNome });
       }
     } else if (novoVeiculoId && nomeMudou) {
@@ -15512,7 +15800,6 @@ export default function Motoristas() {
     await batch.commit();
   };
 
-  // Recalcula reativamente a cada update do onSnapshot
   const motoristaEmEdicao = motoristas.find(m => m.id === editingId) || null;
 
   const handleCriarProprietario = async (dadosMinimos) => {
@@ -15555,7 +15842,6 @@ export default function Motoristas() {
           historico: []
         });
 
-        // Sincronizar bidirecionalmente Veículos e Cartões
         await syncRelacoesMotorista(docRef.id, dados.nome, dados);
 
         await logAcaoGlobal(userData?.nome, "Criação", "Motoristas", dados.nome, docRef.id);
@@ -15593,7 +15879,6 @@ export default function Motoristas() {
         })
       });
 
-      // Sincronizar bidirecionalmente Veículos e Cartões
       await syncRelacoesMotorista(editingId, tempDados.nome, tempDados, motoristaEmEdicao);
 
       await logAcaoGlobal(userData?.nome, "Edição", "Motoristas", dadosLimpos.nome, editingId);
@@ -15636,14 +15921,53 @@ export default function Motoristas() {
     }
   };
 
+  /**
+   * [ATUALIZADO] ELIMINAÇÃO DE MOTORISTA COM LIMPEZA ATÓMICA DE RELAÇÕES (BATCH)
+   * Desassocia automaticamente veículos e cartões de consumo ativos vinculados ao motorista.
+   */
   const handleDelete = async (id) => {
-    if (window.confirm("Tem certeza que deseja eliminar este motorista?")) {
+    const motoristaAlvo = motoristas.find(m => m.id === id);
+    const nomeMotorista = motoristaAlvo?.nome || "Motorista";
+
+    if (window.confirm(`Tem a certeza que deseja eliminar o motorista ${nomeMotorista}? Esta ação é irreversível e desassociará todos os cartões e viaturas.`)) {
       try {
-        await deleteDoc(doc(db, "motoristas", id));
-        await logAcaoGlobal(userData?.nome, "Eliminação", "Motoristas", "ID: " + id, id);
+        setLoading(true);
+        const batch = writeBatch(db);
+
+        // 1. Apaga fisicamente o registo do motorista
+        const motoristaRef = doc(db, "motoristas", id);
+        batch.delete(motoristaRef);
+
+        // 2. Localiza e limpa referências em Cartões de Consumo (Abastecimento e Carregamento)
+        const cartoesVinculados = cartoes.filter(c => c.motoristaId === id);
+        cartoesVinculados.forEach(c => {
+          const cardRef = doc(db, "cartoes", c.id);
+          batch.update(cardRef, { motoristaId: "", motoristaNome: "" });
+        });
+
+        // 3. Localiza e limpa referências em Viaturas Ativas (Turno A ou Turno B)
+        const veiculosVinculados = veiculos.filter(v => v.motoristaId === id || v.motoristaId2 === id);
+        veiculosVinculados.forEach(v => {
+          const veicRef = doc(db, "veiculos", v.id);
+          if (v.motoristaId === id) {
+            batch.update(veicRef, { motoristaId: "", motoristaNome: "" });
+          }
+          if (v.motoristaId2 === id) {
+            batch.update(veicRef, { motoristaId2: "", motoristaNome2: "" });
+          }
+        });
+
+        // Executa todas as atualizações em lote isolado no Firestore
+        await batch.commit();
+
+        await logAcaoGlobal(userData?.nome || 'Sistema', "Eliminação", "Motoristas", `Registo e relações de ${nomeMotorista} removidos.`, id);
+        
+        alert(`Registo de ${nomeMotorista} e respetivas vinculações removidos com sucesso.`);
       } catch (error) {
-        console.error("Erro ao eliminar:", error);
-        alert("Não foi possível eliminar o registo.");
+        console.error("Erro ao eliminar motorista e limpar relações de cartões/veículos:", error);
+        alert("Não foi possível eliminar o registo. Por favor, tente novamente.");
+      } finally {
+        setLoading(false);
       }
     }
   };
@@ -15655,7 +15979,6 @@ export default function Motoristas() {
     setTempDados(null);
   };
 
-  // Cálculos dinâmicos e atómicos para os mini-cards analíticos
   const totalCount = motoristas.length;
   const pendingDocsCount = motoristas.filter(isProfileIncomplete).length;
   const activeCount = motoristas.filter(m => m.status === 'Ativo' && !isProfileIncomplete(m)).length;
@@ -15663,15 +15986,9 @@ export default function Motoristas() {
 
   return (
     <div className="space-y-4">
-      
-      {/* 
-        [ATUALIZADO] PORTAL DINÂMICO DE CABEÇALHO:
-        Injeta o título e o botão de ação principal diretamente no cabeçalho global do topo (Header.jsx)
-        quando a página de motoristas é montada, poupando imenso espaço vertical!
-      */}
       {mounted && document.getElementById('header-dynamic-slot') && createPortal(
         <div className="flex items-center gap-3 animate-in fade-in duration-200">
-          <div className="h-4 w-[1.5px] bg-slate-200 hidden lg:block select-none" /> {/* Separador discreto de barra */}
+          <div className="h-4 w-[1.5px] bg-slate-200 hidden lg:block select-none" />
           <h2 className="text-xs font-black text-slate-800 uppercase tracking-wider hidden sm:block select-none">Motoristas</h2>
           <Button 
             onClick={() => { setEditingId(null); setIsModalOpen(true); }}
@@ -15683,12 +16000,11 @@ export default function Motoristas() {
         document.getElementById('header-dynamic-slot')
       )}
 
-      {/* Subtítulo Discreto e compacto que fica no topo da página de conteúdo */}
       <p className="text-slate-500 text-xs font-medium select-none -mt-1 pb-1">
         Gestão de condutores e fluxo de trabalho.
       </p>
 
-      {/* DASHBOARD DE KPIs ANALÍTICO E SUPER COMPACTO */}
+      {/* DASHBOARD DE KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 select-none">
         <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex items-center gap-3">
           <div className="p-2 bg-slate-50 text-slate-400 rounded-lg shrink-0">
@@ -15702,7 +16018,7 @@ export default function Motoristas() {
 
         <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex items-center gap-3">
           <div className="p-2 bg-emerald-50 text-emerald-500 rounded-lg shrink-0">
-            <UserCheck size={16} />
+            <Users size={16} />
           </div>
           <div>
             <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Ativos</p>
@@ -15712,7 +16028,7 @@ export default function Motoristas() {
 
         <div className="bg-white p-3 rounded-xl border border-slate-100 shadow-sm flex items-center gap-3">
           <div className="p-2 bg-slate-50 text-slate-400 rounded-lg shrink-0">
-            <UserCheck size={16} className="opacity-40" />
+            <Users size={16} className="opacity-40" />
           </div>
           <div>
             <p className="text-[9px] font-black uppercase tracking-wider text-slate-400">Inativos</p>
@@ -15740,6 +16056,7 @@ export default function Motoristas() {
         <div className="w-full overflow-x-auto rounded-2xl border border-slate-100 shadow-sm bg-white">
           <MotoristasList 
             motoristas={motoristas} 
+            veiculos={veiculos} 
             onEdit={handleEditClick} 
             onDelete={handleDelete} 
           />
@@ -17812,6 +18129,1184 @@ export default function Veiculos() {
         funcionarios={funcionarios}
         contexto={lastSavedItem?.nome}
       />
+    </div>
+  );
+}
+--------------------------------------------------
+
+
+### ARQUIVO: src\pages\ViaVerdeGestao.jsx ###
+--------------------------------------------------
+/**
+ * ViaVerdeGestao.jsx
+ * Localização: src/pages/ViaVerdeGestao.jsx
+ *
+ * Módulo administrativo de gestão de identificadores físicos Via Verde.
+ * Garante a atribuição temporal de aparelhos diretamente aos motoristas (e não aos veículos),
+ * servindo como a "verdade absoluta" para a imputação de portagens atrasadas.
+ *
+ * Otimizado com:
+ * - [UX RESOLVIDO]: Compactação total do cabeçalho dinâmico para eliminar overlaps e quebras de linha.
+ * - Título principal e descrição detalhada movidos para o topo da área de conteúdo (Padrão Fecho Semanal).
+ * - Cruzamento reativo em tempo real com a coleção 'veiculos' para exibir a viatura real associada ao motorista (Turno A ou Turno B).
+ * - [CORREÇÃO]: Removido caractere intruso '@' que gerava erro de sintaxe e quebrava o VS Code.
+ */
+
+import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
+import { 
+  Radio, Plus, Search, Calendar, Clock, User, 
+  Check, X, ShieldAlert, ArrowLeftRight, Trash2, 
+  FileText, Settings, AlertCircle, RefreshCw, Car
+} from 'lucide-react';
+import { db } from '../firebase';
+import { 
+  collection, query, onSnapshot, doc, 
+  runTransaction, updateDoc, addDoc 
+} from 'firebase/firestore';
+import { useAuth } from '../context/AuthContext';
+import Button from '../components/ui/Button';
+
+export default function ViaVerdeGestao() {
+  const { userData } = useAuth();
+
+  // Estados principais de sincronização
+  const [aparelhos, setAparelhos] = useState([]);
+  const [motoristas, setMotoristas] = useState([]);
+  const [veiculos, setVeiculos] = useState([]); // Coleção de viaturas em tempo real
+  const [loading, setLoading] = useState(true);
+  const [headerSlot, setHeaderSlot] = useState(null);
+
+  // Filtros de pesquisa
+  const [filtroPesquisa, setFiltroPesquisa] = useState('');
+
+  // Estados dos Modais
+  const [showFormModal, setShowFormModal] = useState(false);
+  const [showAtribuicaoModal, setShowAtribuicaoModal] = useState(false);
+  const [showDevolucaoModal, setShowDevolucaoModal] = useState(false);
+  const [showHistoricoModal, setShowHistoricoModal] = useState(false);
+
+  // Estados de formulários e ações
+  const [selectedAparelho, setSelectedAparelho] = useState(null);
+  const [novoAparelhoNumero, setNovoAparelhoNumero] = useState('');
+  const [selectedMotoristaId, setSelectedMotoristaId] = useState('');
+  
+  // Estados divididos para Atribuição
+  const [dataAtribuicao, setDataAtribuicao] = useState('');
+  const [horaAtribuicao, setHoraAtribuicao] = useState('');
+
+  // Estados divididos para Devolução
+  const [dataDevolucao, setDataDevolucao] = useState('');
+  const [horaDevolucao, setHoraDevolucao] = useState('');
+
+  const [justificacao, setJustificacao] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+
+  // Localiza o slot dinâmico no cabeçalho do ERP
+  useEffect(() => {
+    const slot = document.getElementById('header-dynamic-slot');
+    if (slot) {
+      setHeaderSlot(slot);
+    }
+  }, []);
+
+  // Monitorização de tecla Escape (ESC) para fechar todos os modais proativamente
+  useEffect(() => {
+    const handleKeyDown = (e) => {
+      if (e.key === 'Escape') {
+        fecharTodosModais();
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, []);
+
+  // Escuta os identificadores da Via Verde em tempo real
+  useEffect(() => {
+    const q = query(collection(db, "viaverde_aparelhos"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      list.sort((a, b) => b.id.localeCompare(a.id));
+      setAparelhos(list);
+      setLoading(false);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Escuta os motoristas ativos em tempo real para possibilitar atribuições
+  useEffect(() => {
+    const q = query(collection(db, "motoristas"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const list = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+      setMotoristas(list);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Escuta os veículos ativos em tempo real para cruzamento de matrícula
+  useEffect(() => {
+    const q = query(collection(db, "veiculos"));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setVeiculos(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // Utilitário para formatar a data/hora para o padrão PT-PT exigido por auditoria
+  const formatarDataPT = (dataString) => {
+    if (!dataString) return '-';
+    const data = new Date(dataString);
+    if (isNaN(data.getTime())) return dataString;
+    const dia = String(data.getDate()).padStart(2, '0');
+    const mes = String(data.getMonth() + 1).padStart(2, '0');
+    const ano = data.getFullYear();
+    const horas = String(data.getHours()).padStart(2, '0');
+    const minutos = String(data.getMinutes()).padStart(2, '0');
+    return `${dia}/${mes}/${ano} às ${horas}:${minutos}`;
+  };
+
+  // Helper para obter a data local atual em Portugal (formato YYYY-MM-DD)
+  const obterDataLocal = () => {
+    const agora = new Date();
+    const tzOffset = agora.getTimezoneOffset() * 60000;
+    return (new Date(agora - tzOffset)).toISOString().split('T')[0];
+  };
+
+  // Helper para obter a hora local atual em Portugal (formato HH:MM)
+  const obterHoraLocal = () => {
+    const agora = new Date();
+    const horas = String(agora.getHours()).padStart(2, '0');
+    const minutos = String(agora.getMinutes()).padStart(2, '0');
+    return `${horas}:${minutos}`;
+  };
+
+  // Presets para o formulário de Atribuição
+  const aplicarPresetAtribuicao = (preset) => {
+    const hoje = obterDataLocal();
+    if (preset === 'agora') {
+      setDataAtribuicao(hoje);
+      setHoraAtribuicao(obterHoraLocal());
+    } else if (preset === 'turnoA') {
+      setDataAtribuicao(hoje);
+      setHoraAtribuicao('06:00');
+    } else if (preset === 'turnoB') {
+      setDataAtribuicao(hoje);
+      setHoraAtribuicao('18:00');
+    }
+  };
+
+  // Presets para o formulário de Devolução
+  const aplicarPresetDevolucao = (preset) => {
+    const hoje = obterDataLocal();
+    if (preset === 'agora') {
+      setDataDevolucao(hoje);
+      setHoraDevolucao(obterHoraLocal());
+    } else if (preset === 'turnoA') {
+      setDataDevolucao(hoje);
+      setHoraDevolucao('06:00');
+    } else if (preset === 'turnoB') {
+      setDataDevolucao(hoje);
+      setHoraDevolucao('18:00');
+    }
+  };
+
+  const fecharTodosModais = () => {
+    setShowFormModal(false);
+    setShowAtribuicaoModal(false);
+    setShowDevolucaoModal(false);
+    setShowHistoricoModal(false);
+    setSelectedAparelho(null);
+    setNovoAparelhoNumero('');
+    setSelectedMotoristaId('');
+    setJustificacao('');
+    setDataAtribuicao('');
+    setHoraAtribuicao('');
+    setDataDevolucao('');
+    setHoraDevolucao('');
+  };
+
+  /**
+   * REGISTO DE APARELHO (TRANSACIONAL ATÓMICO)
+   */
+  const handleRegistarAparelho = async (e) => {
+    e.preventDefault();
+    if (!novoAparelhoNumero.trim() || novoAparelhoNumero.trim().length < 8) {
+      alert("Por favor, introduza um número de identificador Via Verde válido (mínimo 8 dígitos).");
+      return;
+    }
+    if (justificacao.trim().length < 5) {
+      alert("A justificação do registo deve ter, no mínimo, 5 caracteres.");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const contadorRef = doc(db, "metadados", "contador_viaverde");
+      let proximoIDFormatado = "";
+
+      await runTransaction(db, async (transaction) => {
+        const docSnap = await transaction.get(contadorRef);
+        let proximoNumero = 1;
+        
+        if (docSnap.exists()) {
+          const dados = docSnap.data();
+          proximoNumero = (dados.ultimoNumero || 0) + 1;
+          transaction.update(contadorRef, { ultimoNumero: proximoNumero });
+        } else {
+          transaction.set(contadorRef, { ultimoNumero: 1 });
+        }
+
+        const numeroFormatado = String(proximoNumero).padStart(4, '0');
+        proximoIDFormatado = `VV-${numeroFormatado}`;
+      });
+
+      const novoDocRef = doc(db, "viaverde_aparelhos", proximoIDFormatado);
+      const novoObjeto = {
+        id: proximoIDFormatado,
+        numeroAparelho: novoAparelhoNumero.trim(),
+        estado: 'Disponível',
+        motoristaId: null,
+        nomeMotorista: null,
+        dataAtribuicao: null,
+        historico: [
+          {
+            tipo: "registo",
+            dataOperacao: new Date().toISOString(),
+            justificacao: justificacao.trim(),
+            operador: userData?.nome || 'Operador Administrativo',
+            detalhes: `Aparelho registado no sistema com número físico ${novoAparelhoNumero.trim()}`
+          }
+        ]
+      };
+
+      await runTransaction(db, async (transaction) => {
+        transaction.set(novoDocRef, novoObjeto);
+      });
+
+      await addDoc(collection(db, "logs"), {
+        acao: "VIA_VERDE_REGISTO",
+        detalhes: `Identificador ${proximoIDFormatado} (${novoAparelhoNumero.trim()}) criado no ERP.`,
+        justificacao: justificacao.trim(),
+        utilizadorNome: userData?.nome || 'Operador',
+        utilizadorEmail: userData?.email || '',
+        data: new Date().toISOString()
+      });
+
+      fecharTodosModais();
+    } catch (err) {
+      console.error("Erro ao registar aparelho:", err);
+      alert("Erro ao efetuar o registo. Por favor, tente novamente.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  /**
+   * ATRIBUIÇÃO DE APARELHO A MOTORISTA (TIMELINE ATIVA)
+   */
+  const handleAtribuirAparelho = async (e) => {
+    e.preventDefault();
+    if (!selectedMotoristaId) {
+      alert("Por favor, selecione um motorista.");
+      return;
+    }
+    if (!dataAtribuicao || !horaAtribuicao) {
+      alert("Por favor, preencha a data e a hora da atribuição.");
+      return;
+    }
+    if (justificacao.trim().length < 5) {
+      alert("A justificação de atribuição deve ter, no mínimo, 5 caracteres.");
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const motoristaSelecionado = motoristas.find(m => m.id === selectedMotoristaId);
+      const nomeMotorista = motoristaSelecionado?.nome || "Motorista Desconhecido";
+
+      const aparelhoRef = doc(db, "viaverde_aparelhos", selectedAparelho.id);
+      
+      const dataHoraCombinada = new Date(`${dataAtribuicao}T${horaAtribuicao}`).toISOString();
+
+      const novaMovimentacao = {
+        tipo: "atribuicao",
+        motoristaId: selectedMotoristaId,
+        nomeMotorista: nomeMotorista,
+        dataInicio: dataHoraCombinada,
+        dataFim: null,
+        justificacao: justificacao.trim(),
+        operador: userData?.nome || 'Operador Administrativo',
+        dataOperacao: new Date().toISOString()
+      };
+
+      // CORRIGIDO: Carácter intruso '@' removido da variável
+      const historicoAtualizado = [...(selectedAparelho.historio || selectedAparelho.historico || []), novaMovimentacao];
+
+      await updateDoc(aparelhoRef, {
+        estado: 'Em Uso',
+        motoristaId: selectedMotoristaId,
+        nomeMotorista: nomeMotorista,
+        dataAtribuicao: dataHoraCombinada,
+        historico: historicoAtualizado
+      });
+
+      await addDoc(collection(db, "logs"), {
+        acao: "VIA_VERDE_ATRIBUICAO",
+        detalhes: `Aparelho ${selectedAparelho.id} atribuído ao motorista ${nomeMotorista} a partir de ${formatarDataPT(dataHoraCombinada)}.`,
+        justificacao: justificacao.trim(),
+        utilizadorNome: userData?.nome || 'Operador',
+        utilizadorEmail: userData?.email || '',
+        data: new Date().toISOString()
+      });
+
+      fecharTodosModais();
+    } catch (err) {
+      console.error("Erro ao atribuir aparelho:", err);
+      alert("Erro ao registar atribuição.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  /**
+   * DEVOLUÇÃO/DESVINCULAÇÃO DE APARELHO (FECHO TEMPORAL)
+   */
+  const handleDevolverAparelho = async (e) => {
+    e.preventDefault();
+    if (!dataDevolucao || !horaDevolucao) {
+      alert("Por favor, preencha a data e a hora da devolução.");
+      return;
+    }
+    if (justificacao.trim().length < 5) {
+      alert("A justificação de devolução deve ter, no mínimo, 5 caracteres.");
+      return;
+    }
+
+    const dataInicioAtiva = new Date(selectedAparelho.dataAtribuicao);
+    const dataFimProposta = new Date(`${dataDevolucao}T${horaDevolucao}`);
+
+    if (dataFimProposta < dataInicioAtiva) {
+      alert(`Erro Cronológico: A data/hora de devolução não pode ser anterior à data/hora de atribuição (${formatarDataPT(selectedAparelho.dataAtribuicao)}).`);
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const aparelhoRef = doc(db, "viaverde_aparelhos", selectedAparelho.id);
+      const dataFimISO = dataFimProposta.toISOString();
+      
+      const historicoAtualizado = (selectedAparelho.historico || []).map(item => {
+        if (item.tipo === "atribuicao" && item.motoristaId === selectedAparelho.motoristaId && item.dataFim === null) {
+          return {
+            ...item,
+            dataFim: dataFimISO,
+            justificacaoDevolucao: justificacao.trim(),
+            operadorDevolucao: userData?.nome || 'Operador Administrativo'
+          };
+        }
+        return item;
+      });
+
+      historicoAtualizado.push({
+        tipo: "devolucao",
+        motoristaId: selectedAparelho.motoristaId,
+        nomeMotorista: selectedAparelho.nomeMotorista,
+        dataFim: dataFimISO,
+        justificacao: justificacao.trim(),
+        operador: userData?.nome || 'Operador Administrativo',
+        dataOperacao: new Date().toISOString()
+      });
+
+      await updateDoc(aparelhoRef, {
+        estado: 'Disponível',
+        motoristaId: null,
+        nomeMotorista: null,
+        dataAtribuicao: null,
+        historico: historicoAtualizado
+      });
+
+      await addDoc(collection(db, "logs"), {
+        acao: "VIA_VERDE_DEVOLUCAO",
+        detalhes: `Aparelho ${selectedAparelho.id} devolvido pelo motorista ${selectedAparelho.nomeMotorista} em ${formatarDataPT(dataFimISO)}.`,
+        justificacao: justificacao.trim(),
+        utilizadorNome: userData?.nome || 'Operador',
+        utilizadorEmail: userData?.email || '',
+        data: new Date().toISOString()
+      });
+
+      fecharTodosModais();
+    } catch (err) {
+      console.error("Erro ao processar devolução:", err);
+      alert("Erro ao registar devolução.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  /**
+   * DESATIVAR/REATIVAR APARELHO FISICAMENTE
+   */
+  const handleAlternarEstadoAtivo = async (aparelho, novoEstado) => {
+    const acaoTexto = novoEstado === 'Inativo' ? 'desativar' : 'reativar';
+    const justificacaoPrompt = prompt(`Escreva a justificação obrigatória para ${acaoTexto} o aparelho ${aparelho.id} (mínimo 5 caracteres):`);
+    
+    if (justificacaoPrompt === null) return;
+    if (justificacaoPrompt.trim().length < 5) {
+      alert("A operação foi cancelada. A justificação necessita de pelo menos 5 caracteres.");
+      return;
+    }
+
+    try {
+      const aparelhoRef = doc(db, "viaverde_aparelhos", aparelho.id);
+      let historicoAtualizado = [...(aparelho.historico || [])];
+
+      if (novoEstado === 'Inativo' && aparelho.estado === 'Em Uso') {
+        historicoAtualizado = historicoAtualizado.map(item => {
+          if (item.tipo === "atribuicao" && item.motoristaId === aparelho.motoristaId && item.dataFim === null) {
+            return {
+              ...item,
+              dataFim: new Date().toISOString(),
+              justificacaoDevolucao: `Desativação forçada do aparelho: ${justificacaoPrompt.trim()}`,
+              operadorDevolucao: userData?.nome || 'Operador'
+            };
+          }
+          return item;
+        });
+      }
+
+      historicoAtualizado.push({
+        tipo: novoEstado === 'Inativo' ? "desativacao" : "reativacao",
+        dataOperacao: new Date().toISOString(),
+        justificacao: justificacaoPrompt.trim(),
+        operador: userData?.nome || 'Operador',
+        detalhes: `Estado do identificador alterado para ${novoEstado}`
+      });
+
+      await updateDoc(aparelhoRef, {
+        estado: novoEstado,
+        motoristaId: null,
+        nomeMotorista: null,
+        dataAtribuicao: null,
+        historico: historicoAtualizado
+      });
+
+      await addDoc(collection(db, "logs"), {
+        acao: "VIA_VERDE_ESTADO",
+        detalhes: `Aparelho ${aparelho.id} alterado para estado '${novoEstado}'.`,
+        justificacao: justificacaoPrompt.trim(),
+        utilizadorNome: userData?.nome || 'Operador',
+        utilizadorEmail: userData?.email || '',
+        data: new Date().toISOString()
+      });
+
+      alert(`Aparelho ${aparelho.id} alterado com sucesso.`);
+    } catch (err) {
+      console.error("Erro ao alterar estado do aparelho:", err);
+      alert("Ocorreu um erro ao atualizar o estado.");
+    }
+  };
+
+  const aparelhosFiltrados = aparelhos.filter(a => {
+    const texto = filtroPesquisa.toLowerCase();
+    const matchesID = a.id.toLowerCase().includes(texto);
+    const matchesNumero = (a.numeroAparelho || '').toLowerCase().includes(texto);
+    const matchesMotorista = (a.nomeMotorista || '').toLowerCase().includes(texto);
+    return matchesID || matchesNumero || matchesMotorista;
+  });
+
+  const kpiTotal = aparelhos.length;
+  const kpiEmUso = aparelhos.filter(a => a.estado === 'Em Uso').length;
+  const kpiDisponiveis = aparelhos.filter(a => a.estado === 'Disponível').length;
+  const kpiInativos = aparelhos.filter(a => a.estado === 'Inativo').length;
+
+  return (
+    <div className="space-y-6">
+      {headerSlot && createPortal(
+        <div className="flex items-center gap-3 animate-in fade-in duration-200">
+          <div className="h-4 w-[1.5px] bg-slate-200 hidden lg:block select-none" />
+          <h2 className="text-xs font-black text-slate-800 uppercase tracking-wider hidden sm:flex items-center gap-1.5 select-none">
+            <Radio className="text-tvde-primary shrink-0" size={14} /> 
+            Via Verde
+          </h2>
+          <Button
+            onClick={() => {
+              setNovoAparelhoNumero('');
+              setJustificacao('');
+              setShowFormModal(true);
+            }}
+            className="text-[10px] font-black uppercase py-1 px-2.5 h-8 gap-1 shadow-sm shrink-0 cursor-pointer"
+          >
+            <Plus size={12} /> Registar Aparelho
+          </Button>
+        </div>,
+        headerSlot
+      )}
+
+      <header className="select-none">
+        <h1 className="text-xl sm:text-2xl font-bold text-slate-800 flex items-center gap-2.5">
+          <Radio className="text-tvde-primary animate-pulse" size={24} />
+          Gestão de Identificadores Via Verde
+        </h1>
+        <p className="text-slate-500 text-xs sm:text-sm">Controle e atribuição temporal de aparelhos diretamente a motoristas (Verdade Absoluta).</p>
+      </header>
+
+      {/* MINI-DASHBOARD DE MÉTRICAS */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex items-center gap-3">
+          <div className="p-3 bg-slate-50 rounded-lg text-slate-500">
+            <Radio size={20} />
+          </div>
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Total Aparelhos</p>
+            <h3 className="text-lg font-black text-slate-800">{loading ? '...' : kpiTotal}</h3>
+          </div>
+        </div>
+
+        <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex items-center gap-3">
+          <div className="p-3 bg-blue-50 rounded-lg text-tvde-primary">
+            <ArrowLeftRight size={20} />
+          </div>
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Em Uso (Atribuídos)</p>
+            <h3 className="text-lg font-black text-blue-600">{loading ? '...' : kpiEmUso}</h3>
+          </div>
+        </div>
+
+        <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex items-center gap-3">
+          <div className="p-3 bg-emerald-50 rounded-lg text-emerald-600">
+            <Check size={20} />
+          </div>
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Disponíveis</p>
+            <h3 className="text-lg font-black text-emerald-600">{loading ? '...' : kpiDisponiveis}</h3>
+          </div>
+        </div>
+
+        <div className="bg-white p-4 rounded-xl border border-slate-100 shadow-sm flex items-center gap-3">
+          <div className="p-3 bg-red-50 rounded-lg text-red-600">
+            <X size={20} />
+          </div>
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Inativos</p>
+            <h3 className="text-lg font-black text-red-500">{loading ? '...' : kpiInativos}</h3>
+          </div>
+        </div>
+      </div>
+
+      {/* PAINEL DE FILTRAGEM E TABELA */}
+      <div className="bg-white rounded-2xl border border-slate-100 shadow-sm overflow-hidden">
+        
+        <div className="p-4 bg-slate-50 border-b border-slate-100 flex flex-col sm:flex-row items-center justify-between gap-4">
+          <div className="relative w-full sm:max-w-xs">
+            <Search className="absolute left-3 top-2.5 text-slate-400" size={16} />
+            <input
+              type="text"
+              placeholder="Pesquisar ID, aparelho ou motorista..."
+              value={filtroPesquisa}
+              onChange={(e) => setFiltroPesquisa(e.target.value)}
+              className="pl-9 pr-4 py-1.5 w-full bg-white border border-slate-200 rounded-xl text-xs font-medium focus:ring-2 focus:ring-tvde-primary/20 focus:border-tvde-primary outline-none transition-all placeholder:text-slate-400"
+            />
+          </div>
+          <div className="text-[11px] font-semibold text-slate-500">
+            A mostrar {aparelhosFiltrados.length} de {aparelhos.length} aparelhos
+          </div>
+        </div>
+
+        <div className="overflow-x-auto">
+          {loading ? (
+            <div className="p-12 text-center text-xs font-bold text-slate-400 flex items-center justify-center gap-2">
+              <RefreshCw className="animate-spin text-tvde-primary" size={16} />
+              A ler base de dados da Via Verde...
+            </div>
+          ) : aparelhosFiltrados.length === 0 ? (
+            <div className="p-12 text-center text-xs font-bold text-slate-400 italic">
+              Nenhum identificador encontrado com os filtros aplicados.
+            </div>
+          ) : (
+            <table className="w-full text-left border-collapse">
+              <thead>
+                <tr className="border-b border-slate-100 bg-slate-50/50">
+                  <th className="py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Cód. Interno</th>
+                  <th className="py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Nº Identificador (Físico)</th>
+                  <th className="py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-center">Estado</th>
+                  <th className="py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Detentor Atual (Motorista)</th>
+                  <th className="py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Viatura Associada</th>
+                  <th className="py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider">Atribuído Em</th>
+                  <th className="py-3 px-4 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-right">Ações</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-100">
+                {aparelhosFiltrados.map((aparelho) => {
+                  const motoristaVinculado = motoristas.find(m => m.id === aparelho.motoristaId);
+                  
+                  const veiculoVinculado = motoristaVinculado 
+                    ? veiculos.find(v => v.motoristaId === motoristaVinculado.id || v.motoristaId2 === motoristaVinculado.id)
+                    : null;
+
+                  const matriculaViatura = veiculoVinculado ? veiculoVinculado.matricula : "-";
+                  
+                  const nomeExibido = motoristaVinculado ? motoristaVinculado.nome : (aparelho.nomeMotorista || "Livre");
+
+                  return (
+                    <tr key={aparelho.id} className="hover:bg-slate-50/40 transition-colors text-slate-700">
+                      <td className="py-3 px-4 font-black text-xs text-slate-800">{aparelho.id}</td>
+                      <td className="py-3 px-4 font-mono text-xs font-bold tracking-tight text-slate-600">
+                        {aparelho.numeroAparelho}
+                      </td>
+                      <td className="py-3 px-4 text-center">
+                        <span className={`inline-block px-2.5 py-0.5 rounded text-[9px] font-black uppercase tracking-tight ${
+                          aparelho.estado === 'Em Uso' 
+                            ? 'bg-blue-50 text-blue-600 border border-blue-100'
+                            : aparelho.estado === 'Disponível'
+                            ? 'bg-emerald-50 text-emerald-600 border border-emerald-100'
+                            : 'bg-red-50 text-red-500 border border-red-100'
+                        }`}>
+                          {aparelho.estado}
+                        </span>
+                      </td>
+                      <td className="py-3 px-4">
+                        {aparelho.estado === 'Em Uso' ? (
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-5 h-5 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center text-[9px] font-bold">
+                              {nomeExibido ? nomeExibido[0].toUpperCase() : 'M'}
+                            </div>
+                            <span className="text-xs font-bold text-slate-800">{nomeExibido}</span>
+                          </div>
+                        ) : (
+                          <span className="text-xs text-slate-400 italic font-medium">Livre em stock</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4">
+                        {aparelho.estado === 'Em Uso' && matriculaViatura !== "-" ? (
+                          <span className="inline-flex items-center gap-1 bg-slate-100 text-slate-700 px-2 py-0.5 rounded text-[10px] font-bold font-mono">
+                            <Car size={10} />
+                            {matriculaViatura}
+                          </span>
+                        ) : (
+                          <span className="text-slate-300">-</span>
+                        )}
+                      </td>
+                      <td className="py-3 px-4 text-xs font-medium text-slate-500">
+                        {aparelho.estado === 'Em Uso' ? formatarDataPT(aparelho.dataAtribuicao) : '-'}
+                      </td>
+                      <td className="py-3 px-4 text-right">
+                        <div className="flex items-center justify-end gap-1.5">
+                          
+                          <button
+                            onClick={() => {
+                              setSelectedAparelho(aparelho);
+                              setShowHistoricoModal(true);
+                            }}
+                            title="Ver histórico de atribuições"
+                            className="p-1 text-slate-400 hover:text-slate-800 hover:bg-slate-100 rounded transition-all cursor-pointer"
+                          >
+                            <FileText size={15} />
+                          </button>
+
+                          {aparelho.estado === 'Disponível' && (
+                            <button
+                              onClick={() => {
+                                setSelectedAparelho(aparelho);
+                                setDataAtribuicao(obterDataLocal());
+                                setHoraAtribuicao(obterHoraLocal());
+                                setShowAtribuicaoModal(true);
+                              }}
+                              className="bg-emerald-50 text-emerald-600 hover:bg-emerald-100 px-2 py-1 rounded text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer"
+                            >
+                              <ArrowLeftRight size={10} />
+                              Atribuir
+                            </button>
+                          )}
+
+                          {aparelho.estado === 'Em Uso' && (
+                            <button
+                              onClick={() => {
+                                setSelectedAparelho(aparelho);
+                                setDataDevolucao(obterDataLocal());
+                                setHoraDevolucao(obterHoraLocal());
+                                setShowDevolucaoModal(true);
+                              }}
+                              className="bg-blue-50 text-blue-600 hover:bg-blue-100 px-2 py-1 rounded text-[10px] font-bold transition-all flex items-center gap-1 cursor-pointer"
+                            >
+                              <Check size={10} />
+                              Receber
+                            </button>
+                          )}
+
+                          {aparelho.estado !== 'Inativo' ? (
+                            <button
+                              onClick={() => handleAlternarEstadoAtivo(aparelho, 'Inativo')}
+                              title="Desativar Identificador"
+                              className="p-1 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded transition-all cursor-pointer"
+                            >
+                              <Trash2 size={15} />
+                            </button>
+                          ) : (
+                            <button
+                              onClick={() => handleAlternarEstadoAtivo(aparelho, 'Disponível')}
+                              title="Reativar Identificador"
+                              className="p-1 text-emerald-600 hover:bg-emerald-50 rounded transition-all cursor-pointer text-[10px] font-bold"
+                            >
+                              Ativar
+                            </button>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          )}
+        </div>
+      </div>
+
+      {/* ========================================================= */}
+      {/* MODAL 1: REGISTO DE APARELHO                             */}
+      {/* ========================================================= */}
+      {showFormModal && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden border border-slate-100">
+            <div className="p-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+              <h3 className="font-black text-slate-800 text-sm flex items-center gap-2">
+                <Radio className="text-tvde-primary" size={16} />
+                Registar Identificador Via Verde
+              </h3>
+              <button 
+                onClick={fecharTodosModais}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-150 transition-all cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            
+            <form onSubmit={handleRegistarAparelho} className="p-5 space-y-4">
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Nº Físico do Identificador</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex: 12345678901 (físico na caixa)"
+                  value={novoAparelhoNumero}
+                  onChange={(e) => setNovoAparelhoNumero(e.target.value.replace(/\D/g, ''))}
+                  className="w-full py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-tvde-primary/20 focus:border-tvde-primary outline-none transition-all text-slate-700"
+                />
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">
+                  Justificação do Registo (Mínimo 5 caract.)
+                </label>
+                <textarea
+                  required
+                  placeholder="Ex: Novo lote de aparelhos recebidos para a frota..."
+                  value={justificacao}
+                  onChange={(e) => setJustificacao(e.target.value)}
+                  className="w-full h-20 p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-tvde-primary/20 focus:border-tvde-primary outline-none transition-all text-slate-700"
+                />
+                <div className="flex justify-between items-center mt-1 text-[9px] font-bold">
+                  <span className={justificacao.trim().length >= 5 ? "text-emerald-600" : "text-red-500"}>
+                    {justificacao.trim().length} / 5 caracteres mínimos
+                  </span>
+                  {justificacao.trim().length >= 5 && <span className="text-emerald-600">✔ Válida</span>}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={fecharTodosModais}
+                  className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-700 font-bold rounded-xl text-xs transition-all cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting || justificacao.trim().length < 5 || !novoAparelhoNumero.trim()}
+                  className="flex-1 py-2 bg-tvde-primary hover:bg-blue-600 text-white font-bold rounded-xl text-xs transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md cursor-pointer"
+                >
+                  {submitting ? "A Registar..." : "Salvar Aparelho"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL 2: ATRIBUIÇÃO A MOTORISTA                           */}
+      {/* ========================================================= */}
+      {showAtribuicaoModal && selectedAparelho && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden border border-slate-100">
+            <div className="p-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+              <h3 className="font-black text-slate-800 text-sm flex items-center gap-2">
+                <ArrowLeftRight className="text-emerald-600" size={16} />
+                Atribuir Aparelho {selectedAparelho.id}
+              </h3>
+              <button 
+                onClick={fecharTodosModais}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-150 transition-all cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            
+            <form onSubmit={handleAtribuirAparelho} className="p-5 space-y-4">
+              <div className="bg-emerald-50/50 p-3 rounded-xl border border-emerald-100 text-slate-600">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-700 mb-0.5">Identificador Selecionado</p>
+                <p className="text-xs font-black text-emerald-800">{selectedAparelho.numeroAparelho}</p>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Selecionar Motorista</label>
+                <select
+                  required
+                  value={selectedMotoristaId}
+                  onChange={(e) => setSelectedMotoristaId(e.target.value)}
+                  className="w-full py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-tvde-primary/20 focus:border-tvde-primary outline-none transition-all text-slate-700"
+                >
+                  <option value="">-- Escolha o condutor --</option>
+                  {motoristas.map(m => (
+                    <option key={m.id} value={m.id}>
+                      {m.nome} (Viatura: {m.matricula || m.veiculo || 'Nenhuma'})
+                    </option>
+                  ))}
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Atalhos Rápidos de Horário</label>
+                <div className="flex flex-wrap gap-1.5 mb-2.5">
+                  <button
+                    type="button"
+                    onClick={() => aplicarPresetAtribuicao('agora')}
+                    className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-tvde-primary rounded-lg text-[10px] font-bold transition-all cursor-pointer"
+                  >
+                    ⚡ Agora
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => aplicarPresetAtribuicao('turnoA')}
+                    className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-lg text-[10px] font-bold transition-all cursor-pointer"
+                  >
+                    🌅 Turno A (06:00)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => aplicarPresetAtribuicao('turnoB')}
+                    className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-[10px] font-bold transition-all cursor-pointer"
+                  >
+                    Option B (18:00)
+                  </button>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Data de Início</label>
+                    <input
+                      type="date"
+                      required
+                      value={dataAtribuicao}
+                      onChange={(e) => setDataAtribuicao(e.target.value)}
+                      className="w-full py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-tvde-primary/20 focus:border-tvde-primary outline-none transition-all text-slate-700 text-center"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Hora de Início</label>
+                    <input
+                      type="time"
+                      required
+                      value={horaAtribuicao}
+                      onChange={(e) => setHoraAtribuicao(e.target.value)}
+                      className="w-full py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-tvde-primary/20 focus:border-tvde-primary outline-none transition-all text-slate-700 text-center"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">
+                  Justificação da Entrega (Mínimo 5 caract.)
+                </label>
+                <textarea
+                  required
+                  placeholder="Ex: Entrega do identificador físico para início de turnos em viatura partilhada..."
+                  value={justificacao}
+                  onChange={(e) => setJustificacao(e.target.value)}
+                  className="w-full h-20 p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-tvde-primary/20 focus:border-tvde-primary outline-none transition-all text-slate-700"
+                />
+                <div className="flex justify-between items-center mt-1 text-[9px] font-bold">
+                  <span className={justificacao.trim().length >= 5 ? "text-emerald-600" : "text-red-500"}>
+                    {justificacao.trim().length} / 5 caracteres mínimos
+                  </span>
+                  {justificacao.trim().length >= 5 && <span className="text-emerald-600">✔ Válida</span>}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={fecharTodosModais}
+                  className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-700 font-bold rounded-xl text-xs transition-all cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting || justificacao.trim().length < 5 || !selectedMotoristaId || !dataAtribuicao || !horaAtribuicao}
+                  className="flex-1 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-xl text-xs transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md cursor-pointer"
+                >
+                  {submitting ? "A Gravar..." : "Atribuir Agora"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL 3: DEVOLUÇÃO / RECEÇÃO FÍSICA                       */}
+      {/* ========================================================= */}
+      {showDevolucaoModal && selectedAparelho && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl w-full max-w-md shadow-2xl overflow-hidden border border-slate-100">
+            <div className="p-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between">
+              <h3 className="font-black text-slate-800 text-sm flex items-center gap-2">
+                <Check className="text-blue-600" size={16} />
+                Receber Aparelho {selectedAparelho.id}
+              </h3>
+              <button 
+                onClick={fecharTodosModais}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-150 transition-all cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+            
+            <form onSubmit={handleDevolverAparelho} className="p-5 space-y-4">
+              <div className="bg-blue-50/50 p-3 rounded-xl border border-blue-100 text-slate-600 space-y-1.5">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-blue-700">Identificador</p>
+                  <p className="text-xs font-black text-blue-900">{selectedAparelho.numeroAparelho}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-blue-700">Detentor (Devolvendo)</p>
+                  <p className="text-xs font-black text-blue-900">{selectedAparelho.nomeMotorista}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-blue-700">Entregue em</p>
+                  <p className="text-xs font-bold text-slate-850">{formatarDataPT(selectedAparelho.dataAtribuicao)}</p>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Atalhos Rápidos de Horário</label>
+                <div className="flex flex-wrap gap-1.5 mb-2.5">
+                  <button
+                    type="button"
+                    onClick={() => aplicarPresetDevolucao('agora')}
+                    className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-tvde-primary rounded-lg text-[10px] font-bold transition-all cursor-pointer"
+                  >
+                    ⚡ Agora
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => aplicarPresetDevolucao('turnoA')}
+                    className="px-2.5 py-1 bg-amber-50 hover:bg-amber-100 text-amber-700 rounded-lg text-[10px] font-bold transition-all cursor-pointer"
+                  >
+                    🌅 Turno A (06:00)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => aplicarPresetDevolucao('turnoB')}
+                    className="px-2.5 py-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-lg text-[10px] font-bold transition-all cursor-pointer"
+                  >
+                    🌃 Turno B (18:00)
+                  </button>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-2">
+                  <div>
+                    <label className="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Data de Devolução</label>
+                    <input
+                      type="date"
+                      required
+                      value={dataDevolucao}
+                      onChange={(e) => setDataDevolucao(e.target.value)}
+                      className="w-full py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-tvde-primary/20 focus:border-tvde-primary outline-none transition-all text-slate-700 text-center"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-[9px] font-bold text-slate-400 uppercase mb-0.5">Hora de Devolução</label>
+                    <input
+                      type="time"
+                      required
+                      value={horaDevolucao}
+                      onChange={(e) => setHoraDevolucao(e.target.value)}
+                      className="w-full py-2 px-3 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-tvde-primary/20 focus:border-tvde-primary outline-none transition-all text-slate-700 text-center"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">
+                  Justificação da Devolução (Mínimo 5 caract.)
+                </label>
+                <textarea
+                  required
+                  placeholder="Ex: Devolução por saída de motorista, transponder encontra-se em perfeito estado..."
+                  value={justificacao}
+                  onChange={(e) => setJustificacao(e.target.value)}
+                  className="w-full h-20 p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-xs font-semibold focus:ring-2 focus:ring-tvde-primary/20 focus:border-tvde-primary outline-none transition-all text-slate-700"
+                />
+                <div className="flex justify-between items-center mt-1 text-[9px] font-bold">
+                  <span className={justificacao.trim().length >= 5 ? "text-emerald-600" : "text-red-500"}>
+                    {justificacao.trim().length} / 5 caracteres mínimos
+                  </span>
+                  {justificacao.trim().length >= 5 && <span className="text-emerald-600">✔ Válida</span>}
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={fecharTodosModais}
+                  className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-700 font-bold rounded-xl text-xs transition-all cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="submit"
+                  disabled={submitting || justificacao.trim().length < 5 || !dataDevolucao || !horaDevolucao}
+                  className="flex-1 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl text-xs transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-md cursor-pointer"
+                >
+                  {submitting ? "A Guardar..." : "Registar Devolução"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* ========================================================= */}
+      {/* MODAL 4: HISTÓRICO DE ATRIBUIÇÕES                         */}
+      {/* ========================================================= */}
+      {showHistoricoModal && selectedAparelho && (
+        <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl w-full max-w-lg shadow-2xl overflow-hidden border border-slate-100 flex flex-col max-h-[85vh]">
+            <div className="p-4 bg-slate-50 border-b border-slate-100 flex items-center justify-between shrink-0">
+              <h3 className="font-black text-slate-800 text-sm flex items-center gap-2">
+                <ShieldAlert className="text-tvde-primary" size={16} />
+                Histórico do Identificador {selectedAparelho.id}
+              </h3>
+              <button 
+                onClick={fecharTodosModais}
+                className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-150 transition-all cursor-pointer"
+              >
+                <X size={16} />
+              </button>
+            </div>
+
+            <div className="p-4 bg-slate-50/50 border-b border-slate-100 shrink-0 text-slate-600 text-xs flex justify-between gap-4">
+              <div>
+                <span className="font-bold text-[10px] text-slate-400 uppercase tracking-wider block">Nº Identificador Físico</span>
+                <span className="font-mono font-bold">{selectedAparelho.numeroAparelho}</span>
+              </div>
+              <div>
+                <span className="font-bold text-[10px] text-slate-400 uppercase tracking-wider block">Estado Atual</span>
+                <span className={`inline-block px-1.5 py-0.5 rounded text-[8px] font-black uppercase tracking-tight ${
+                  selectedAparelho.estado === 'Em Uso' ? 'bg-blue-50 text-blue-600' : 'bg-emerald-50 text-emerald-600'
+                }`}>{selectedAparelho.estado}</span>
+              </div>
+            </div>
+
+            <div className="flex-1 overflow-y-auto p-5 space-y-4 no-scrollbar">
+              {!(selectedAparelho.historico) || selectedAparelho.historico.length === 0 ? (
+                <p className="text-xs text-slate-400 text-center italic py-8">Nenhum registo de auditoria detetado para este aparelho.</p>
+              ) : (
+                <div className="relative pl-6 border-l-2 border-slate-150 space-y-5">
+                  {selectedAparelho.historico.map((log, index) => {
+                    const isAtribuicao = log.tipo === 'atribuicao';
+                    const isDevolucao = log.tipo === 'devolucao';
+                    const isRegisto = log.tipo === 'registo';
+
+                    return (
+                      <div key={index} className="relative">
+                        <div className={`absolute -left-[31px] top-1.5 w-4 h-4 rounded-full border-2 border-white flex items-center justify-center ${
+                          isAtribuicao ? 'bg-emerald-500' : isDevolucao ? 'bg-blue-500' : 'bg-slate-500'
+                        }`} />
+
+                        <div className="bg-slate-50 p-3.5 rounded-xl border border-slate-100 space-y-2">
+                          <div className="flex items-center justify-between text-[10px] font-bold">
+                            <span className={`uppercase px-2 py-0.5 rounded text-[8px] font-black ${
+                              isAtribuicao 
+                                ? 'bg-emerald-100 text-emerald-700' 
+                                : isDevolucao 
+                                ? 'bg-blue-100 text-blue-700' 
+                                : 'bg-slate-200 text-slate-700'
+                            }`}>
+                              {log.tipo}
+                            </span>
+                            <span className="text-slate-400">
+                              {formatarDataPT(log.dataOperacao || log.dataInicio || log.dataFim)}
+                            </span>
+                          </div>
+
+                          <p className="text-xs font-semibold text-slate-800 leading-relaxed">
+                            {isAtribuicao && `Atribuído ao Motorista: ${log.nomeMotorista}`}
+                            {isDevolucao && `Devolvido pelo Motorista: ${log.nomeMotorista}`}
+                            {isRegisto && `Registo inicial: ${log.detalhes}`}
+                          </p>
+
+                          {isAtribuicao && (
+                            <div className="bg-white p-2 rounded-lg border border-slate-100 text-[11px] font-medium text-slate-500 space-y-1">
+                              <div>
+                                <span className="font-bold text-slate-700 block">Horário de Início de Posse (Verdade Absoluta):</span>
+                                <span className="font-mono text-slate-600">{formatarDataPT(log.dataInicio)}</span>
+                              </div>
+                              {log.dataFim ? (
+                                <div className="pt-1.5 border-t border-slate-100">
+                                  <span className="font-bold text-slate-700 block">Horário de Fim de Posse (Fecho Temporal):</span>
+                                  <span className="font-mono text-emerald-600">{formatarDataPT(log.dataFim)}</span>
+                                </div>
+                              ) : (
+                                <div className="pt-1.5 border-t border-slate-100 text-emerald-600 font-bold animate-pulse">
+                                  ● Detentor Ativo neste momento
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          <div className="pt-1.5 border-t border-slate-100/50 text-slate-500 text-[11px] leading-relaxed">
+                            <span className="font-bold text-slate-700">Justificação: </span>
+                            {log.justificacao || log.justificacaoDevolucao || 'Nenhuma introduzida'}
+                          </div>
+
+                          <div className="text-[9px] font-bold text-slate-400">
+                            Operador: {log.operador || log.operadorDevolucao || 'Gestor'}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end shrink-0">
+              <button
+                type="button"
+                onClick={fecharTodosModais}
+                className="py-1.5 px-4 bg-slate-200 hover:bg-slate-300 text-slate-600 hover:text-slate-800 font-bold rounded-xl text-xs transition-all cursor-pointer"
+              >
+                Fechar Painel de Auditoria
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -20598,7 +22093,9 @@ export const MOCK_VEICULOS = [
  * Localização: src/utils/parsers.js
  *
  * Utilitários de Extração de Dados e Geração SEPA.
- * [ATUALIZADO]: Suporte híbrido a CSV (texto) e XLSX (Excel) usando SheetJS de forma dinâmica e imune a índices fixos!
+ * [ATUALIZADO]: Suporte híbrido a CSV (texto) e XLSX (Excel) usando SheetJS de forma dinâmica e imune a índices fixos.
+ * [ATUALIZADO]: Adicionado suporte resiliente aos cabeçalhos reais da Via Verde ("Nr Equipamen", "Valor T", "Matrícu") 
+ *               e suporte a células combinadas de Data e Hora (ex: "27-05-2026 02:15:08").
  */
 
 import * as XLSX from 'xlsx';
@@ -20651,6 +22148,97 @@ const limparStringSEPA = (str) => {
     .replace(/[çÇ]/g, "c")
     .replace(/[&]/g, "e")
     .replace(/[^a-zA-Z0-9 ]/g, ""); // Garante apenas alfanuméricos e espaços
+};
+
+/**
+ * [ATUALIZADO] Algoritmo Resiliente de Reconstituição de Data/Hora da Via Verde
+ * Lida de forma inteligente com células contendo data + hora no mesmo campo (ex: "27-05-2026 02:15:08")
+ */
+const formatarDataHoraViaVerde = (dataVal, horaVal) => {
+  if (dataVal === undefined || dataVal === null || dataVal === '') return null;
+  
+  let dataParte = dataVal;
+  let horaParte = horaVal;
+
+  // Se a data for uma string e contiver data + hora num único campo separados por espaço
+  if (typeof dataVal === 'string') {
+    const trimmed = dataVal.trim();
+    if (trimmed.includes(' ')) {
+      const subParts = trimmed.split(/\s+/);
+      dataParte = subParts[0]; // ex: "27-05-2026"
+      if (!horaParte) {
+        horaParte = subParts[1]; // ex: "02:15:08"
+      }
+    }
+  }
+
+  // Se o objeto for Date nativo de JavaScript, devolve o ISOString correspondente
+  if (dataVal instanceof Date) {
+    return dataVal.toISOString();
+  }
+
+  // Processamento da Data
+  let dataStr = '';
+  if (typeof dataParte === 'number') {
+    try {
+      const dateObj = XLSX.SSF.parse_date_code(dataParte);
+      const y = dateObj.y;
+      const m = String(dateObj.m).padStart(2, '0');
+      const d = String(dateObj.d).padStart(2, '0');
+      dataStr = `${y}-${m}-${d}`;
+      
+      // Se for número decimal (contém fração de hora do Excel) e não houver horaParte
+      if (!horaParte && dataParte % 1 !== 0) {
+        horaParte = dataParte % 1;
+      }
+    } catch (e) {
+      return null;
+    }
+  } else {
+    // Trata strings como "27/05/2026" ou "27-05-2026"
+    const str = String(dataParte).trim().replace(/\//g, '-');
+    const parts = str.split('-');
+    if (parts.length === 3) {
+      if (parts[0].length === 4) {
+        // YYYY-MM-DD
+        dataStr = `${parts[0]}-${parts[1].padStart(2, '0')}-${parts[2].padStart(2, '0')}`;
+      } else {
+        // DD-MM-YYYY -> Converte para YYYY-MM-DD
+        dataStr = `${parts[2]}-${parts[1].padStart(2, '0')}-${parts[0].padStart(2, '0')}`;
+      }
+    } else {
+      dataStr = str;
+    }
+  }
+
+  // Processamento da Hora
+  let horaStr = '00:00';
+  if (horaVal !== undefined && horaVal !== null && horaVal !== '') {
+    if (typeof horaVal === 'number') {
+      try {
+        const totalSeconds = Math.round(horaVal * 24 * 3600);
+        const h = String(Math.floor(totalSeconds / 3600)).padStart(2, '0');
+        const m = String(Math.floor((totalSeconds % 3600) / 60)).padStart(2, '0');
+        horaStr = `${h}:${m}`;
+      } catch (e) {
+        horaStr = '00:00';
+      }
+    } else {
+      // Trata strings como "02:15:08" ou "02:15"
+      const str = String(horaParte).trim();
+      const parts = str.split(':');
+      if (parts.length >= 2) {
+        horaStr = `${parts[0].padStart(2, '0')}:${parts[1].padStart(2, '0')}`;
+      }
+    }
+  }
+
+  try {
+    const d = new Date(`${dataStr}T${horaStr}`);
+    return isNaN(d.getTime()) ? null : d.toISOString();
+  } catch (e) {
+    return null;
+  }
 };
 
 export const parseUberCSV = (input) => {
@@ -20714,12 +22302,9 @@ export const parseBoltCSV = (input) => {
 };
 
 /**
- * Analisa e categoriza despesas da Via Verde por matrícula (Portagem, Parque e Mensalidade)
- * em conformidade com o layout desenhado no post-it do utilizador.
- * [ATUALIZADO]: Mapeamento flexível por cabeçalhos (Nomes de Colunas) resolvendo erros de colunas deslocadas.
- * 
- * @param {string|ArrayBuffer} input - Conteúdo bruto (CSV) ou binário (Excel) do extrato Via Verde
- * @returns {Object} Estrutura consolidada agrupada por matrícula
+ * Analisa e categoriza despesas da Via Verde por matrícula e por Identificador de forma simultânea.
+ * [ATUALIZADO]: Resiliência total aos cabeçalhos reais (Ex: "Nr Equipamen", "Valor T", "Matrícu")
+ *               e suporte híbrido a datas completas com hora acoplada na mesma célula.
  */
 export const parseViaVerdeCSV = (input) => {
   const rows = converterParaLinhasJSON(input);
@@ -20727,12 +22312,23 @@ export const parseViaVerdeCSV = (input) => {
 
   const headers = rows[0].map(h => String(h || '').trim().toLowerCase());
   
-  // Deteção dinâmica dos índices baseada nos cabeçalhos reais (conforme imagem do Excel)
-  const colMatricula = headers.findIndex(h => h.includes('matrícula') || h.includes('matricula'));
-  const colValor = headers.findIndex(h => h.includes('valor transação') || h.includes('valor transacao') || h.includes('valor') || h.includes('líquido') || h.includes('liquido'));
-  const colTipo = headers.findIndex(h => h.includes('tipo de ev') || h.includes('tipo') || h.includes('descrição') || h.includes('operador') || h.includes('barreira'));
+  // [ATUALIZADO]: Mapeamento flexível por aproximação estrita de sub-palavras dos cabeçalhos reais
+  const colMatricula = headers.findIndex(h => h.includes('matrícula') || h.includes('matricula') || h.includes('matrícu') || h.includes('matri'));
+  const colValor = headers.findIndex(h => h.includes('valor transação') || h.includes('valor transacao') || h.includes('valor t') || h.includes('valor') || h.includes('líquido') || h.includes('liquido'));
+  const colTipo = headers.findIndex(h => h.includes('tipo de ev') || h.includes('tipo de') || h.includes('tipo') || h.includes('descrição') || h.includes('operador') || h.includes('barreira'));
+  
+  // [ATUALIZADO]: Mapeamento dinâmico para o identificador Via Verde (Nr Equipamen / Equipamento / Aparelho)
+  const colIdentificador = headers.findIndex(h => h.includes('identificador') || h.includes('dispositivo') || h.includes('ref. ident') || h.includes('aparelho') || h.includes('equipamen') || h.includes('equipamento') || h.includes('equip'));
+  
+  const colDataSaida = headers.findIndex(h => h.includes('data saída') || h.includes('data saida') || h.includes('data trans') || h.includes('data sa'));
+  const colHoraSaida = headers.findIndex(h => h.includes('hora saída') || h.includes('hora saida') || h.includes('hora trans') || h.includes('hora sa'));
+  const colEntrada = headers.findIndex(h => h.includes('entrada') || h.includes('origem') || h.includes('barreira ent'));
+  const colSaida = headers.findIndex(h => h.includes('saída') || h.includes('saida') || h.includes('local') || h.includes('destino') || h.includes('barreira sa'));
 
-  const results = {};
+  // Estruturas de agregação
+  const resultsMatricula = {};
+  const resultsIdentificador = {};
+  const listaTransacoes = [];
 
   for (let i = 1; i < rows.length; i++) {
     const row = rows[i];
@@ -20743,20 +22339,24 @@ export const parseViaVerdeCSV = (input) => {
 
     const matriculaChave = matriculaOriginal.replace(/-/g, '').toUpperCase();
     const valor = extrairNumeroSeguro(row[colValor]);
-
-    // Inicialização da estrutura da matrícula se ainda não existir
-    if (!results[matriculaChave]) {
-      results[matriculaChave] = {
-        matriculaFormatada: matriculaOriginal, // Guarda a grafia original (ex: BI-49-FP)
-        portagens: 0,
-        parques: 0,
-        mensalidade: 0,
-        totalCirculacao: 0, // Portagens + Parques
-        totalGeral: 0       // Portagens + Parques + Mensalidade
-      };
+    
+    // Extração e normalização estrita do Identificador de Equipamento
+    let identificadorFisico = String(row[colIdentificador] || '').replace(/\s/g, '').trim();
+    if (!identificadorFisico || identificadorFisico === '--') {
+      identificadorFisico = 'SEM_IDENTIFICADOR';
     }
 
-    // Varredura de classificação inteligente em toda a linha para robustez
+    // Reconstituição cronológica com suporte a junções de strings na mesma célula
+    const dataBruta = row[colDataSaida];
+    const horaBruta = row[colHoraSaida];
+    const dataHoraISO = formatarDataHoraViaVerde(dataBruta, horaBruta);
+
+    // Extração das barreiras geográficas
+    const entradaTexto = String(row[colEntrada] || '').trim();
+    const saidaTexto = String(row[colSaida] || '').trim();
+    const localidadeTexto = saidaTexto || entradaTexto || "Local Desconhecido";
+
+    // Classificação inteligente da categoria
     const linhaTexto = row.map(cell => String(cell || '').toLowerCase()).join(' ');
     let categoria = 'portagem';
 
@@ -20779,26 +22379,104 @@ export const parseViaVerdeCSV = (input) => {
       categoria = 'parque';
     }
 
-    // Acumula os valores por categoria
-    if (categoria === 'mensalidade') {
-      results[matriculaChave].mensalidade += valor;
-    } else if (categoria === 'parque') {
-      results[matriculaChave].parques += valor;
-    } else {
-      results[matriculaChave].portagens += valor;
+    // -------------------------------------------------------------
+    // Agregação Clássica (Matrícula) - Mantém compatibilidade 100%
+    // -------------------------------------------------------------
+    if (!resultsMatricula[matriculaChave]) {
+      resultsMatricula[matriculaChave] = {
+        matriculaFormatada: matriculaOriginal,
+        portagens: 0,
+        parques: 0,
+        mensalidade: 0,
+        totalCirculacao: 0,
+        totalGeral: 0
+      };
     }
+
+    if (categoria === 'mensalidade') {
+      resultsMatricula[matriculaChave].mensalidade += valor;
+    } else if (categoria === 'parque') {
+      resultsMatricula[matriculaChave].parques += valor;
+    } else {
+      resultsMatricula[matriculaChave].portagens += valor;
+    }
+
+    // -------------------------------------------------------------
+    // Agregação Avançada (Identificador)
+    // -------------------------------------------------------------
+    if (!resultsIdentificador[identificadorFisico]) {
+      resultsIdentificador[identificadorFisico] = {
+        identificador: identificadorFisico,
+        matriculaOriginal: matriculaOriginal,
+        portagens: 0,
+        parques: 0,
+        mensalidade: 0,
+        totalGeral: 0
+      };
+    }
+
+    if (categoria === 'mensalidade') {
+      resultsIdentificador[identificadorFisico].mensalidade += valor;
+    } else if (categoria === 'parque') {
+      resultsIdentificador[identificadorFisico].parques += valor;
+    } else {
+      resultsIdentificador[identificadorFisico].portagens += valor;
+    }
+
+    // -------------------------------------------------------------
+    // Registo de Transações Individuais (Delineamento Temporal)
+    // -------------------------------------------------------------
+    listaTransacoes.push({
+      id: `${identificadorFisico}-${i}`,
+      identificador: identificadorFisico,
+      matricula: matriculaChave,
+      matriculaOriginal: matriculaOriginal,
+      dataHora: dataHoraISO || new Date().toISOString(),
+      tipo: categoria,
+      valor: valor,
+      local: localidadeTexto,
+      detalhes: `Via Verde - ${localidadeTexto} (${categoria.toUpperCase()})`
+    });
   }
 
-  // Arredonda todos os subtotais para 2 casas decimais no final
-  Object.keys(results).forEach(mat => {
-    results[mat].portagens = Number(results[mat].portagens.toFixed(2));
-    results[mat].parques = Number(results[mat].parques.toFixed(2));
-    results[mat].mensalidade = Number(results[mat].mensalidade.toFixed(2));
-    results[mat].totalCirculacao = Number((results[mat].portagens + results[mat].parques).toFixed(2));
-    results[mat].totalGeral = Number((results[mat].totalCirculacao + results[mat].mensalidade).toFixed(2));
+  // Arredondamentos matemáticos precisos (Matrícula)
+  Object.keys(resultsMatricula).forEach(mat => {
+    resultsMatricula[mat].portagens = Number(resultsMatricula[mat].portagens.toFixed(2));
+    resultsMatricula[mat].parques = Number(resultsMatricula[mat].parques.toFixed(2));
+    resultsMatricula[mat].mensalidade = Number(resultsMatricula[mat].mensalidade.toFixed(2));
+    resultsMatricula[mat].totalCirculacao = Number((resultsMatricula[mat].portagens + resultsMatricula[mat].parques).toFixed(2));
+    resultsMatricula[mat].totalGeral = Number((resultsMatricula[mat].totalCirculacao + resultsMatricula[mat].mensalidade).toFixed(2));
   });
 
-  return results;
+  // Arredondamentos matemáticos precisos (Identificador)
+  Object.keys(resultsIdentificador).forEach(id => {
+    resultsIdentificador[id].portagens = Number(resultsIdentificador[id].portagens.toFixed(2));
+    resultsIdentificador[id].parques = Number(resultsIdentificador[id].parques.toFixed(2));
+    resultsIdentificador[id].mensalidade = Number(resultsIdentificador[id].mensalidade.toFixed(2));
+    resultsIdentificador[id].totalGeral = Number((resultsIdentificador[id].portagens + resultsIdentificador[id].parques + resultsIdentificador[id].mensalidade).toFixed(2));
+  });
+
+  // Ordena a lista de transações por ordem cronológica (Mais antigas para mais recentes)
+  listaTransacoes.sort((a, b) => new Date(a.dataHora) - new Date(b.dataHora));
+
+  // ----------------------------------------------------------------------
+  // ENGENHARIA DE COMPATIBILIDADE: Propriedades Invisíveis (Não-Enumeráveis)
+  // ----------------------------------------------------------------------
+  Object.defineProperty(resultsMatricula, 'transacoesDetalhadas', {
+    value: listaTransacoes,
+    enumerable: false,
+    writable: true,
+    configurable: true
+  });
+
+  Object.defineProperty(resultsMatricula, 'agrupadoPorIdentificador', {
+    value: resultsIdentificador,
+    enumerable: false,
+    writable: true,
+    configurable: true
+  });
+
+  return resultsMatricula;
 };
 
 export const parseCartoesConsumoCSV = (input) => {
@@ -20834,7 +22512,6 @@ export const generateSEPAXML = (pagamentos, contaEmpresa) => {
     if (p.saldoFinal <= 0 || !p.iban) return;
     totalAmount += p.saldoFinal;
     
-    // Aplicação da higienização nos campos críticos
     const nomeLimpo = limparStringSEPA(p.nomeMotorista);
     const remessaLimpa = limparStringSEPA(`PAGAMENTO TVDE SEMANA`);
 
@@ -20884,11 +22561,10 @@ export const generateSEPAXML = (pagamentos, contaEmpresa) => {
  *
  * Gerador de PDF profissional em tamanho A4 utilizando jsPDF e jsPDF-AutoTable.
  * Suporta:
- *   - Extratos operacionais semanais de Motoristas, Veículos e Proprietários.
- *   - Relatório consolidado de auditoria e validação de despesas Via Verde.
+ *   - Extratos operacionais semanais de Motoristas, Veículos e Proprietários (inclui Via Verde Ativa e Retroativa).
+ *   - Relatório consolidado de auditoria e validação de despesas Via Verde segmentado por Transponder e Motorista.
  * 
- * CORRIGIDO: autoTable compatível com ES Modules, desenho de sublinhas baseado no post-it 
- * e adição de coluna de Total Geral com soma consolidada no rodapé da tabela.
+ * [ATUALIZADO]: Adicionada ordenação natural estritamente crescente por número do Identificador (Aparelho).
  */
 
 import { jsPDF } from 'jspdf';
@@ -20946,7 +22622,7 @@ export const generateStatementPDF = (dados, empresa, entidadeInfo) => {
     const dataFimStr = dados?.periodo?.fim ? formatDatePT(new Date(dados.periodo.fim)) : '---';
     doc.text(`Período de ${dataInicioStr} a ${dataFimStr}`, margin, 41);
 
-    // --- CABEÇALHO DIREITO (Identidade Fictícia: Gestão TVDE) ---
+    // --- CABEÇALHO DIREITO ---
     doc.setFont('Helvetica', 'bold');
     doc.setFontSize(21);
     doc.setTextColor(preto);
@@ -20981,10 +22657,11 @@ export const generateStatementPDF = (dados, empresa, entidadeInfo) => {
       { label: 'Gestão (-)', valor: dados.taxaGestao || 0, sinal: '-' },
       { label: 'Seguro (-)', valor: dados.seguro || 0, sinal: '-' },
       { label: 'Combustível (-)', valor: dados.combustivel || 0, sinal: '-' },
-      { label: 'Portagens / Via Verde (-)', valor: dados.portagens || 0, sinal: '-' },
+      { label: 'Portagens / Via Verde Ativa (-)', valor: dados.portagens || 0, sinal: '-' },
+      { label: 'Portagens Retroativas Via Verde (-)', valor: dados.viaVerdeRetroativas || 0, sinal: '-' }, 
       { label: 'Oficina / Manutenção (-)', valor: dados.oficina || 0, sinal: '-' },
       { label: 'Caução (-)', valor: dados.valorCaucaoAplicado ?? 0, sinal: '-' },
-      { label: 'Outros Débitos / Ajustes (-)', valor: dados.debitosGerais || 0, sinal: '-' }
+      { label: 'Outros Débitos / Ajustes (-)', valor: dados.debitosGears || dados.debitosGerais || 0, sinal: '-' }
     ];
 
     let currentY = 62;
@@ -20993,6 +22670,8 @@ export const generateStatementPDF = (dados, empresa, entidadeInfo) => {
     doc.setTextColor(preto);
 
     linhasFinanceiras.forEach((linha) => {
+      if (linha.valor === 0 && linha.label.includes('Retroativas')) return;
+
       doc.text(linha.label, margin + 3, currentY);
       const montanteFormatado = `${linha.sinal ? `${linha.sinal} ` : ''}${formatCurrency(linha.valor)}`;
       doc.text(montanteFormatado, 192, currentY, { align: 'right' });
@@ -21011,22 +22690,21 @@ export const generateStatementPDF = (dados, empresa, entidadeInfo) => {
       (dados.seguro || 0) + 
       (dados.combustivel || 0) + 
       (dados.portagens || 0) + 
+      (dados.viaVerdeRetroativas || 0) + 
       (dados.oficina || 0) + 
       (dados.valorCaucaoAplicado ?? 0) + 
-      (dados.debitosGerais || 0);
+      (dados.debitosGears || dados.debitosGerais || 0);
 
     const resultadoSemana = Number((totalCreditos - totalDebitos).toFixed(2));
 
     doc.setFont('Helvetica', 'bold');
     doc.setFontSize(9);
     
-    // Subtotal de Créditos
     doc.text('Total de Créditos (Rendimentos + Ajustes)', margin + 3, currentY + 1);
     doc.text(formatCurrency(totalCreditos), 192, currentY + 1, { align: 'right' });
     currentY += 6.3;
 
-    // Subtotal de Débitos Totais
-    doc.setTextColor('#3b82f6'); // Destaque visual azul corporativo para os débitos totais
+    doc.setTextColor('#3b82f6');
     doc.text('Débitos Totais (Soma de despesas e retenções) (-)', margin + 3, currentY + 1);
     doc.text(`- ${formatCurrency(totalDebitos)}`, 192, currentY + 1, { align: 'right' });
     doc.setTextColor(preto);
@@ -21069,12 +22747,10 @@ export const generateStatementPDF = (dados, empresa, entidadeInfo) => {
       const emFalta = Number((cau.valorTotal - cau.valorPago).toFixed(2));
       doc.text(`Valor Restante: ${formatCurrency(emFalta > 0 ? emFalta : 0)}`, margin + 4, currentY + 22);
 
-      // --- LINHA DIVISÓRIA VERTICAL DO SUBEXTRATO ---
       doc.setDrawColor('#cbd5e1');
       doc.setLineWidth(0.2);
       doc.line(margin + 90, currentY + 2, margin + 90, currentY + 24);
 
-      // Título Direito
       doc.setFont('Helvetica', 'bold');
       doc.setFontSize(8.5);
       doc.setTextColor(azulEscuro);
@@ -21151,7 +22827,6 @@ export const generateStatementPDF = (dados, empresa, entidadeInfo) => {
       doc.setFontSize(7.5);
       doc.setTextColor(preto);
 
-      // Segurança em cascata para evitar quebra do PDF se as plataformas forem nulas
       const dadosPlat = (dados?.plataformas && dados.plataformas[plat]) || { bruto: 0, liquido: 0, impostos: 0 };
 
       doc.text('Bruto', xPos + 3, currentY + 10.5);
@@ -21170,12 +22845,11 @@ export const generateStatementPDF = (dados, empresa, entidadeInfo) => {
     const rodapeTexto = 'Este documento serve como extrato semanal informativo de prestação de serviços e acertos de contas.';
     doc.text(rodapeTexto, margin, 285);
 
-    // --- DOWNLOAD SEGURO ---
     const nomeLimpo = (entidadeInfo?.nome || 'Extrato').replace(/\s+/g, '_');
     const dataInicioFicheiro = dados?.periodo?.inicio || 'Periodo';
     const nomeFicheiro = `Extrato_${nomeLimpo}_${dataInicioFicheiro}.pdf`;
 
-    console.log(`[pdfGenerator] A tentar guardar o ficheiro fictício: ${nomeFicheiro}`);
+    console.log(`[pdfGenerator] A tentar guardar o ficheiro: ${nomeFicheiro}`);
     doc.save(nomeFicheiro);
     console.log("[pdfGenerator] Processo concluído.");
 
@@ -21186,15 +22860,11 @@ export const generateStatementPDF = (dados, empresa, entidadeInfo) => {
 };
 
 /**
- * Gera o Relatório Oficial de Validação de Custos da Via Verde
- * de acordo com o padrão estruturado de sublinhas do seu post-it.
- * [ATUALIZADO]: Adicionada a coluna "Total Geral" (Circulação + Mensalidade) por veículo e rodapé com total consolidado geral.
- * 
- * @param {Object} viaVerdeProcessed - Objeto estruturado vindo do parser da Via Verde
- * @param {Object} empresa - Configurações da Empresa Operadora
- * @returns {jsPDF}
+ * Relatório de Validação e Conciliação Via Verde.
+ * [ATUALIZADO]: Grupo de rowSpan fatiado por IDENTIFICADOR + MOTORISTA!
+ * [ATUALIZADO]: Ordenação natural estritamente crescente do número do Identificador.
  */
-export const generateViaVerdeValidationPDF = (viaVerdeProcessed, empresa) => {
+export const generateViaVerdeValidationPDF = (viaVerdeProcessed, empresa, viaVerdeDB = [], veiculosDB = []) => {
   try {
     console.log("[pdfGenerator] A iniciar desenho da validação estruturada da Via Verde...");
 
@@ -21219,7 +22889,7 @@ export const generateViaVerdeValidationPDF = (viaVerdeProcessed, empresa) => {
     doc.setFontSize(8.5);
     doc.setTextColor(cinzaTexto);
     doc.text(`Data de Emissão: ${new Date().toLocaleDateString('pt-PT')}`, margin, 23);
-    doc.text('Relatório semanal estruturado de validação de despesas por matrícula.', margin, 27);
+    doc.text('Relatório estruturado de validação de despesas segmentado por Transponder e Motoristas.', margin, 27);
 
     // --- CABEÇALHO DIREITO ---
     doc.setFont('Helvetica', 'bold');
@@ -21240,69 +22910,142 @@ export const generateViaVerdeValidationPDF = (viaVerdeProcessed, empresa) => {
     doc.setLineWidth(0.4);
     doc.line(margin, 36, 195, 36);
 
-    // Configuração das colunas da tabela de validação incluindo o Total Geral
     const columns = [
+      { header: 'Identificador', dataKey: 'identificador' },
+      { header: 'Motorista', dataKey: 'motorista' }, 
       { header: 'Matrícula', dataKey: 'matricula' },
       { header: 'Lançamento / Tipo', dataKey: 'descricao' },
       { header: 'Valor Unitário', dataKey: 'unitario' },
       { header: 'Subtotal Circulação', dataKey: 'subtotal' },
       { header: 'Mensalidade', dataKey: 'mensalidade' },
-      { header: 'Total Geral', dataKey: 'totalGeral' } // [ADICIONADO] Coluna final de Total por Viatura
+      { header: 'Total Geral', dataKey: 'totalGeral' }
     ];
 
     const rows = [];
-    const chavesMatriculas = Object.keys(viaVerdeProcessed);
+    
+    // DETEÇÃO CRONOLÓGICA DE CONDUTORES PARA A PRÉ-VISUALIZAÇÃO / PDF AVULSO
+    const transacoes = viaVerdeProcessed.transacoesDetalhadas || [];
+    const agrupadoParaPDF = {};
 
-    chavesMatriculas.forEach((mat) => {
-      const d = viaVerdeProcessed[mat];
+    transacoes.forEach(t => {
+      let motoristaId = null;
+      let motoristaNome = "Não Atribuído";
+
+      // 1. Procurar transponder no stock de base de dados do ERP
+      const dispositivo = viaVerdeDB.find(vv => 
+        vv.numeroAparelho === t.identificador || 
+        vv.id === t.identificador
+      );
+
+      if (dispositivo && dispositivo.historico) {
+        const txTime = new Date(t.dataHora).getTime();
+        
+        const atribuicao = dispositivo.historico.find(h => {
+          if (h.tipo !== 'atribuicao') return false;
+          const start = new Date(h.dataInicio).getTime();
+          const end = h.dataFim ? new Date(h.dataFim).getTime() : null;
+          return txTime >= start && (end === null || txTime <= end);
+        });
+
+        if (atribuicao) {
+          motoristaId = atribuicao.motoristaId;
+          motoristaNome = atribuicao.nomeMotorista;
+        }
+      }
+
+      // 2. Fallback por matrícula
+      if (!motoristaId) {
+        const veiculo = veiculosDB.find(v => v.matricula.replace(/-/g, '').toUpperCase() === t.matricula);
+        if (veiculo) {
+          motoristaId = veiculo.motoristaId;
+          motoristaNome = veiculo.motoristaNome || "Sem Condutor";
+        }
+      }
+
+      const chaveUnica = `${t.identificador}___${motoristaNome}`;
+
+      if (!agrupadoParaPDF[chaveUnica]) {
+        agrupadoParaPDF[chaveUnica] = {
+          identificador: t.identificador,
+          motoristaNome: motoristaNome,
+          matriculaOriginal: t.matriculaOriginal,
+          portagens: 0,
+          parques: 0,
+          mensalidade: 0,
+          totalGeral: 0
+        };
+      }
+
+      if (t.tipo === 'mensalidade') {
+        agrupadoParaPDF[chaveUnica].mensalidade += t.valor;
+      } else if (t.tipo === 'parque') {
+        agrupadoParaPDF[chaveUnica].parques += t.valor;
+      } else {
+        agrupadoParaPDF[chaveUnica].portagens += t.valor;
+      }
+    });
+
+    Object.keys(agrupadoParaPDF).forEach(k => {
+      const item = agrupadoParaPDF[k];
+      item.portagens = Number(item.portagens.toFixed(2));
+      item.parques = Number(item.parques.toFixed(2));
+      item.mensalidade = Number(item.mensalidade.toFixed(2));
+      item.totalCirculacao = Number((item.portagens + item.parques).toFixed(2));
+      item.totalGeral = Number((item.totalCirculacao + item.mensalidade).toFixed(2));
+    });
+
+    const chavesCompostas = Object.keys(agrupadoParaPDF);
+
+    // [NOVO] ORDENAÇÃO NATURAL ESTRICTAMENTE CRESCENTE POR NÚMERO DO IDENTIFICADOR
+    chavesCompostas.sort((a, b) => {
+      const idA = agrupadoParaPDF[a].identificador;
+      const idB = agrupadoParaPDF[b].identificador;
+      return idA.localeCompare(idB, undefined, { numeric: true, sensitivity: 'base' });
+    });
+
+    chavesCompostas.forEach((chave) => {
+      const d = agrupadoParaPDF[chave];
       
-      // Mapeamento modular de 3 sublinhas com rowSpan idêntico ao papel post-it e Total Geral no extremo direito!
       rows.push([
-        { content: d.matriculaFormatada || mat, rowSpan: 3, styles: { valign: 'middle', fontStyle: 'bold', halign: 'center' } },
+        { content: d.identificador, rowSpan: 3, styles: { valign: 'middle', fontStyle: 'bold', halign: 'center' } },
+        { content: d.motoristaNome, rowSpan: 3, styles: { valign: 'middle', fontStyle: 'bold', halign: 'center', textColor: '#2563eb' } },
+        { content: d.matriculaOriginal || '---', rowSpan: 3, styles: { valign: 'middle', fontStyle: 'bold', halign: 'center', font: 'Courier' } },
         'Portagens / Autoestradas',
         formatCurrency(d.portagens),
         { content: formatCurrency(d.totalCirculacao), rowSpan: 2, styles: { valign: 'middle', fontStyle: 'bold', halign: 'right' } },
         { content: d.mensalidade > 0 ? formatCurrency(d.mensalidade) : '---', rowSpan: 3, styles: { valign: 'middle', fontStyle: 'bold', halign: 'right', textColor: '#9333ea' } },
-        { content: formatCurrency(d.totalGeral), rowSpan: 3, styles: { valign: 'middle', fontStyle: 'bold', halign: 'right', fillColor: '#f8fafc' } } // [NOVO] Rowspan horizontal
+        { content: formatCurrency(d.totalGeral), rowSpan: 3, styles: { valign: 'middle', fontStyle: 'bold', halign: 'right', fillColor: '#f8fafc' } }
       ]);
 
       rows.push([
-        // Matrícula rowspanned
         'Parques / Estacionamento',
         formatCurrency(d.parques)
-        // Subtotal rowspanned
-        // Mensalidade rowspanned
-        // Total Geral rowspanned
       ]);
 
       rows.push([
-        // Matrícula rowspanned
         'Mensalidade Dispositivo / Aluguer',
         formatCurrency(d.mensalidade),
-        '---' // Coluna Subtotal na 3.ª linha
-        // Mensalidade rowspanned
-        // Total Geral rowspanned
+        '---'
       ]);
     });
 
-    // Cálculos de Totais Consolidados Completos (incluindo o Total Geral Global)
-    const totalPortagens = Object.values(viaVerdeProcessed).reduce((acc, curr) => acc + curr.portagens, 0);
-    const totalParques = Object.values(viaVerdeProcessed).reduce((acc, curr) => acc + curr.parques, 0);
-    const totalCirculacao = Object.values(viaVerdeProcessed).reduce((acc, curr) => acc + curr.totalCirculacao, 0);
-    const totalMensalidade = Object.values(viaVerdeProcessed).reduce((acc, curr) => acc + curr.mensalidade, 0);
-    const totalGeralGlobal = Object.values(viaVerdeProcessed).reduce((acc, curr) => acc + curr.totalGeral, 0); // [NOVO] Soma acumulada global
+    const totalPortagens = Object.values(agrupadoParaPDF).reduce((acc, curr) => acc + curr.portagens, 0);
+    const totalParques = Object.values(agrupadoParaPDF).reduce((acc, curr) => acc + curr.parques, 0);
+    const totalCirculacao = totalPortagens + totalParques;
+    const totalMensalidade = Object.values(agrupadoParaPDF).reduce((acc, curr) => acc + curr.mensalidade, 0);
+    const totalGeralGlobal = Object.values(agrupadoParaPDF).reduce((acc, curr) => acc + curr.totalGeral, 0);
 
-    // Linha final consolidada
     rows.push([
       'TOTAIS CONSOLIDADOS',
+      '---',
+      '---',
       `Portagens: ${formatCurrency(totalPortagens)} | Parques: ${formatCurrency(totalParques)}`,
       '---',
       formatCurrency(totalCirculacao),
       formatCurrency(totalMensalidade),
-      formatCurrency(totalGeralGlobal) // [ADICIONADO] Exibe o Total Acumulado Geral (Circulação + Mensalidades)
+      formatCurrency(totalGeralGlobal)
     ]);
 
-    // Executa a injeção modular via ESM (importação estrita)
     autoTable(doc, {
       columns,
       body: rows,
@@ -21310,9 +23053,9 @@ export const generateViaVerdeValidationPDF = (viaVerdeProcessed, empresa) => {
       margin: { left: margin, right: margin },
       theme: 'striped',
       styles: {
-        fontSize: 8,
+        fontSize: 7.5, 
         font: 'Helvetica',
-        cellPadding: 3,
+        cellPadding: 2.5,
         valign: 'middle'
       },
       headStyles: {
@@ -21322,20 +23065,20 @@ export const generateViaVerdeValidationPDF = (viaVerdeProcessed, empresa) => {
         halign: 'center'
       },
       columnStyles: {
-        matricula: { fontStyle: 'bold', halign: 'left' },
+        identificador: { fontStyle: 'bold', halign: 'center' },
+        motorista: { fontStyle: 'bold', halign: 'center' },
+        matricula: { fontStyle: 'bold', halign: 'center' },
         descricao: { halign: 'left' },
         unitario: { halign: 'right' },
         subtotal: { fontStyle: 'bold', halign: 'right' },
         mensalidade: { fontStyle: 'bold', halign: 'right' },
-        totalGeral: { fontStyle: 'bold', halign: 'right' } // Alinhamento da nova coluna
+        totalGeral: { fontStyle: 'bold', halign: 'right' }
       },
       didParseCell: function (data) {
-        // Estilização customizada da linha final de Totais Consolidados (Rodapé cinzento)
         if (data.row.index === rows.length - 1) {
           data.cell.styles.fontStyle = 'bold';
-          data.cell.styles.fillColor = '#cbd5e1'; // Cor de destaque do rodapé da tabela
+          data.cell.styles.fillColor = '#cbd5e1';
           data.cell.styles.textColor = '#0f172a';
-          // Para as células normais da última linha, desativa rowSpan para compatibilidade
           if (data.column.index === 0) {
             data.cell.colSpan = 1;
           }
@@ -21343,7 +23086,6 @@ export const generateViaVerdeValidationPDF = (viaVerdeProcessed, empresa) => {
       }
     });
 
-    // Rodapé Normativo
     doc.setFont('Helvetica', 'normal');
     doc.setFontSize(7.5);
     doc.setTextColor(150);
@@ -21359,7 +23101,7 @@ export const generateViaVerdeValidationPDF = (viaVerdeProcessed, empresa) => {
 
 /**
  * Converte de forma adaptativa os dados processados na grelha de fecho semanal
- * para o gerador unificado de PDF, eliminando vulnerabilidades de NaN [2, 3].
+ * para o gerador unificado de PDF, eliminando vulnerabilidades de NaN.
  */
 export const generateDriverPDF = (dados, empresa) => {
   const { ...entidadeInfo } = {
@@ -21368,7 +23110,6 @@ export const generateDriverPDF = (dados, empresa) => {
     iban: dados.iban || '---'
   };
 
-  // CORRIGIDO: Coalescência nula (?.) e fallbacks (|| 0) robustos para evitar NaN e omissão de créditos [2, 3]
   const modelacaoDados = {
     periodo: dados.periodo || { inicio: new Date().toISOString(), fim: new Date().toISOString() },
     tipoEntidade: 'motorista',
@@ -21379,6 +23120,7 @@ export const generateDriverPDF = (dados, empresa) => {
     seguro: Number(dados.despesas?.seguro || 0),
     combustivel: Number(dados.despesas?.combustivel || 0),
     portagens: Number(dados.despesas?.viaVerde || dados.despesas?.portagens || 0),
+    viaVerdeRetroativas: Number(dados.despesas?.viaVerdeRetroativas || 0), 
     oficina: Number(dados.despesas?.oficina || 0),
     debitosGerais: Number(dados.despesas?.debitosGerais || dados.contaCorrente?.debitos || 0),
     creditosGerais: Number(dados.creditosGerais || dados.contaCorrente?.creditos || 0),
@@ -21391,7 +23133,8 @@ export const generateDriverPDF = (dados, empresa) => {
     }
   };
 
-  return generateStatementPDF(modelacaoDados, empresa, entidadInforef || entidadeInfo);
+  const fakeRef = null;
+  return generateStatementPDF(modelacaoDados, empresa, fakeRef || entidadeInfo);
 };
 --------------------------------------------------
 
