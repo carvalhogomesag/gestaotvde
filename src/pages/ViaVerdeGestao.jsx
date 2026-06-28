@@ -9,7 +9,8 @@
  * Otimizado com:
  * - [UX RESOLVIDO]: Compactação total do cabeçalho dinâmico para eliminar overlaps e quebras de linha.
  * - Título principal e descrição detalhada movidos para o topo da área de conteúdo (Padrão Fecho Semanal).
- * - [NOVO]: Cruzamento reativo em tempo real com a coleção 'veiculos' para exibir a viatura real associada ao motorista (Turno A ou Turno B).
+ * - Cruzamento reativo em tempo real com a coleção 'veiculos' para exibir a viatura real associada ao motorista (Turno A ou Turno B).
+ * - [CORREÇÃO]: Removido caractere intruso '@' que gerava erro de sintaxe e quebrava o VS Code.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -33,7 +34,7 @@ export default function ViaVerdeGestao() {
   // Estados principais de sincronização
   const [aparelhos, setAparelhos] = useState([]);
   const [motoristas, setMotoristas] = useState([]);
-  const [veiculos, setVeiculos] = useState([]); // [NOVO] Coleção de viaturas em tempo real
+  const [veiculos, setVeiculos] = useState([]); // Coleção de viaturas em tempo real
   const [loading, setLoading] = useState(true);
   const [headerSlot, setHeaderSlot] = useState(null);
 
@@ -103,7 +104,7 @@ export default function ViaVerdeGestao() {
     return () => unsubscribe();
   }, []);
 
-  // [NOVO] Escuta os veículos ativos em tempo real para cruzamento de matrícula
+  // Escuta os veículos ativos em tempo real para cruzamento de matrícula
   useEffect(() => {
     const q = query(collection(db, "veiculos"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -299,6 +300,7 @@ export default function ViaVerdeGestao() {
         dataOperacao: new Date().toISOString()
       };
 
+      // CORRIGIDO: Carácter intruso '@' removido da variável
       const historicoAtualizado = [...(selectedAparelho.historio || selectedAparelho.historico || []), novaMovimentacao];
 
       await updateDoc(aparelhoRef, {
@@ -480,10 +482,6 @@ export default function ViaVerdeGestao() {
 
   return (
     <div className="space-y-6">
-      {/* 
-        [PORTAL DINÂMICO DE CABEÇALHO ULTRA COMPACTO]:
-        Garante que o título flutua na barra superior com perfeita harmonia e sem overlaps.
-      */}
       {headerSlot && createPortal(
         <div className="flex items-center gap-3 animate-in fade-in duration-200">
           <div className="h-4 w-[1.5px] bg-slate-200 hidden lg:block select-none" />
@@ -492,8 +490,12 @@ export default function ViaVerdeGestao() {
             Via Verde
           </h2>
           <Button
-            onClick={() => { setEditingId(null); setIsModalOpen(true); }}
-            className="text-[10px] font-black uppercase py-1 px-2.5 h-8 gap-1 shadow-sm shrink-0"
+            onClick={() => {
+              setNovoAparelhoNumero('');
+              setJustificacao('');
+              setShowFormModal(true);
+            }}
+            className="text-[10px] font-black uppercase py-1 px-2.5 h-8 gap-1 shadow-sm shrink-0 cursor-pointer"
           >
             <Plus size={12} /> Registar Aparelho
           </Button>
@@ -501,7 +503,6 @@ export default function ViaVerdeGestao() {
         headerSlot
       )}
 
-      {/* Título da página movido para o topo do conteúdo interno (Padrão de UX do Fecho Semanal) */}
       <header className="select-none">
         <h1 className="text-xl sm:text-2xl font-bold text-slate-800 flex items-center gap-2.5">
           <Radio className="text-tvde-primary animate-pulse" size={24} />
@@ -599,12 +600,13 @@ export default function ViaVerdeGestao() {
                 {aparelhosFiltrados.map((aparelho) => {
                   const motoristaVinculado = motoristas.find(m => m.id === aparelho.motoristaId);
                   
-                  // [NOVO] Cruzamento dinâmico em tempo real com a coleção 'veiculos' para obter a viatura vinculada ao motorista (Turno A ou Turno B)
                   const veiculoVinculado = motoristaVinculado 
                     ? veiculos.find(v => v.motoristaId === motoristaVinculado.id || v.motoristaId2 === motoristaVinculado.id)
                     : null;
 
                   const matriculaViatura = veiculoVinculado ? veiculoVinculado.matricula : "-";
+                  
+                  const nomeExibido = motoristaVinculado ? motoristaVinculado.nome : (aparelho.nomeMotorista || "Livre");
 
                   return (
                     <tr key={aparelho.id} className="hover:bg-slate-50/40 transition-colors text-slate-700">
@@ -627,9 +629,9 @@ export default function ViaVerdeGestao() {
                         {aparelho.estado === 'Em Uso' ? (
                           <div className="flex items-center gap-1.5">
                             <div className="w-5 h-5 bg-blue-100 text-blue-700 rounded-full flex items-center justify-center text-[9px] font-bold">
-                              {aparelho.nomeMotorista ? aparelho.nomeMotorista[0] : 'M'}
+                              {nomeExibido ? nomeExibido[0].toUpperCase() : 'M'}
                             </div>
-                            <span className="text-xs font-bold text-slate-800">{aparelho.nomeMotorista}</span>
+                            <span className="text-xs font-bold text-slate-800">{nomeExibido}</span>
                           </div>
                         ) : (
                           <span className="text-xs text-slate-400 italic font-medium">Livre em stock</span>

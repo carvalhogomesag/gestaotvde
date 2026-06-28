@@ -10,7 +10,8 @@
  * - Compactação extrema de paddings, margins, gaps e inputs para evitar scroll no desktop.
  * - Preservação estrita das integrações do Firestore, IA Vision, alertas e conformidade regulamentar.
  * - Histórico formatado com Data e Hora detalhadas em Português (PT-PT).
- * - [NOVO] Visualização dinâmica e reativa em tempo real do identificador Via Verde associado ao motorista.
+ * - Visualização dinâmica e reativa em tempo real do identificador Via Verde associado ao motorista.
+ * - [NOVO]: Trava de segurança no dropdown de frotas para ocultar viaturas 24h ocupadas ou turnos partilhados preenchidos.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -74,7 +75,7 @@ const formatPostalCode = (val) => {
 };
 
 /**
- * [NOVO] Função Auxiliar didática para formatar data e hora em PT-PT
+ * Função Auxiliar didática para formatar data e hora em PT-PT
  */
 const formatDataHora = (isoString) => {
   if (!isoString) return '';
@@ -177,7 +178,7 @@ export default function MotoristaForm({
   // Novo estado para controlar dinamicamente a exibição das categorias de cartões
   const [tipoCartaoAtribuido, setTipoCartaoAtribuido] = useState('');
 
-  // [NOVO] Estado para guardar o identificador Via Verde ativo do motorista
+  // Estado para guardar o identificador Via Verde ativo do motorista
   const [viaVerdeAtiva, setViaVerdeAtiva] = useState(null);
 
   // TRAVA DE SEGURANÇA OPERACIONAL: Filtra motoristas que já têm outro cartão deste tipo
@@ -200,6 +201,28 @@ export default function MotoristaForm({
     const isEletrico = card.tipo === 'eletrico';
     const isOcupadoPorOutro = cartoesCarregamentoOcupados.includes(card.id);
     return isEletrico && !isOcupadoPorOutro;
+  });
+
+  // [NOVO] TRAVA DE SEGURANÇA: Filtra viaturas com base nas vagas disponíveis nos regimes de aluguer
+  const veiculosDisponiveis = veiculos.filter(v => {
+    const currentMotoristaId = initialData.id || formData.id;
+
+    // A. Permitir sempre a viatura atualmente associada ao motorista corrente (evita auto-bloqueio)
+    if (v.id === formData.veiculoId || v.motoristaId === currentMotoristaId || v.motoristaId2 === currentMotoristaId) {
+      return true;
+    }
+
+    // B. Regime Integral (24h): Indisponível se já tiver condutor
+    if (v.tipoAluguer === 'integral' || !v.tipoAluguer) {
+      return !v.motoristaId;
+    }
+
+    // C. Regime Partilhado por Turnos: Indisponível se ambos os turnos A e B estiverem ocupados
+    if (v.tipoAluguer === 'turnos') {
+      return !v.motoristaId || !v.motoristaId2;
+    }
+
+    return true;
   });
 
   // Vínculo do campo IBAN ao seu respetivo documento de origem para auditoria visual
@@ -229,7 +252,7 @@ export default function MotoristaForm({
     window.open(url, 'Visualização', `width=${width},height=${height},top=${top},left=${left},menubar=no,status=no`);
   };
 
-  // [NOVO] Sincronização em tempo real do identificador Via Verde deste motorista
+  // Sincronização em tempo real do identificador Via Verde deste motorista
   useEffect(() => {
     const motoristaId = initialData.id || formData.id;
     if (!motoristaId) {
@@ -482,7 +505,6 @@ export default function MotoristaForm({
     onSubmit(dadosLimposParaGuardar, enviarLink);
   };
 
-  // [NOVO] Helper para o reenvio seguro do link de Onboarding via WhatsApp
   const handleEnviarLinkExistente = (tipo) => {
     const motoristaId = initialData.id || formData.id;
     if (!motoristaId) return;
@@ -856,7 +878,8 @@ export default function MotoristaForm({
                     }}
                   >
                     <option value="">Nenhum Veículo Atribuído (Em Stock)</option>
-                    {veiculos.map(v => (
+                    {/* [ATUALIZADO] Renderiza estritamente as viaturas que estão realmente disponíveis para este motorista */}
+                    {veiculosDisponiveis.map(v => (
                       <option key={v.id} value={v.id}>
                         {v.matricula} — {v.marca} {v.modelo}
                       </option>
