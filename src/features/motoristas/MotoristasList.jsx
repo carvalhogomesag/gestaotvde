@@ -7,9 +7,9 @@
  * - Interruptor de estado (Ativo/Inativo) com trava de segurança para pendentes.
  * - Auto-corretor em segundo plano para manter conformidade de estado no Firestore.
  * - Filtros rápidos no cabeçalho integrados.
- * - Layout atualizado: Contactos sob o nome do motorista; Coluna consolidada de Atribuições (Carro, Cartão e Via Verde).
+ * - Layout consolidado de "Atribuições": mostra Veículo, Cartões de Abastecimento/Carregamento e Via Verde do motorista de forma reativa.
  * - [ATUALIZADO]: Referência cruzada estrita baseada na soberania do documento de veículo (Firestore)
- *                 e ligação de cartões/Via Verde para eliminar desfasamentos de cache.
+ *                 e coleção física real 'viaverde_aparelhos' para eliminar duplicados visuais.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -123,15 +123,17 @@ export default function MotoristasList({
         (m.telemovel || '').toLowerCase().includes(queryGlobal) ||
         (m.nif || '').toLowerCase().includes(queryGlobal);
 
-      // Resolvedores de Atribuições para a filtragem
+      // Resolvedores de Atribuições para a filtragem em tempo real
       const vInfo = veiculos.find(v => v.motoristaId === m.id || v.motoristaId2 === m.id);
-      const cartaoInfo = cartoes?.find(c => c.motoristaId === m.id || c.motoristaId2 === m.id || m.cartaoId === c.id) || 
-                         (m.cartaoNumero ? { numero: m.cartaoNumero, tipo: m.cartaoTipo || 'Combustível' } : null) ||
-                         (m.cartao ? { numero: m.cartao, tipo: 'Combustível/Elétrico' } : null);
-      const vvInfo = viaVerdes?.find(vv => vv.motoristaId === m.id || vv.motoristaId2 === m.id || m.viaVerdeId === vv.id) ||
-                     (m.viaVerdeNumero ? { transponder: m.viaVerdeNumero } : null) ||
-                     (m.viaVerde ? { transponder: m.viaVerde } : null) ||
-                     (m.transponder ? { transponder: m.transponder } : null);
+      
+      const cartaoAbastInfo = cartoes?.find(c => c.id === m.cartaoAbastecimentoId) || 
+                              (m.cartaoAbastecimentoNumero ? { numero: m.cartaoAbastecimentoNumero, fornecedor: 'Combustível' } : null);
+                              
+      const cartaoCarregInfo = cartoes?.find(c => c.id === m.cartaoCarregamentoId) || 
+                               (m.cartaoCarregamentoNumero ? { numero: m.cartaoCarregamentoNumero, fornecedor: 'Elétrico' } : null);
+
+      const vvInfo = viaVerdes?.find(vv => vv.motoristaId === m.id && vv.estado === "Em Uso") ||
+                     (m.viaVerdeNumero ? { numeroAparelho: m.viaVerdeNumero } : null);
 
       // 2. Filtragem Avançada na Coluna de Atribuições (Veículo, Cartão ou Via Verde)
       const queryAtrib = filterAtribuicoes.toLowerCase();
@@ -141,14 +143,16 @@ export default function MotoristasList({
           (vInfo.marca || '').toLowerCase().includes(queryAtrib) ||
           (vInfo.modelo || '').toLowerCase().includes(queryAtrib)
         )) ||
-        (cartaoInfo && (
-          (cartaoInfo.numero || '').toLowerCase().includes(queryAtrib) ||
-          (cartaoInfo.nome || '').toLowerCase().includes(queryAtrib) ||
-          (cartaoInfo.tipo || '').toLowerCase().includes(queryAtrib)
+        (cartaoAbastInfo && (
+          (cartaoAbastInfo.numero || cartaoAbastInfo.numeroCartao || '').toLowerCase().includes(queryAtrib) ||
+          (cartaoAbastInfo.fornecedor || '').toLowerCase().includes(queryAtrib)
+        )) ||
+        (cartaoCarregInfo && (
+          (cartaoCarregInfo.numero || cartaoCarregInfo.numeroCartao || '').toLowerCase().includes(queryAtrib) ||
+          (cartaoCarregInfo.fornecedor || '').toLowerCase().includes(queryAtrib)
         )) ||
         (vvInfo && (
-          (vvInfo.transponder || '').toLowerCase().includes(queryAtrib) ||
-          (vvInfo.numero || '').toLowerCase().includes(queryAtrib)
+          (vvInfo.numeroAparelho || '').toLowerCase().includes(queryAtrib)
         ))
       );
 
@@ -240,16 +244,15 @@ export default function MotoristasList({
             // 1. Procurar Veículo Real (Soberania do Veículo no Firestore)
             const mostrarVeiculo = veiculos.find(v => v.motoristaId === m.id || v.motoristaId2 === m.id);
 
-            // 2. Procurar Cartão Associado
-            const mostrarCartao = cartoes?.find(c => c.motoristaId === m.id || c.motoristaId2 === m.id || m.cartaoId === c.id) || 
-                                 (m.cartaoNumero ? { numero: m.cartaoNumero, tipo: m.cartaoTipo || 'Combustível' } : null) ||
-                                 (m.cartao ? { numero: m.cartao, tipo: 'Combustível/Elétrico' } : null);
+            // 2. Procurar Cartões Associados (Abastecimento de Combustível ou Carregamento Elétrico)
+            const mostrarAbastecimento = cartoes?.find(c => c.id === m.cartaoAbastecimentoId) || 
+                                         (m.cartaoAbastecimentoNumero ? { numero: m.cartaoAbastecimentoNumero, fornecedor: 'Combustível' } : null);
 
-            // 3. Procurar Via Verde Associada
-            const mostrarViaVerde = viaVerdes?.find(vv => vv.motoristaId === m.id || vv.motoristaId2 === m.id || m.viaVerdeId === vv.id) ||
-                                    (m.viaVerdeNumero ? { transponder: m.viaVerdeNumero } : null) ||
-                                    (m.viaVerde ? { transponder: m.viaVerde } : null) ||
-                                    (m.transponder ? { transponder: m.transponder } : null);
+            const mostrarCarregamento = cartoes?.find(c => c.id === m.cartaoCarregamentoId) || 
+                                        (m.cartaoCarregamentoNumero ? { numero: m.cartaoCarregamentoNumero, fornecedor: 'Elétrico' } : null);
+
+            // 3. Procurar Via Verde Ativa na coleção 'viaverde_aparelhos' (OBU em Uso)
+            const mostrarViaVerde = viaVerdes?.find(vv => vv.motoristaId === m.id && vv.estado === "Em Uso");
 
             return (
               <tr key={m.id} className="hover:bg-slate-50/50 transition-colors">
@@ -278,8 +281,8 @@ export default function MotoristasList({
                   </div>
                 </td>
                 
-                {/* COLUNA 2: Atribuições Consolidadas (Veículo, Cartão e Via Verde) */}
-                <td className="p-4 text-sm min-w-[200px]">
+                {/* COLUNA 2: Atribuições Consolidadas (Veículo, Cartões e Via Verde em Uso) */}
+                <td className="p-4 text-sm min-w-[220px]">
                   <div className="flex flex-col gap-1.5">
                     
                     {/* Linha 1: Veículo */}
@@ -304,20 +307,39 @@ export default function MotoristasList({
                       </div>
                     )}
 
-                    {/* Linha 2: Cartão */}
-                    {mostrarCartao ? (
-                      <div className="flex items-center gap-2 animate-in fade-in duration-200 border-t border-slate-100/60 pt-1">
-                        <div className="w-5.5 h-5.5 bg-emerald-50 rounded flex items-center justify-center text-emerald-600 border border-emerald-100 shrink-0" title="Cartão Ativo">
-                          <CreditCard size={11} />
-                        </div>
-                        <div className="flex flex-col leading-none">
-                          <span className="font-bold text-slate-700 text-[11px] truncate max-w-[140px]">
-                            {mostrarCartao.numero || mostrarCartao.nome || 'Cartão Ativo'}
-                          </span>
-                          <span className="text-[9px] text-emerald-600 font-extrabold uppercase tracking-wider">
-                            {mostrarCartao.tipo || 'Frota'}
-                          </span>
-                        </div>
+                    {/* Linha 2: Cartões de Consumo (Abastecimento e/ou Carregamento) */}
+                    {(mostrarAbastecimento || mostrarCarregamento) ? (
+                      <div className="flex flex-col gap-1 border-t border-slate-100/60 pt-1">
+                        {mostrarAbastecimento && (
+                          <div className="flex items-center gap-2 animate-in fade-in duration-200">
+                            <div className="w-5.5 h-5.5 bg-emerald-50 rounded flex items-center justify-center text-emerald-600 border border-emerald-100 shrink-0" title="Cartão de Abastecimento">
+                              <CreditCard size={11} />
+                            </div>
+                            <div className="flex flex-col leading-none">
+                              <span className="font-bold text-slate-700 text-[11px] truncate max-w-[140px] font-mono">
+                                {mostrarAbastecimento.numero || mostrarAbastecimento.numeroCartao || 'Ativo'}
+                              </span>
+                              <span className="text-[9px] text-emerald-600 font-extrabold uppercase tracking-wider">
+                                {mostrarAbastecimento.fornecedor || 'Combustível'}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+                        {mostrarCarregamento && (
+                          <div className={`flex items-center gap-2 animate-in fade-in duration-200 ${mostrarAbastecimento ? 'mt-1 border-t border-slate-100/30 pt-1' : ''}`}>
+                            <div className="w-5.5 h-5.5 bg-emerald-50 rounded flex items-center justify-center text-emerald-600 border border-emerald-100 shrink-0" title="Cartão de Carregamento">
+                              <CreditCard size={11} />
+                            </div>
+                            <div className="flex flex-col leading-none">
+                              <span className="font-bold text-slate-700 text-[11px] truncate max-w-[140px] font-mono">
+                                {mostrarCarregamento.numero || mostrarCarregamento.numeroCartao || 'Ativo'}
+                              </span>
+                              <span className="text-[9px] text-emerald-600 font-extrabold uppercase tracking-wider">
+                                {mostrarCarregamento.fornecedor || 'Elétrico'}
+                              </span>
+                            </div>
+                          </div>
+                        )}
                       </div>
                     ) : (
                       <div className="flex items-center gap-2 text-slate-400 italic text-[10px] opacity-70 border-t border-slate-100/60 pt-1">
@@ -334,7 +356,7 @@ export default function MotoristasList({
                         </div>
                         <div className="flex flex-col leading-none">
                           <span className="font-mono font-bold text-slate-700 text-[11px]">
-                            {mostrarViaVerde.transponder || mostrarViaVerde.numero || 'Ativo'}
+                            {mostrarViaVerde.numeroAparelho || 'Ativo'}
                           </span>
                           <span className="text-[9px] text-teal-600 font-extrabold uppercase tracking-wider">
                             Via Verde

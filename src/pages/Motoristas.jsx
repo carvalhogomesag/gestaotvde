@@ -5,9 +5,9 @@
  * Página de gestão de Motoristas do ERP.
  * Atualizado com:
  * - Filtros integrados, mini-dashboard analítico (KPIs) compacto.
- * - Sincronização bidirecional em tempo real do Firestore.
+ * - Sincronização bidirecional em tempo real do Firestore (Veículos, Cartões e real viaverde_aparelhos).
  * - Injeção de Título e Botão "Novo Motorista" via React Portal diretamente no Header.
- * - Passagem de propriedade 'veiculos' para a listagem para permitir integridade de dados e limpeza de cache.
+ * - Passagem das propriedades 'veiculos', 'cartoes' e 'viaVerdes' para a listagem para garantir integridade e reatividade.
  * - [NOVO]: Implementada limpeza atómica em lote (writeBatch) na eliminação do motorista
  *           para desassociar automaticamente Cartões e Veículos vinculados a ele.
  */
@@ -74,6 +74,7 @@ export default function Motoristas() {
   const [motoristas, setMotoristas] = useState([]);
   const [veiculos, setVeiculos] = useState([]);
   const [cartoes, setCartoes] = useState([]);
+  const [viaVerdes, setViaVerdes] = useState([]);
   const [funcionarios, setFuncionarios] = useState([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState(null);
@@ -104,6 +105,7 @@ export default function Motoristas() {
   };
 
   useEffect(() => {
+    // 1. Escuta de Motoristas
     const qM = query(collection(db, "motoristas"));
     const unsubscribe = onSnapshot(qM, (snapshot) => {
       const lista = snapshot.docs.map(d => ({ id: d.id, ...d.data() }));
@@ -118,14 +120,24 @@ export default function Motoristas() {
       }
     });
 
+    // 2. Escuta de Veículos
     const unsubscribeVeiculos = onSnapshot(query(collection(db, "veiculos")), (snapshot) => {
       setVeiculos(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
+    // 3. Escuta de Cartões de Abastecimento/Carregamento
     const unsubscribeCartoes = onSnapshot(query(collection(db, "cartoes")), (snapshot) => {
       setCartoes(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
     });
 
+    // 4. Escuta de Identificadores Via Verde (na coleção real viaverde_aparelhos)
+    const unsubscribeViaVerdes = onSnapshot(query(collection(db, "viaverde_aparelhos")), (snapshot) => {
+      setViaVerdes(snapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+    }, (error) => {
+      console.warn("Coleção 'viaverde_aparelhos' em processo de carga ou indisponível:", error);
+    });
+
+    // 5. Carga rápida de Funcionários para fluxo de Tickets
     getDocs(query(collection(db, "usuarios"))).then(snapU => {
       setFuncionarios(snapU.docs.map(d => ({ id: d.id, ...d.data() })));
     });
@@ -134,6 +146,7 @@ export default function Motoristas() {
       unsubscribe();
       unsubscribeVeiculos();
       unsubscribeCartoes();
+      unsubscribeViaVerdes();
     };
   }, [editingId, handleEditClick]);
 
@@ -321,7 +334,7 @@ export default function Motoristas() {
   };
 
   /**
-   * [ATUALIZADO] ELIMINAÇÃO DE MOTORISTA COM LIMPEZA ATÓMICA DE RELAÇÕES (BATCH)
+   * ELIMINAÇÃO DE MOTORISTA COM LIMPEZA ATÓMICA DE RELAÇÕES (BATCH)
    * Desassocia automaticamente veículos e cartões de consumo ativos vinculados ao motorista.
    */
   const handleDelete = async (id) => {
@@ -456,6 +469,8 @@ export default function Motoristas() {
           <MotoristasList 
             motoristas={motoristas} 
             veiculos={veiculos} 
+            cartoes={cartoes}
+            viaVerdes={viaVerdes}
             onEdit={handleEditClick} 
             onDelete={handleDelete} 
           />
