@@ -12,6 +12,7 @@
  * - Histórico formatado com Data e Hora detalhadas em Português (PT-PT).
  * - Visualização dinâmica e reativa em tempo real do identificador Via Verde associado ao motorista.
  * - [NOVO]: Trava de segurança no dropdown de frotas para ocultar viaturas 24h ocupadas ou turnos partilhados preenchidos.
+ * - [NOVO]: Integração do gerador de contratos TVDE automatizado com base nos dados reais no fim do modal de documentos.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -32,6 +33,7 @@ import { useAuth } from '../../context/AuthContext';
 import { logAcaoGlobal } from '../../utils/logger';
 import { formatCurrency } from '../../utils/formatters';
 import ModalFinanceiro from '../financeiro/ModalFinanceiro';
+import ContratoGerador from './ContratoGerador';
 
 /**
  * Função Auxiliar: Formata qualquer texto em Title Case,
@@ -252,7 +254,7 @@ export default function MotoristaForm({
     window.open(url, 'Visualização', `width=${width},height=${height},top=${top},left=${left},menubar=no,status=no`);
   };
 
-  // Sincronização em tempo real do identificador Via Verde deste motorista
+  // Sincronização em tempo real do identificador Via Verde deste motorista [1]
   useEffect(() => {
     const motoristaId = initialData.id || formData.id;
     if (!motoristaId) {
@@ -839,6 +841,13 @@ export default function MotoristaForm({
                 <DocumentCard title="Comprovativo IBAN" slots={[{ label: "Ficheiro", fileUrl: formData.docIBAN, uploadField: "docIBAN", folder: "motoristas/iban" }]} />
                 <DocumentCard title="Comprovativo Morada" slots={[{ label: "Ficheiro", fileUrl: formData.docMorada, uploadField: "docMorada", folder: "motoristas/morada" }]} />
               </div>
+
+              {/* [NOVO] GERADOR DE CONTRATO COMPONENTIZADO EM TEMPO REAL */}
+              {initialData.id && (
+                <div className="mt-6 border-t border-slate-100 pt-6">
+                  <ContratoGerador motorista={formData} />
+                </div>
+              )}
             </div>
             <div className="mt-4 pt-4 border-t border-slate-100 flex justify-end shrink-0">
               <Button type="button" onClick={() => setModalDocumentosAberto(false)} className="px-6 h-10 text-xs shadow-md">Confirmar e Fechar</Button>
@@ -878,7 +887,7 @@ export default function MotoristaForm({
                     }}
                   >
                     <option value="">Nenhum Veículo Atribuído (Em Stock)</option>
-                    {/* [ATUALIZADO] Renderiza estritamente as viaturas que estão realmente disponíveis para este motorista */}
+                    {/* Renderiza as viaturas que estão realmente disponíveis para este motorista */}
                     {veiculosDisponiveis.map(v => (
                       <option key={v.id} value={v.id}>
                         {v.matricula} — {v.marca} {v.modelo}
@@ -887,7 +896,7 @@ export default function MotoristaForm({
                   </select>
                 </div>
 
-                {/* [NOVO] Visualização de Identificador Via Verde Ativo do Motorista */}
+                {/* Visualização de Identificador Via Verde Ativo do Motorista [1] */}
                 <div className="pt-1">
                   {viaVerdeAtiva ? (
                     <div className="p-3 bg-emerald-50 rounded-xl border border-emerald-100 flex items-center gap-2.5 text-emerald-800 animate-in fade-in duration-200">
@@ -896,7 +905,7 @@ export default function MotoristaForm({
                       </div>
                       <div>
                         <p className="text-[10px] font-black uppercase tracking-wider text-emerald-700">Identificador Via Verde Ativo</p>
-                        <p className="text-xs font-black font-mono">{viaVerdeAtiva.numeroAparelho} ({viaVerdeAtiva.id})</p>
+                        <p className="text-xs font-black font-mono">{viaVerdeAtiva.numeroAparelho}</p>
                         <p className="text-[9px] text-emerald-600 font-bold">Entregue em: {formatDataHora(viaVerdeAtiva.dataAtribuicao)}</p>
                       </div>
                     </div>
