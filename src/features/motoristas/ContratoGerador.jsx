@@ -3,14 +3,15 @@
  * Localização: src/features/motoristas/ContratoGerador.jsx
  *
  * Componente modular autónomo para geração e descarga do PDF de Contrato 
- * de Prestação de Serviços TVDE baseado na minuta regulamentar.
+ * de Prestação de Serviços TVDE baseado na minuta e parâmetros financeiros reais.
  */
 
 import React, { useState, useEffect } from 'react';
 import { jsPDF } from 'jspdf';
 import { db } from '../../firebase';
 import { doc, getDoc } from 'firebase/firestore';
-import { FileCheck, Loader2, AlertCircle, Euro, MapPin, Calendar } from 'lucide-react';
+import { getConfiguracaoFinanceira, getCaucaoAtiva } from '../../services/financeiroService';
+import { FileCheck, Loader2, AlertCircle, Euro, MapPin, Calendar, Sparkles } from 'lucide-react';
 import Button from '../../components/ui/Button';
 
 // Helper to format today's date in full PT-PT
@@ -27,6 +28,7 @@ export default function ContratoGerador({ motorista }) {
   const [operador, setOperador] = useState(null);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+  const [isFinSynced, setIsFinSynced] = useState(false);
 
   // Editable parameters for Cláusula 3.ª and 4.ª
   const [params, setParams] = useState({
@@ -37,21 +39,65 @@ export default function ContratoGerador({ motorista }) {
   });
 
   useEffect(() => {
-    const fetchOperador = async () => {
+    const fetchAllContractData = async () => {
+      const motoristaId = motorista.id;
+      if (!motoristaId) {
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
       try {
-        const docRef = doc(db, "configuracoes", "operador");
-        const docSnap = await getDoc(docRef);
-        if (docSnap.exists()) {
-          setOperador(docSnap.data());
+        // 1. Procurar Dados Corporativos do Operador
+        const opRef = doc(db, "configuracoes", "operador");
+        const opSnap = await getDoc(opRef);
+        let opData = null;
+        if (opSnap.exists()) {
+          opData = opSnap.data();
+          setOperador(opData);
         }
+
+        // 2. Procurar Configuração da Taxa de Gestão [2]
+        const configFin = await getConfiguracaoFinanceira(db, motoristaId);
+
+        // 3. Procurar Caução Ativa [2]
+        const caucaoAtiva = await getCaucaoAtiva(db, motoristaId);
+
+        // Atualizar os parâmetros editáveis com dados reais do Firestore
+        setParams(prev => {
+          let taxaStr = '50.00';
+          if (configFin && configFin.ativo) {
+            if (configFin.tipoTaxaGestao === 'percentagem') {
+              taxaStr = `${(configFin.taxaGestaoPct * 100).toFixed(0)}%`;
+            } else {
+              taxaStr = `${Number(configFin.taxaGestao ?? 0).toFixed(2)}`;
+            }
+            setIsFinSynced(true);
+          }
+
+          let caucaoStr = '200.00';
+          if (caucaoAtiva) {
+            caucaoStr = `${Number(caucaoAtiva.valorTotal ?? 0).toFixed(2)}`;
+            setIsFinSynced(true);
+          }
+
+          return {
+            ...prev,
+            valorSemanal: taxaStr,
+            valorCaucao: caucaoStr,
+            local: opData?.cidade || 'Porto',
+          };
+        });
+
       } catch (e) {
-        console.error("Erro ao carregar dados do operador para o contrato:", e);
+        console.error("Erro ao carregar dados consolidados para o contrato:", e);
       } finally {
         setLoading(false);
       }
     };
-    fetchOperador();
-  }, []);
+
+    fetchAllContractData();
+  }, [motorista.id]);
 
   const handleGeneratePdf = () => {
     if (!operador) return;
@@ -150,8 +196,14 @@ export default function ContratoGerador({ motorista }) {
       writeText("O Prestador exercerá a sua atividade de forma autónoma e independente, sem subordinação hierárquica, sendo a presente relação de natureza puramente civil, regida pelo artigo 1154.º e seguintes do Código Civil.", false, 2, 'normal', 9);
 
       writeText("CLÁUSULA 3.ª (Contrapartida e Enquadramento Fiscal)", true, 4, 'bold', 9.5);
-      const clasula3_1 = `Como remuneração pelos serviços de gestão prestados pelo Operador, o Prestador autoriza o desconto direto da quantia semanal de ${params.valorSemanal} € no seu extrato de rendimentos semanal.`;
-      writeText(clasula3_1, false, 2, 'normal', 9);
+      
+      // Ajuste de Redação com Base no Tipo de Taxa (Percentagem ou Fixo)
+      const isPercentagem = params.valorSemanal.includes('%');
+      const redaçãoTaxa = isPercentagem
+        ? `Como remuneração pelos serviços de gestão prestados pelo Operador, o Prestador autoriza o desconto direto da quantia correspondente a ${params.valorSemanal} de taxa de gestão sobre a sua receita bruta semanal.`
+        : `Como remuneração pelos serviços de gestão prestados pelo Operador, o Prestador autoriza o desconto direto da quantia semanal de ${params.valorSemanal} € no seu extrato de rendimentos semanal.`;
+
+      writeText(redaçãoTaxa, false, 2, 'normal', 9);
       
       const clasula3_2 = `O Prestador declara ter conhecimento de que, ao ultrapassar o limite de volume de faturação anual previsto no artigo 53.º do Código do IVA, passará a estar enquadrado no regime normal de IVA. Nessa condição, o Prestador obriga-se a aplicar a taxa de 6% de IVA aos valores faturados ao Operador (referentes à prestação de serviços de transporte), sendo o referido montante de IVA adicionado ao valor base da sua fatura/recibo, de forma a que o Prestador proceda à respetiva liquidação e entrega do imposto ao Estado na sua Declaração Periódica de IVA (trimestral ou mensal).`;
       writeText(clasula3_2, false, 2, 'normal', 9);
@@ -222,7 +274,7 @@ export default function ContratoGerador({ motorista }) {
     return (
       <div className="flex items-center justify-center p-6 text-slate-400">
         <Loader2 className="animate-spin text-tvde-primary mr-2" size={16} />
-        <span className="text-xs font-semibold">A validar dados do operador...</span>
+        <span className="text-xs font-semibold">A validar dados do operador e fichas financeiras...</span>
       </div>
     );
   }
@@ -244,19 +296,27 @@ export default function ContratoGerador({ motorista }) {
 
   return (
     <div className="bg-slate-50/70 p-4 rounded-2xl border border-slate-200 text-left space-y-3.5 select-none animate-in fade-in duration-200">
-      <div className="flex items-center gap-2">
-        <div className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg">
-          <FileCheck size={16} />
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="p-1.5 bg-emerald-50 text-emerald-600 rounded-lg">
+            <FileCheck size={16} />
+          </div>
+          <span className="text-[10px] font-black text-slate-700 uppercase tracking-tight">
+            Geração de Contrato TVDE Automatizado
+          </span>
         </div>
-        <span className="text-[10px] font-black text-slate-700 uppercase tracking-tight">
-          Geração de Contrato TVDE Automatizado
-        </span>
+
+        {isFinSynced && (
+          <div className="flex items-center gap-1 text-[9px] bg-emerald-50 text-emerald-600 border border-emerald-200 px-2 py-0.5 rounded-full font-bold">
+            <Sparkles size={10} className="animate-pulse" /> Sincronizado
+          </div>
+        )}
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
         <div>
           <label className="block text-[8px] font-black text-slate-400 uppercase mb-1 flex items-center gap-1">
-            Taxa Semanal (€)
+            <Euro size={10} /> Taxa Semanal
           </label>
           <input
             type="text"
@@ -268,7 +328,7 @@ export default function ContratoGerador({ motorista }) {
 
         <div>
           <label className="block text-[8px] font-black text-slate-400 uppercase mb-1 flex items-center gap-1">
-            Caução (€)
+            <Euro size={10} /> Caução
           </label>
           <input
             type="text"
@@ -280,7 +340,7 @@ export default function ContratoGerador({ motorista }) {
 
         <div>
           <label className="block text-[8px] font-black text-slate-400 uppercase mb-1 flex items-center gap-1">
-            Local da Assinatura
+            <MapPin size={10} /> Local da Assinatura
           </label>
           <input
             type="text"
@@ -292,7 +352,7 @@ export default function ContratoGerador({ motorista }) {
 
         <div>
           <label className="block text-[8px] font-black text-slate-400 uppercase mb-1 flex items-center gap-1">
-            Data do Contrato
+            <Calendar size={10} /> Data do Contrato
           </label>
           <input
             type="text"
