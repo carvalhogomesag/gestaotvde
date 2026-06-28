@@ -4,8 +4,8 @@
  *
  * Formulário de edição e criação de viaturas.
  * Refatorado de forma limpa com sub-modais importados fisicamente para melhor gestão.
- * Corrigido: Restaurado o método de toggle de categorias (handleCategoriaToggle) 
- *            no escopo do componente orquestrador principal.
+ * Corrigido: Renderização condicional estrita de todos os sub-modais no DOM 
+ *            para evitar que fiquem presos ou montados simultaneamente.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -156,7 +156,7 @@ export default function VeiculoForm({
     return () => unsubscribe();
   }, []);
 
-  // [RESTAURADO] Método de toggle de categorias ativas
+  // Método de toggle de categorias ativas
   const handleCategoriaToggle = (cat) => {
     setCategoriasSelecionadas(prev => {
       if (prev.includes(cat)) {
@@ -273,13 +273,30 @@ export default function VeiculoForm({
         </CollapsibleSection>
       )}
 
-      {/* RENDERIZAÇÃO DOS SUB-MODAIS CONTROLADOS PELO ESTADO */}
-      <ModalIdentificacao isOpen={modalIdentificacaoAberto} onClose={() => setModalIdentificacaoAberto(false)} formData={formData} setFormData={setFormData} isReadOnly={isReadOnly} veiculos={veiculos} limiteAnosTVDE={limiteAnosTVDE} categoriasSelecionadas={categoriasSelecionadas} handleCategoriaToggle={handleCategoriaToggle} />
-      <ModalAtribuicoes isOpen={modalAtribuicoesAberto} onClose={() => setModalAtribuicoesAberto(false)} formData={formData} setFormData={setFormData} isReadOnly={isReadOnly} initialData={initialData} proprietarios={proprietarios} motoristas={motoristas} aparelhosAtivos={aparelhosAtivos} onCriarProprietario={onCriarProprietario} onCriarMotorista={onCriarMotorista} />
-      <ModalTarifas isOpen={modalTarifasAberto} onClose={() => setModalTarifasAberto(false)} formData={formData} setFormData={setFormData} isReadOnly={isReadOnly} />
-      <ModalDocumentos isOpen={modalDocumentosAberto} onClose={() => setModalDocumentosAberto(false)} formData={formData} setFormData={setFormData} isReadOnly={isReadOnly} />
-      <ModalContaCorrente isOpen={modalContaCorrenteAberto} onClose={() => setModalContaCorrenteAberto(false)} formData={formData} isReadOnly={isReadOnly} movimentos={movimentos} setMovimentos={setMovimentos} userData={userData} initialData={initialData} />
-      <ModalCartoes isOpen={modalCartoesAberto} onClose={() => setModalCartoesAberto(false)} cartoesAtribuidos={cartoesAtribuidos} />
+      {/* [NOVO / CORRIGIDO] RENDERIZAÇÃO CONDICIONAL ESTRETA DE SUB-MODAIS */}
+      {modalIdentificacaoAberto && (
+        <ModalIdentificacao isOpen={modalIdentificacaoAberto} onClose={() => setModalIdentificacaoAberto(false)} formData={formData} setFormData={setFormData} isReadOnly={isReadOnly} veiculos={veiculos} limiteAnosTVDE={limiteAnosTVDE} categoriasSelecionadas={categoriasSelecionadas} handleCategoriaToggle={handleCategoriaToggle} />
+      )}
+      
+      {modalAtribuicoesAberto && (
+        <ModalAtribuicoes isOpen={modalAtribuicoesAberto} onClose={() => setModalAtribuicoesAberto(false)} formData={formData} setFormData={setFormData} isReadOnly={isReadOnly} initialData={initialData} proprietarios={proprietarios} motoristas={motoristas} aparelhosAtivos={aparelhosAtivos} onCriarProprietario={onCriarProprietario} onCriarMotorista={onCriarMotorista} />
+      )}
+      
+      {modalTarifasAberto && (
+        <ModalTarifas isOpen={modalTarifasAberto} onClose={() => setModalTarifasAberto(false)} formData={formData} setFormData={setFormData} isReadOnly={isReadOnly} />
+      )}
+      
+      {modalDocumentosAberto && (
+        <ModalDocumentos isOpen={modalDocumentosAberto} onClose={() => setModalDocumentosAberto(false)} formData={formData} setFormData={setFormData} isReadOnly={isReadOnly} />
+      )}
+      
+      {modalContaCorrenteAberto && (
+        <ModalContaCorrente isOpen={modalContaCorrenteAberto} onClose={() => setModalContaCorrenteAberto(false)} formData={formData} isReadOnly={isReadOnly} movimentos={movimentos} setMovimentos={setMovimentos} userData={userData} initialData={initialData} />
+      )}
+      
+      {modalCartoesAberto && (
+        <ModalCartoes isOpen={modalCartoesAberto} onClose={() => setModalCartoesAberto(false)} cartoesAtribuidos={cartoesAtribuidos} />
+      )}
 
       {/* BOTÕES FIXOS NO RODAPÉ */}
       <div className="flex gap-3 mt-6 sticky bottom-0 bg-white pt-4 border-t border-slate-50">
