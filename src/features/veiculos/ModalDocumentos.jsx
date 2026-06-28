@@ -1,10 +1,26 @@
+/**
+ * ModalDocumentos.jsx
+ * Localização: src/features/veiculos/ModalDocumentos.jsx
+ *
+ * Sub-modal de Documentação e Fotografias do Veículo.
+ * Corrigido: Adicionado o ícone FileText nas importações de lucide-react.
+ */
+
 import React from 'react';
-import { X, Eye, Trash2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { X, Eye, Trash2, CheckCircle2, AlertCircle, FileText } from 'lucide-react';
 import Button from '../../components/ui/Button';
 import FileUpload from '../../components/ui/FileUpload';
 import DatePicker from '../../components/ui/DatePicker';
 
-export default function ModalDocumentos({ isOpen, onClose, formData, setFormData, isReadOnly }) {
+export default function ModalDocumentos({ 
+  isOpen, 
+  onClose, 
+  formData, 
+  setFormData, 
+  isReadOnly 
+}) {
+  
+  // Componente de cartão de documento interno reutilizável com Thumbnail
   const DocumentCardLocal = ({ label, fileUrl, dateField, folder, uploadField }) => (
     <div className={`p-3 rounded-2xl border transition-all text-left flex flex-col h-full ${fileUrl ? 'bg-white border-slate-200 shadow-sm' : 'bg-slate-50 border-dashed border-slate-300'}`}>
       <div className="flex justify-between items-start mb-2 shrink-0">
@@ -14,8 +30,20 @@ export default function ModalDocumentos({ isOpen, onClose, formData, setFormData
         </div>
         {fileUrl && (
           <div className="flex gap-1 select-none">
-            <a href={fileUrl} target="_blank" rel="noreferrer" className="p-1 text-slate-400 hover:text-tvde-primary hover:bg-slate-100 rounded transition-all"><Eye size={12} /></a>
-            {!isReadOnly && <button type="button" onClick={() => { if (window.confirm("Remover ficheiro?")) setFormData({...formData, [uploadField]: ''}); }} className="p-1 text-slate-400 hover:text-red-500 hover:bg-slate-100 rounded transition-all"><Trash2 size={12} /></button>}
+            <a href={fileUrl} target="_blank" rel="noreferrer" className="p-1 text-slate-400 hover:text-tvde-primary hover:bg-slate-100 rounded transition-all">
+              <Eye size={12} />
+            </a>
+            {!isReadOnly && (
+              <button 
+                type="button" 
+                onClick={() => { 
+                  if (window.confirm("Remover ficheiro?")) setFormData({...formData, [uploadField]: ''}); 
+                }} 
+                className="p-1 text-slate-400 hover:text-red-500 hover:bg-slate-100 rounded transition-all"
+              >
+                <Trash2 size={12} />
+              </button>
+            )}
           </div>
         )}
       </div>
@@ -27,8 +55,14 @@ export default function ModalDocumentos({ isOpen, onClose, formData, setFormData
       )}
 
       <div className="mt-auto space-y-2">
-        {!isReadOnly && !fileUrl && <FileUpload label="Carregar" folder={folder} onUploadComplete={(url) => setFormData({...formData, [uploadField]: url})} />}
-        {dateField && <div className="pt-1.5 border-t border-slate-100"><DatePicker label="Validade" value={formData[dateField]} onChange={(val) => setFormData({...formData, [dateField]: val})} isReadOnly={isReadOnly} /></div>}
+        {!isReadOnly && !fileUrl && (
+          <FileUpload label="Carregar" folder={folder} onUploadComplete={(url) => setFormData({...formData, [uploadField]: url})} />
+        )}
+        {dateField && (
+          <div className="pt-1.5 border-t border-slate-100">
+            <DatePicker label="Validade" value={formData[dateField]} onChange={(val) => setFormData({...formData, [dateField]: val})} isReadOnly={isReadOnly} />
+          </div>
+        )}
       </div>
     </div>
   );
@@ -38,7 +72,9 @@ export default function ModalDocumentos({ isOpen, onClose, formData, setFormData
       <div className="absolute inset-0" onClick={onClose} />
       <div className="relative bg-white rounded-t-[2.5rem] sm:rounded-3xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden p-6 sm:p-8 animate-in slide-in-from-bottom sm:zoom-in-95 duration-200 text-left">
         <button type="button" onClick={onClose} className="absolute top-4 right-4 p-1.5 text-slate-400 hover:bg-slate-50 hover:text-slate-600 rounded-full transition-all cursor-pointer"><X size={18} /></button>
-        <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-2 mb-4 border-b border-slate-100 pb-3 select-none"><FileText size={18} className="text-blue-500" /> Documentação & Foto da Viatura</h3>
+        <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider flex items-center gap-2 mb-4 border-b border-slate-100 pb-3 select-none">
+          <FileText size={18} className="text-blue-500" /> Documentação & Foto da Viatura
+        </h3>
         
         <div className="space-y-4 overflow-y-auto pr-2 custom-scrollbar">
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
