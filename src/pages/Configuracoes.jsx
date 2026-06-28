@@ -5,8 +5,9 @@
  * Página de controlo e parametrização geral do ERP.
  * Otimizado com:
  * - Gestão de acessos à equipa administrativa.
- * - [CORRIGIDO] Adição da função fecharModal para corrigir o erro de runtime.
  * - Separador de configuração de frotas ("Veículos") para parametrizar limite de anos TVDE.
+ * - [NOVO]: Separador "Dados do Operador" para armazenar informações corporativas portuguesas 
+ *           destinadas à elaboração de contratos automatizados.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -27,10 +28,24 @@ export default function Configuracoes() {
   const [editingUser, setEditingUser] = useState(null);
 
   // Estados para o separador de frotas e parametrização
-  const [activeTab, setActiveTab] = useState('acessos'); // 'acessos' ou 'veiculos'
+  const [activeTab, setActiveTab] = useState('acessos'); // 'acessos', 'veiculos' ou 'operador'
   const [limiteAnosTVDE, setLimiteAnosTVDE] = useState(7);
   const [loadingConfig, setLoadingConfig] = useState(false);
   const [savingConfig, setSavingConfig] = useState(false);
+
+  // [NOVO] Estados para o separador de Dados do Operador TVDE
+  const [dadosOperador, setDadosOperador] = useState({
+    nomeEmpresa: '',
+    rua: '',
+    numero: '',
+    complemento: '',
+    codigoPostal: '',
+    cidade: '',
+    nif: '',
+    representante: ''
+  });
+  const [loadingOperador, setLoadingOperador] = useState(false);
+  const [savingOperador, setSavingOperador] = useState(false);
 
   // Carrega os dados de utilizadores
   const fetchUsuarios = async () => {
@@ -60,10 +75,36 @@ export default function Configuracoes() {
     }
   };
 
+  // [NOVO] Carrega as configurações do Operador TVDE
+  const fetchConfigOperador = async () => {
+    setLoadingOperador(true);
+    try {
+      const docSnap = await getDoc(doc(db, "configuracoes", "operador"));
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        setDadosOperador({
+          nomeEmpresa: data.nomeEmpresa || '',
+          rua: data.rua || '',
+          numero: data.numero || '',
+          complemento: data.complemento || '',
+          codigoPostal: data.codigoPostal || '',
+          cidade: data.cidade || '',
+          nif: data.nif || '',
+          representante: data.representante || ''
+        });
+      }
+    } catch (error) {
+      console.error("Erro ao carregar dados do operador:", error);
+    } finally {
+      setLoadingOperador(false);
+    }
+  };
+
   useEffect(() => {
     if (userData?.role === 'admin') {
       fetchUsuarios();
       fetchConfig();
+      fetchConfigOperador();
     }
   }, [userData]);
 
@@ -117,6 +158,39 @@ export default function Configuracoes() {
     }
   };
 
+  // [NOVO] Grava as parametrizações do Operador TVDE
+  const handleSaveConfigOperador = async () => {
+    if (!dadosOperador.nomeEmpresa || !dadosOperador.nif || !dadosOperador.representante) {
+      alert("Os campos Nome da Empresa, NIF e Nome do Representante são obrigatórios.");
+      return;
+    }
+
+    setSavingOperador(true);
+    try {
+      const configRef = doc(db, "configuracoes", "operador");
+      await setDoc(configRef, {
+        ...dadosOperador,
+        atualizadoPor: userData?.nome || 'Administrador',
+        dataAtualizacao: new Date().toISOString()
+      }, { merge: true });
+
+      await logAcaoGlobal(
+        userData?.nome || 'Administrador', 
+        "Configuração Operador", 
+        "Geral", 
+        `Dados da empresa ${dadosOperador.nomeEmpresa} atualizados`, 
+        "operador"
+      );
+
+      alert("Dados do Operador guardados com sucesso!");
+    } catch (error) {
+      console.error("Erro ao salvar dados do operador:", error);
+      alert("Erro ao registar as informações corporativas.");
+    } finally {
+      setSavingOperador(false);
+    }
+  };
+
   const handleDelete = async (id) => {
     if (window.confirm("Remover acesso deste utilizador?")) {
       try {
@@ -159,7 +233,9 @@ export default function Configuracoes() {
             <Settings className="text-tvde-primary" /> Configurações
           </h1>
           <p className="text-slate-500 text-sm">
-            {activeTab === 'acessos' ? 'Gestão de acessos ao sistema.' : 'Parametrização global de frotas e regras.'}
+            {activeTab === 'acessos' && 'Gestão de acessos à equipa administrativa.'}
+            {activeTab === 'veiculos' && 'Parametrização global de frotas e regras regulamentares.'}
+            {activeTab === 'operador' && 'Parametrização legal dos dados da empresa operador TVDE.'}
           </p>
         </div>
         {activeTab === 'acessos' && (
@@ -173,7 +249,7 @@ export default function Configuracoes() {
       <div className="flex border-b border-slate-100 select-none gap-6">
         <button 
           onClick={() => setActiveTab('acessos')}
-          className={`pb-2.5 px-2 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${activeTab === 'acessos' ? 'border-tvde-primary text-tvde-primary' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+          className={`pb-2.5 px-2 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer ${activeTab === 'acessos' ? 'border-tvde-primary text-tvde-primary font-black' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
         >
           👤 Equipa & Permissões
         </button>
@@ -182,6 +258,12 @@ export default function Configuracoes() {
           className={`pb-2.5 px-2 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer flex items-center gap-2 ${activeTab === 'veiculos' ? 'border-indigo-600 text-indigo-600 font-black' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
         >
           <Car size={14} /> Parametrizar Veículos
+        </button>
+        <button 
+          onClick={() => setActiveTab('operador')}
+          className={`pb-2.5 px-2 text-xs font-black uppercase tracking-wider border-b-2 transition-all cursor-pointer flex items-center gap-2 ${activeTab === 'operador' ? 'border-emerald-600 text-emerald-600 font-black' : 'border-transparent text-slate-400 hover:text-slate-600'}`}
+        >
+          <ShieldCheck size={14} /> Dados do Operador
         </button>
       </div>
 
@@ -272,45 +354,191 @@ export default function Configuracoes() {
                     <p className="mt-1 leading-relaxed opacity-90">
                       Atualmente a lei portuguesa impõe o limite estrito de <strong>7 anos</strong>. 
                       Se a nova proposta de alteração legislativa for ratificada para <strong>10 anos</strong>, mude o valor acima e guarde para atualizar de forma imediata todas as fichas de viatura do sistema.
-                  </p>
+                    </p>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            <div className="pt-4 border-t border-slate-100 flex justify-end">
-              <Button 
-                onClick={handleSaveConfigVeiculos} 
-                disabled={savingConfig || !limiteAnosTVDE}
-                className="px-6 h-10 text-xs shadow-md"
-              >
-                {savingConfig ? (
-                  <span className="flex items-center gap-2">
-                    <Loader2 className="animate-spin" size={14} /> A Guardar...
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-1.5">
-                    <Save size={14} /> Guardar Parâmetros
-                  </span>
-                )}
-              </Button>
+              <div className="pt-4 border-t border-slate-100 flex justify-end">
+                <Button 
+                  onClick={handleSaveConfigVeiculos} 
+                  disabled={savingConfig || !limiteAnosTVDE}
+                  className="px-6 h-10 text-xs shadow-md"
+                >
+                  {savingConfig ? (
+                    <span className="flex items-center gap-2">
+                      <Loader2 className="animate-spin" size={14} /> A Guardar...
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1.5">
+                      <Save size={14} /> Guardar Parâmetros
+                    </span>
+                  )}
+                </Button>
+              </div>
             </div>
           </div>
-        </div>
-      )
-    )}
+        )
+      )}
 
-    {/* MODAL UTILIZADORES */}
-    <Modal 
-      isOpen={isModalOpen} 
-      onClose={fecharModal} 
-      title={editingUser ? "Editar Permissões" : "Conceder Novo Acesso"}
-    >
-      <UsuarioForm 
-        onSubmit={handleSaveUser} 
-        onCancel={fecharModal} 
-        initialData={editingUser || {}} 
-      />
-    </Modal>
-  </div>
-);
+      {/* [NOVO] CONTEÚDO 3: DADOS DO OPERADOR TVDE */}
+      {activeTab === 'operador' && (
+        loadingOperador ? (
+          <div className="flex justify-center py-20">
+            <Loader2 className="animate-spin text-slate-300" size={32} />
+          </div>
+        ) : (
+          <div className="animate-in fade-in duration-200 text-left max-w-2xl">
+            <div className="bg-white p-6 sm:p-8 rounded-[2rem] border border-slate-200 shadow-sm space-y-6">
+              <div className="flex items-center gap-3">
+                <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl shrink-0">
+                  <ShieldCheck size={24} />
+                </div>
+                <div>
+                  <h3 className="font-black text-slate-800 text-lg">Dados do Operador TVDE</h3>
+                  <p className="text-xs text-slate-400">Configure as informações corporativas para a geração automática de futuros contratos.</p>
+                </div>
+              </div>
+
+              <div className="space-y-4 border-t border-slate-50 pt-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="sm:col-span-2">
+                    <label className="block text-[10px] font-black text-slate-500 uppercase mb-1 ml-1">
+                      Nome da Empresa / Operador *
+                    </label>
+                    <input
+                      type="text"
+                      className="w-full py-2 px-3.5 border border-slate-200 rounded-xl outline-none transition-all text-xs bg-white focus:ring-2 focus:ring-tvde-primary/20 hover:border-slate-300 font-semibold text-slate-800"
+                      placeholder="Ex: Minha Empresa TVDE, Lda"
+                      value={dadosOperador.nomeEmpresa}
+                      onChange={(e) => setDadosOperador({ ...dadosOperador, nomeEmpresa: e.target.value })}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-500 uppercase mb-1 ml-1">
+                      NIF / Contribuinte *
+                    </label>
+                    <input
+                      type="text"
+                      className="w-full py-2 px-3.5 border border-slate-200 rounded-xl outline-none transition-all text-xs bg-white focus:ring-2 focus:ring-tvde-primary/20 hover:border-slate-300 font-mono font-bold text-slate-800"
+                      placeholder="Ex: 500100200"
+                      value={dadosOperador.nif}
+                      onChange={(e) => setDadosOperador({ ...dadosOperador, nif: e.target.value.replace(/\D/g, '').substring(0, 9) })}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-[10px] font-black text-slate-500 uppercase mb-1 ml-1">
+                      Representante Legal *
+                    </label>
+                    <input
+                      type="text"
+                      className="w-full py-2 px-3.5 border border-slate-200 rounded-xl outline-none transition-all text-xs bg-white focus:ring-2 focus:ring-tvde-primary/20 hover:border-slate-300 font-semibold text-slate-800"
+                      placeholder="Representante que assina os contratos"
+                      value={dadosOperador.representante}
+                      onChange={(e) => setDadosOperador({ ...dadosOperador, representante: e.target.value })}
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2 border-t border-slate-50 pt-4 mt-2">
+                    <h4 className="text-[11px] font-black text-slate-400 uppercase tracking-wider mb-3">Morada Fiscal</h4>
+                    <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                      <div className="sm:col-span-3">
+                        <label className="block text-[9px] font-black text-slate-400 uppercase mb-1 ml-1">Rua / Avenida</label>
+                        <input
+                          type="text"
+                          className="w-full py-2 px-3.5 border border-slate-200 rounded-xl outline-none transition-all text-xs bg-white focus:ring-2 focus:ring-tvde-primary/20 hover:border-slate-300 font-medium"
+                          placeholder="Ex: Avenida da Liberdade"
+                          value={dadosOperador.rua}
+                          onChange={(e) => setDadosOperador({ ...dadosOperador, rua: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-black text-slate-400 uppercase mb-1 ml-1">Número</label>
+                        <input
+                          type="text"
+                          className="w-full py-2 px-3.5 border border-slate-200 rounded-xl outline-none transition-all text-xs bg-white focus:ring-2 focus:ring-tvde-primary/20 hover:border-slate-300 font-medium"
+                          placeholder="Ex: 12"
+                          value={dadosOperador.numero}
+                          onChange={(e) => setDadosOperador({ ...dadosOperador, numero: e.target.value })}
+                        />
+                      </div>
+                      <div className="sm:col-span-2">
+                        <label className="block text-[9px] font-black text-slate-400 uppercase mb-1 ml-1">Complemento (Lote, andar, etc.)</label>
+                        <input
+                          type="text"
+                          className="w-full py-2 px-3.5 border border-slate-200 rounded-xl outline-none transition-all text-xs bg-white focus:ring-2 focus:ring-tvde-primary/20 hover:border-slate-300 font-medium"
+                          placeholder="Ex: 2º Esquerdo"
+                          value={dadosOperador.complemento}
+                          onChange={(e) => setDadosOperador({ ...dadosOperador, complemento: e.target.value })}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-black text-slate-400 uppercase mb-1 ml-1">Código Postal</label>
+                        <input
+                          type="text"
+                          className="w-full py-2 px-3.5 border border-slate-200 rounded-xl outline-none transition-all text-xs bg-white focus:ring-2 focus:ring-tvde-primary/20 hover:border-slate-300 font-mono"
+                          placeholder="Ex: 1000-124"
+                          value={dadosOperador.codigoPostal}
+                          onChange={(e) => {
+                            let val = e.target.value.replace(/\D/g, '').substring(0, 7);
+                            if (val.length > 4) {
+                              val = `${val.slice(0, 4)}-${val.slice(4)}`;
+                            }
+                            setDadosOperador({ ...dadosOperador, codigoPostal: val });
+                          }}
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-black text-slate-400 uppercase mb-1 ml-1">Cidade</label>
+                        <input
+                          type="text"
+                          className="w-full py-2 px-3.5 border border-slate-200 rounded-xl outline-none transition-all text-xs bg-white focus:ring-2 focus:ring-tvde-primary/20 hover:border-slate-300 font-medium"
+                          placeholder="Ex: Lisboa"
+                          value={dadosOperador.cidade}
+                          onChange={(e) => setDadosOperador({ ...dadosOperador, cidade: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="pt-4 border-t border-slate-100 flex justify-end">
+                <Button 
+                  onClick={handleSaveConfigOperador} 
+                  disabled={savingOperador}
+                  className="px-6 h-10 text-xs shadow-md bg-emerald-600 hover:bg-emerald-700"
+                >
+                  {savingOperador ? (
+                    <span className="flex items-center gap-2">
+                      <Loader2 className="animate-spin" size={14} /> A Guardar...
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1.5">
+                      <Save size={14} /> Guardar Dados do Operador
+                    </span>
+                  )}
+                </Button>
+              </div>
+            </div>
+          </div>
+        )
+      )}
+
+      {/* MODAL UTILIZADORES */}
+      <Modal 
+        isOpen={isModalOpen} 
+        onClose={fecharModal} 
+        title={editingUser ? "Editar Permissões" : "Conceder Novo Acesso"}
+      >
+        <UsuarioForm 
+          onSubmit={handleSaveUser} 
+          onCancel={fecharModal} 
+          initialData={editingUser || {}} 
+        />
+      </Modal>
+    </div>
+  );
 }
