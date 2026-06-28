@@ -8,7 +8,8 @@
  * - Auto-corretor em segundo plano para manter conformidade de estado no Firestore.
  * - Filtros rápidos no cabeçalho integrados.
  * - Layout atualizado: Contactos sob o nome do motorista; nova coluna para Veículo Atribuído.
- * - [NOVO] Referência cruzada reativa estrita com a coleção 'veiculos' para eliminar em definitivo dados órfãos/fantasmas de viaturas excluídas.
+ * - [ATUALIZADO]: Referência cruzada estrita baseada na soberania do documento de veículo (Firestore)
+ *                 para eliminar de vez desfasamentos de cache ou duplicados visuais.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -115,8 +116,8 @@ export default function MotoristasList({ motoristas, veiculos = [], onEdit, onDe
         (m.telemovel || '').toLowerCase().includes(queryGlobal) ||
         (m.nif || '').toLowerCase().includes(queryGlobal);
 
-      // [ATUALIZADO] Cruzamento de dados de viaturas ativos estrito sem contingência falível
-      const vInfo = m.veiculoId ? veiculos.find(v => v.id === m.veiculoId) : null;
+      // [ATUALIZADO] O filtro do ecrã passa a pesquisar pelo veículo real associado na tabela de viaturas do Firestore
+      const vInfo = veiculos.find(v => v.motoristaId === m.id || v.motoristaId2 === m.id);
 
       // 2. Filtragem por Veículo Atribuído (Matrícula ou Marca/Modelo)
       const queryVeiculo = filterVeiculo.toLowerCase();
@@ -211,8 +212,9 @@ export default function MotoristasList({ motoristas, veiculos = [], onEdit, onDe
             const aiReview = needsAIValidation(m);
             const isDriverActive = m.status === 'Ativo' && !incomplete;
             
-            // [ATUALIZADO] Referência cruzada reativa estrita baseada apenas nos veículos ativos do Firestore
-            const mostrarVeiculo = m.veiculoId ? veiculos.find(v => v.id === m.veiculoId) : null;
+            // [ATUALIZADO] A listagem agora consulta os veículos reais em tempo real
+            // Se o motorista não constar no documento do carro no Firestore, a viatura é tratada como vazia
+            const mostrarVeiculo = veiculos.find(v => v.motoristaId === m.id || v.motoristaId2 === m.id);
 
             return (
               <tr key={m.id} className="hover:bg-slate-50/50 transition-colors">
@@ -241,7 +243,7 @@ export default function MotoristasList({ motoristas, veiculos = [], onEdit, onDe
                   </div>
                 </td>
                 
-                {/* COLUNA 2: Veículo Atribuído (Reativo e Imune a Exclusões) */}
+                {/* COLUNA 2: Veículo Atribuído (Reativo e Imune a desfasamentos de cache) */}
                 <td className="p-4 text-sm">
                   {mostrarVeiculo ? (
                     <div className="flex items-center gap-2 animate-in fade-in duration-200">
