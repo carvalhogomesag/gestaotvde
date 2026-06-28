@@ -4,7 +4,8 @@
  *
  * Formulário de edição e criação de viaturas.
  * Refatorado de forma limpa com sub-modais importados fisicamente para melhor gestão.
- * Corrigido: Adicionado ícone ArrowRight nos imports de lucide-react para evitar erros de compilação.
+ * Corrigido: Restaurado o método de toggle de categorias (handleCategoriaToggle) 
+ *            no escopo do componente orquestrador principal.
  */
 
 import React, { useState, useEffect } from 'react';
@@ -154,6 +155,18 @@ export default function VeiculoForm({
     });
     return () => unsubscribe();
   }, []);
+
+  // [RESTAURADO] Método de toggle de categorias ativas
+  const handleCategoriaToggle = (cat) => {
+    setCategoriasSelecionadas(prev => {
+      if (prev.includes(cat)) {
+        const filtrado = prev.filter(c => c !== cat);
+        return filtrado.length === 0 ? ['Standard'] : filtrado;
+      } else {
+        return [...prev, cat];
+      }
+    });
+  };
 
   const handleSubmit = (e) => {
     e.preventDefault();
